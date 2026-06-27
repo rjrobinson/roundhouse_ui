@@ -21,7 +21,8 @@ module RoundhouseUi
       "snapshot" => "snapshotted queue", "requeue" => "retried", "destroy" => "deleted",
       "bulk" => "bulk action", "enqueue" => "enqueued now", "restore" => "restored snapshot",
       "quiet" => "quieted process", "stop" => "stopped process",
-      "create" => "enqueued job", "update" => "edited & re-enqueued"
+      "create" => "enqueued job", "update" => "edited & re-enqueued",
+      "cancel" => "requested cancel"
     }.freeze
 
     after_action :record_audit_event, if: -> { request.post? }

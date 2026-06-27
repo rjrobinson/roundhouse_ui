@@ -92,6 +92,22 @@ all of Sidekiq's weighting/ordering. Until it's installed, the Queues page recor
 but **warns that they aren't enforced** (worker and web are separate processes, so
 Roundhouse detects whether a fetcher has reported in).
 
+## Cancelling jobs
+
+Cancellation is cooperative — Ruby can't safely kill a running thread. Install the
+middleware so a cancelled job is dropped before it runs:
+
+```ruby
+# config/initializers/sidekiq.rb
+Sidekiq.configure_server do |config|
+  config.server_middleware { |chain| chain.add RoundhouseUi::CancelMiddleware }
+end
+```
+
+The **Busy** page's Cancel button flags a job's JID. A queued/scheduled/retrying job
+is then skipped when it would next run; a *currently running* job stops only if it
+checks in — e.g. a long loop can `break if RoundhouseUi.cancelled?(jid)`.
+
 ## Observability deep-links
 
 The core depends on nothing — it asks the configured adapter for a URL and renders a link

@@ -7,6 +7,8 @@ require "roundhouse_ui/snapshots"
 require "roundhouse_ui/observability"
 require "roundhouse_ui/audit"
 require "roundhouse_ui/redaction"
+require "roundhouse_ui/cancellation"
+require "roundhouse_ui/cancel_middleware"
 
 # Brand name is "Roundhouse"; the gem and Ruby namespace are RoundhouseUi
 # (matching the published gem name `roundhouse_ui`).
@@ -55,6 +57,12 @@ module RoundhouseUi
     #   end
     def configure
       yield self
+    end
+
+    # Cooperative cancellation check for long-running jobs:
+    #   raise SomeStop if RoundhouseUi.cancelled?(jid)
+    def cancelled?(jid)
+      Cancellation.cancelled?(jid)
     end
   end
 

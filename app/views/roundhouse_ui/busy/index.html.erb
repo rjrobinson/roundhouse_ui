@@ -2,10 +2,10 @@
 
 <h2 class="rh-h2">Busy <span class="hint"><%= @work.size %> <%= "job".pluralize(@work.size) %> running now</span></h2>
 <table class="rh-table">
-  <thead><tr><th>Job</th><th>Queue</th><th>Worker</th><th class="r">Running for</th></tr></thead>
+  <thead><tr><th>Job</th><th>Queue</th><th>Worker</th><th class="r">Running for</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @work.empty? %>
-      <tr><td colspan="4" class="rh-empty">No jobs running right now.</td></tr>
+      <tr><td colspan="5" class="rh-empty">No jobs running right now.</td></tr>
     <% else %>
       <% @work.each do |w| %>
         <% elapsed = (Time.now - w[:run_at]).to_i %>
@@ -15,6 +15,7 @@
           <td><span class="rh-sub"><%= w[:queue] %></span></td>
           <td><span class="rh-sub"><%= w[:process] %></span></td>
           <td class="r rh-mono <%= "rh-lat-warn" if long %>"><%= elapsed < 60 ? "#{elapsed}s" : distance_of_time_in_words(0, elapsed) %><%= " ⚠" if long %></td>
+          <td class="r"><%= button_to "Cancel", cancel_job_path(w[:job].jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Request cancellation of #{w[:job].jid}? Cooperative jobs abort; others are skipped on their next attempt." } %></td>
         </tr>
       <% end %>
     <% end %>

@@ -63,6 +63,7 @@ class ActiveSupport::TestCase
       when "LRANGE"    then key, a, b = args; (@lists[key][a..b] || [])
       when "LLEN"      then @lists[args[0]].size
       when "INFO"      then INFO_FIXTURE
+      when "EXPIRE"    then 1
       else raise "FakeRedis: unexpected command #{cmd}"
       end
     end

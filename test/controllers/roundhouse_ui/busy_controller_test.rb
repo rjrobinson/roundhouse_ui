@@ -27,6 +27,25 @@ module RoundhouseUi
       end
     end
 
+    def teardown = RoundhouseUi.read_only = false
+
+    def test_cancel_marks_the_jid
+      with_fake_redis do
+        post "/roundhouse/busy/abc123/cancel"
+        assert_response :redirect
+        assert RoundhouseUi::Cancellation.cancelled?("abc123")
+      end
+    end
+
+    def test_read_only_blocks_cancel
+      RoundhouseUi.read_only = true
+      with_fake_redis do
+        post "/roundhouse/busy/abc123/cancel"
+        assert_response :redirect
+        refute RoundhouseUi::Cancellation.cancelled?("abc123")
+      end
+    end
+
     def test_empty_when_nothing_running
       stub_method(Sidekiq::WorkSet, :new, FakeWorkSet.new([])) do
         get "/roundhouse/busy"

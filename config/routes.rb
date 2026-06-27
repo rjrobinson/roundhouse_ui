@@ -4,6 +4,7 @@ RoundhouseUi::Engine.routes.draw do
   get "turbo.js" => "assets#turbo", as: :turbo_js        # vendored Turbo, served same-origin
 
   get  "busy" => "busy#index", as: :busy
+  post "busy/:jid/cancel" => "busy#cancel", as: :cancel_job, constraints: { jid: /[^\/]+/ }
   get  "workers" => "workers#index", as: :workers
   post "workers/quiet" => "workers#quiet", as: :quiet_worker
   post "workers/stop"  => "workers#stop",  as: :stop_worker
