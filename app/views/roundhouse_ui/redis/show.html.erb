@@ -1,0 +1,59 @@
+<% content_for :title, "Redis" %>
+
+<% policy   = @info["maxmemory_policy"] %>
+<% maxmem   = @info["maxmemory"].to_i %>
+<% used     = @info["used_memory"].to_i %>
+<% evicted  = @info["evicted_keys"].to_i %>
+<% risk     = maxmem.positive? && policy.present? && policy != "noeviction" %>
+<% hits     = @info["keyspace_hits"].to_f %>
+<% misses   = @info["keyspace_misses"].to_f %>
+<% hit_rate = (hits + misses).positive? ? (hits / (hits + misses) * 100).round(1) : 100.0 %>
+<% frag     = @info["mem_fragmentation_ratio"].to_f %>
+<% uptime   = @info["uptime_in_seconds"].to_i %>
+<% keys     = @info.to_a.find { |k, _| k.start_with?("db") }&.last.to_s[/keys=(\d+)/, 1] %>
+
+<% if risk %>
+  <div class="rh-alert">
+    <span class="msg">Eviction policy is <b><%= policy %></b> with a memory cap — Sidekiq jobs can be <strong>evicted and silently lost</strong>. Use <b>noeviction</b> on the Redis that backs Sidekiq.</span>
+  </div>
+<% elsif evicted.positive? %>
+  <div class="rh-alert warn"><span class="msg"><b><%= number_with_delimiter evicted %></b> keys have been evicted on this instance.</span></div>
+<% end %>
+
+<div class="rh-cards">
+  <div class="rh-card">
+    <div class="k">Memory used</div>
+    <div class="v num"><%= @info["used_memory_human"] || number_to_human_size(used) %></div>
+    <div class="d"><%= maxmem.positive? ? "#{(used.to_f / maxmem * 100).round}% of #{number_to_human_size(maxmem)}" : "no cap set" %></div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Ops / sec</div>
+    <div class="v num"><%= number_with_delimiter @info["instantaneous_ops_per_sec"] %></div>
+    <div class="d"><%= number_with_delimiter @info["total_commands_processed"] %> total</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Clients</div>
+    <div class="v num"><%= @info["connected_clients"] %></div>
+    <div class="d"><%= @info["blocked_clients"] %> blocked</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Eviction policy</div>
+    <div class="v" style="font-size:18px; color:<%= risk ? "var(--crit)" : "var(--good)" %>"><%= policy || "—" %></div>
+    <div class="d"><%= evicted.positive? ? "#{number_with_delimiter evicted} evicted" : "0 evicted" %></div>
+  </div>
+</div>
+
+<h2 class="rh-h2">Signals <span class="hint">from <span class="rh-mono">INFO</span></span></h2>
+<table class="rh-table">
+  <tbody>
+    <tr><td>Fragmentation ratio</td><td class="r rh-mono <%= "rh-lat-warn" if frag > 1.5 %>"><%= frag.round(2) %>×</td></tr>
+    <tr><td>Evicted keys</td><td class="r rh-mono" style="<%= "color:var(--crit)" if evicted.positive? %>"><%= number_with_delimiter evicted %></td></tr>
+    <tr><td>Expired keys</td><td class="r rh-mono"><%= number_with_delimiter @info["expired_keys"] %></td></tr>
+    <tr><td>Keyspace hit rate</td><td class="r rh-mono"><%= hit_rate %>%</td></tr>
+    <tr><td>Blocked clients</td><td class="r rh-mono"><%= @info["blocked_clients"] %></td></tr>
+    <tr><td>Rejected connections</td><td class="r rh-mono" style="<%= "color:var(--crit)" if @info["rejected_connections"].to_i.positive? %>"><%= @info["rejected_connections"] %></td></tr>
+    <tr><td>Keys (db0)</td><td class="r rh-mono"><%= keys ? number_with_delimiter(keys) : "—" %></td></tr>
+    <tr><td>Uptime</td><td class="r rh-mono"><%= uptime >= 86_400 ? "#{uptime / 86_400}d" : "#{uptime / 3_600}h" %></td></tr>
+    <tr><td>Redis</td><td class="r rh-mono">v<%= @info["redis_version"] %> · <%= @info["role"] %></td></tr>
+  </tbody>
+</table>

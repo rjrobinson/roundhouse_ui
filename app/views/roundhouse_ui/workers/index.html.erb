@@ -1,0 +1,30 @@
+<% content_for :title, "Workers" %>
+
+<h2 class="rh-h2">Workers · <%= @processes.size %> <%= "process".pluralize(@processes.size) %></h2>
+<table class="rh-table">
+  <thead><tr><th>Process</th><th class="r">Threads</th><th>Queues</th><th class="r">Started</th><th class="r">Heartbeat</th><th class="r">Actions</th></tr></thead>
+  <tbody>
+    <% if @processes.empty? %>
+      <tr><td colspan="6" class="rh-empty">No Sidekiq processes are running.</td></tr>
+    <% else %>
+      <% @processes.each do |p| %>
+        <% stale = p["beat"] && (Time.now.to_f - p["beat"].to_f) > 60 %>
+        <tr>
+          <td>
+            <%= p["hostname"] %>:<%= p["pid"] %><%
+              %><% if p.stopping? %> <span class="rh-err">· stopping</span><% elsif p["quiet"].to_s == "true" %> <span class="rh-sub">· quieting</span><% end %>
+            <br><span class="rh-sub"><%= [ p["tag"], ("v#{p["version"]}" if p["version"]), ("#{(p["rss"].to_i / 1024.0).round} MB" if p["rss"].to_i.positive?) ].compact.join(" · ") %></span>
+          </td>
+          <td class="r"><%= p["busy"] %>/<%= p["concurrency"] %></td>
+          <td><span class="rh-sub"><%= Array(p["queues"]).join(", ") %></span></td>
+          <td class="r"><span class="rh-sub"><%= p["started_at"] ? "#{time_ago_in_words(Time.at(p["started_at"]))} ago" : "—" %></span></td>
+          <td class="r <%= "rh-err" if stale %>"><%= p["beat"] ? "#{distance_of_time_in_words(Time.now, Time.at(p["beat"]))} ago" : "—" %></td>
+          <td class="r">
+            <%= button_to "Quiet", quiet_worker_path, method: :post, params: { identity: p.identity }, class: "rh-btn", form_class: "rh-inline" %>
+            <%= button_to "Stop", stop_worker_path, method: :post, params: { identity: p.identity }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Stop #{p["hostname"]}:#{p["pid"]}?" } %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>

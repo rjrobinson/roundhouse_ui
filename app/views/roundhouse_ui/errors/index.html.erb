@@ -1,0 +1,28 @@
+<% content_for :title, "Errors" %>
+
+<form method="get" action="<%= errors_path %>" class="rh-search">
+  <input type="search" name="q" value="<%= @query %>" placeholder="filter by job class or error…">
+</form>
+
+<h2 class="rh-h2">Errors · <%= @groups.size %> issues</h2>
+<table class="rh-table">
+  <thead><tr><th>Issue</th><th class="r">Occurrences</th><th>In</th><th>Queues</th><th class="r">Last seen</th></tr></thead>
+  <tbody>
+    <% if @groups.empty? %>
+      <tr><td colspan="5" class="rh-empty"><%= @query.present? ? "No issues match “#{@query}”." : "No failing jobs 🎉" %></td></tr>
+    <% else %>
+      <% @groups.each do |g| %>
+        <tr>
+          <td><%= g[:klass] %><br><span class="rh-err"><%= g[:error] %></span></td>
+          <td class="r"><%= number_with_delimiter g[:count] %></td>
+          <td><span class="rh-sub"><%= g[:sources].join(", ") %></span></td>
+          <td><span class="rh-sub"><%= g[:queues].join(", ") %></span></td>
+          <td class="r"><%= g[:last_at] ? "#{time_ago_in_words(g[:last_at])} ago" : "—" %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+<% if @truncated %>
+  <p class="rh-note">Grouped the most recent <%= number_with_delimiter @scan_limit %> failures — older entries not yet scanned.</p>
+<% end %>

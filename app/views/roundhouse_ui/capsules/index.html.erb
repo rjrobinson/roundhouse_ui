@@ -1,0 +1,22 @@
+<% content_for :title, "Capsules" %>
+
+<h2 class="rh-h2">Capsules <span class="hint">Sidekiq 7+ isolated concurrency pools</span></h2>
+<table class="rh-table">
+  <thead><tr><th>Capsule</th><th class="r">Processes</th><th class="r">Concurrency</th><th>Queues (weighted)</th></tr></thead>
+  <tbody>
+    <% if @capsules.empty? %>
+      <tr><td colspan="4" class="rh-empty">No capsule data — no running processes (or workers predate Sidekiq 8.0.8).</td></tr>
+    <% else %>
+      <% @capsules.each do |c| %>
+        <tr>
+          <td class="rh-mono"><%= c[:name] %></td>
+          <td class="r rh-mono"><%= c[:processes] %></td>
+          <td class="r rh-mono"><%= c[:concurrency] %></td>
+          <td>
+            <% c[:queues].each do |queue, weight| %><span class="rh-tag"><%= queue %><% if weight.to_i != 1 %> ×<%= weight %><% end %></span> <% end %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
