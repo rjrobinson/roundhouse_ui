@@ -6,6 +6,7 @@ module RoundhouseUi
 
     def index
       @processes = Sidekiq::ProcessSet.new.to_a
+      @fetch_active = RoundhouseUi::Pause.fetch_installed?
     end
 
     def quiet

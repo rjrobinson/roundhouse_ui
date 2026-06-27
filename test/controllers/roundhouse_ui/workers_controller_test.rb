@@ -48,6 +48,17 @@ module RoundhouseUi
       end
     end
 
+    def test_shows_pause_aware_fetch_indicator_when_fetcher_active
+      with_fake_redis do
+        Pause.mark_fetch_alive!
+        stub_method(Sidekiq::ProcessSet, :new, @set) do
+          get "/roundhouse/workers"
+          assert_response :success
+          assert_match "pause-aware", @response.body
+        end
+      end
+    end
+
     def test_quiet_signals_the_process
       stub_method(Sidekiq::ProcessSet, :new, @set) do
         post "/roundhouse/workers/quiet", params: { identity: "worker-01:4821:abc" }
