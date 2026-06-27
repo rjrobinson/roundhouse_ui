@@ -1,0 +1,21 @@
+<% content_for :title, "Audit log" %>
+
+<h2 class="rh-h2">Audit log <span class="hint">recent state-changing actions, newest first</span></h2>
+<table class="rh-table">
+  <thead><tr><th>Actor</th><th>Action</th><th>Target</th><th class="r">When</th></tr></thead>
+  <tbody>
+    <% if @entries.empty? %>
+      <tr><td colspan="4" class="rh-empty">No actions recorded yet.</td></tr>
+    <% else %>
+      <% @entries.each do |e| %>
+        <tr>
+          <td class="rh-mono" style="color:var(--accent)"><%= e["actor"] %></td>
+          <td><%= e["action"] %></td>
+          <td class="rh-mono"><%= e["target"] %></td>
+          <td class="r rh-sub"><%= e["at"] ? "#{time_ago_in_words(Time.at(e["at"]))} ago" : "—" %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+<p class="rh-note">Set <code>RoundhouseUi.actor_resolver</code> to attribute actions to the signed-in user instead of “anonymous”.</p>

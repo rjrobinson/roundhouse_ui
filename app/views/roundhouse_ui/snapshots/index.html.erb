@@ -1,0 +1,25 @@
+<% content_for :title, "Snapshots" %>
+
+<h2 class="rh-h2">Snapshots · <%= @snapshots.size %></h2>
+<table class="rh-table">
+  <thead><tr><th>Snapshot</th><th>Queue</th><th class="r">Jobs</th><th class="r">Created</th><th class="r">Actions</th></tr></thead>
+  <tbody>
+    <% if @snapshots.empty? %>
+      <tr><td colspan="5" class="rh-empty">No snapshots yet — snapshot a queue before purging it.</td></tr>
+    <% else %>
+      <% @snapshots.each do |s| %>
+        <tr>
+          <td><span class="rh-sub"><%= s[:id] %></span></td>
+          <td><%= s[:queue] %></td>
+          <td class="r"><%= number_with_delimiter s[:count] %></td>
+          <td class="r"><span class="rh-sub"><%= s[:created_at] ? "#{time_ago_in_words(Time.at(s[:created_at]))} ago" : "—" %></span></td>
+          <td class="r">
+            <%= button_to "Restore", restore_snapshot_path(s[:id]), method: :post, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Re-enqueue #{number_with_delimiter s[:count]} job(s) onto “#{s[:queue]}”?" } %>
+            <%= button_to "Delete", delete_snapshot_path(s[:id]), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline" %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+<p class="rh-note">Snapshots are stored via the configured store (default: Redis). Restore re-enqueues onto the original queue.</p>

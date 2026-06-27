@@ -1,0 +1,33 @@
+<% content_for :title, @entry.item["class"] %>
+<% item = @entry.item %>
+
+<div class="rh-tags">
+  <span class="rh-tag"><%= @set %></span>
+  <span class="rh-tag">queue <%= @entry.queue %></span>
+  <% if item["retry_count"] %><span class="rh-tag">retry <%= item["retry_count"] %></span><% end %>
+  <span class="rh-tag rh-mono"><%= @entry.jid %></span>
+</div>
+
+<div class="rh-sec">Arguments<% if RoundhouseUi.redact_args.present? %> <span class="rh-sub">— sensitive keys masked</span><% end %></div>
+<pre class="rh-pre"><%= JSON.pretty_generate(RoundhouseUi::Redaction.apply(item["args"] || [])) %></pre>
+
+<% if item["error_class"].present? %>
+  <div class="rh-sec">Error</div>
+  <div class="rh-err"><%= item["error_class"] %></div>
+  <% if item["error_message"].present? %><p class="rh-sub" style="margin:6px 0 0"><%= item["error_message"] %></p><% end %>
+  <% bt = item["error_backtrace"] %>
+  <% if bt.is_a?(Array) && bt.any? %>
+    <pre class="rh-pre"><%= bt.first(20).join("\n") %></pre>
+  <% end %>
+<% end %>
+
+<% trace = trace_link(klass: item["class"], jid: @entry.jid, queue: @entry.queue) %>
+<% if trace.present? %>
+  <div class="rh-sec">Observability</div>
+  <%= trace %>
+<% end %>
+
+<div class="rh-pager">
+  <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: @set, jid: @entry.jid), class: "rh-btn rh-btn-primary" %><% end %>
+  <%= link_to "← Back", { "dead" => dead_set_path, "retry" => retries_path, "scheduled" => scheduled_path }[@set] || root_path, class: "rh-btn" %>
+</div>

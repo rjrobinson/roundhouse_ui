@@ -1,0 +1,24 @@
+<% if @mode == :new %>
+  <h2 class="rh-h2">Enqueue a job <span class="hint">pushes a new job onto a queue</span></h2>
+<% else %>
+  <h2 class="rh-h2">Edit &amp; re-enqueue <span class="hint">deletes the original, pushes the edited job</span></h2>
+<% end %>
+
+<%= form_with url: @action_path, method: :post do %>
+  <div class="rh-field">
+    <label>Job class</label>
+    <input type="text" name="job_class" value="<%= @job["class"] %>" placeholder="MyApp::SomeJob" autocomplete="off">
+  </div>
+  <div class="rh-field">
+    <label>Queue</label>
+    <input type="text" name="queue" value="<%= @job["queue"] %>">
+  </div>
+  <div class="rh-field">
+    <label>Arguments <span class="rh-sub">— JSON array</span></label>
+    <textarea name="args" rows="8" spellcheck="false"><%= @job["args"] %></textarea>
+  </div>
+  <div class="rh-field">
+    <button type="submit" class="rh-btn rh-btn-primary"><%= @mode == :new ? "Enqueue job" : "Save & re-enqueue" %></button>
+    <%= link_to "Cancel", (@mode == :new ? queues_path : root_path), class: "rh-btn" %>
+  </div>
+<% end %>
