@@ -1,0 +1,68 @@
+<% content_for :title, "Dashboard" %>
+<% content_for :crumb, Rails.env %>
+
+<% stuck = @queues.select { |q| q.latency > 60 } %>
+
+<% if stuck.any? %>
+  <div class="rh-alerts">
+    <% stuck.each do |q| %>
+      <div class="rh-alert <%= "warn" if q.latency <= 600 %>">
+        <span class="msg">Queue <b><%= q.name %></b> is <%= q.latency > 600 ? "stuck" : "over budget" %> — oldest job <%= distance_of_time_in_words(0, q.latency) %>, <%= number_with_delimiter q.size %> waiting</span>
+        <%= link_to "Manage →", queues_path, class: "rh-btn" %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<div class="rh-cards">
+  <div class="rh-card">
+    <% if stuck.any? %>
+      <span class="pill">⚠ Degraded</span>
+      <div class="k"><b style="color:var(--warn)"><%= stuck.first.name %></b> queue over budget</div>
+    <% else %>
+      <span class="pill ok">✓ Healthy</span>
+      <div class="k">all queues within budget</div>
+    <% end %>
+  </div>
+  <div class="rh-card">
+    <div class="k">Processed</div>
+    <div class="v num" data-stat="processed"><%= number_with_delimiter @stats.processed %></div>
+    <div class="d up">▲ <span class="num" data-stat="rate">—</span> / min</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Failed · total</div>
+    <div class="v num" data-stat="failed"><%= number_with_delimiter @stats.failed %></div>
+    <div class="d bad"><span class="num" data-stat="dead"><%= number_with_delimiter @stats.dead_size %></span> dead</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Busy threads</div>
+    <div class="v num" data-stat="busy"><%= @stats.workers_size %></div>
+    <div class="d">enqueued <span class="num" data-stat="enqueued"><%= number_with_delimiter @stats.enqueued %></span></div>
+  </div>
+</div>
+
+<div class="rh-chart-wrap">
+  <div class="top"><h3>Throughput</h3><span class="rh-sub">jobs / sec · live</span><span class="now"><span id="rh-chart-now">—</span>/s</span></div>
+  <canvas id="rh-chart" width="1100" height="180"></canvas>
+</div>
+
+<h2 class="rh-h2">Queues <span class="hint">live · click a queue to manage</span></h2>
+<table class="rh-table">
+  <thead><tr><th>Queue</th><th>State</th><th class="r">Depth</th><th class="r">Oldest job</th><th></th></tr></thead>
+  <tbody>
+    <% if @queues.empty? %>
+      <tr><td colspan="5" class="rh-empty">No active queues</td></tr>
+    <% else %>
+      <% @queues.sort_by { |q| -q.latency }.each do |q| %>
+        <% label, css = queue_state(q.latency) %>
+        <tr>
+          <td class="rh-mono"><%= q.name %></td>
+          <td><span class="rh-st <%= css %>"><%= label %></span></td>
+          <td class="r rh-mono"><%= number_with_delimiter q.size %></td>
+          <td class="r rh-mono <%= "rh-lat-warn" if q.latency > 60 %>"><%= q.latency < 60 ? "#{q.latency.round(1)}s" : "#{distance_of_time_in_words(0, q.latency)}" %></td>
+          <td class="r"><%= link_to "Manage →", queues_path, class: "rh-btn" %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
