@@ -1,0 +1,45 @@
+<% content_for :title, "Queues" %>
+
+<% if RoundhouseUi.allow_job_editing %>
+  <div class="rh-toolbar"><%= link_to "+ Enqueue job", new_job_path, class: "rh-btn rh-btn-primary" %></div>
+<% end %>
+
+<% unless @fetch_installed %>
+  <div class="rh-warn">
+    Pausing is <strong>recorded but not enforced</strong> — no Roundhouse fetcher has reported in.
+    Add it to your Sidekiq config: <code>config[:fetch_class] = RoundhouseUi::Fetch</code>
+  </div>
+<% end %>
+
+<h2 class="rh-h2">Queues</h2>
+<table class="rh-table">
+  <thead><tr><th>Queue</th><th>State</th><th class="r">Size</th><th class="r">Latency</th><th class="r">Actions</th></tr></thead>
+  <tbody>
+    <% if @queues.empty? %>
+      <tr><td colspan="5" class="rh-empty">No active queues</td></tr>
+    <% else %>
+      <% @queues.each do |q| %>
+        <% paused = @paused.include?(q.name) %>
+        <tr>
+          <td><%= q.name %></td>
+          <td><% if paused %><span class="rh-pill rh-pill-warn">paused</span><% else %><span class="rh-sub">active</span><% end %></td>
+          <td class="r"><%= number_with_delimiter q.size %></td>
+          <td class="r <%= "rh-lat-warn" if q.latency > 60 %>"><%= q.latency.round(2) %>s</td>
+          <td class="r">
+            <% if paused %>
+              <%= button_to "Resume", resume_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <% else %>
+              <%= button_to "Pause", pause_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <% end %>
+            <%= button_to "Snapshot", snapshot_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <%= button_to "Purge", purge_queue_path(q.name),
+                  method: :post,
+                  class: "rh-btn rh-btn-danger",
+                  form_class: "rh-inline",
+                  data: { turbo_confirm: "Purge “#{q.name}”? This permanently deletes #{number_with_delimiter q.size} jobs. Snapshot first if you might need them back." } %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>

@@ -1,0 +1,46 @@
+<% content_for :title, "Dead set" %>
+
+<form method="get" action="<%= dead_set_path %>" class="rh-search">
+  <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, error, or arg value…">
+</form>
+
+<h2 class="rh-h2">Dead set · <%= number_with_delimiter @total %> jobs</h2>
+
+<%= form_with url: bulk_dead_path, method: :post, data: { turbo: false } do %>
+  <div class="rh-bulkbar">
+    <button type="submit" name="op" value="retry" class="rh-btn">↻ Retry selected</button>
+    <button type="submit" name="op" value="delete" class="rh-btn rh-btn-danger">✕ Delete selected</button>
+    <span class="rh-sub">tick rows, then choose an action</span>
+  </div>
+  <table class="rh-table">
+    <thead><tr><th style="width:28px"><input type="checkbox" id="rh-all" aria-label="select all"></th><th>Job</th><th>Last error</th><th class="r">Died</th></tr></thead>
+    <tbody>
+      <% if @jobs.empty? %>
+        <tr><td colspan="4" class="rh-empty"><%= @query.present? ? "No dead jobs match “#{@query}”." : "Dead set is empty 🎉" %></td></tr>
+      <% else %>
+        <% @jobs.each do |job| %>
+          <tr>
+            <td><input type="checkbox" name="jids[]" value="<%= job.jid %>" class="rh-check" aria-label="select <%= job.jid %>"></td>
+            <td><%= link_to job.klass, job_path(set: "dead", jid: job.jid), class: "rh-joblink" %><br><span class="rh-sub"><%= job.jid %></span> <%= trace_link(klass: job.klass, jid: job.jid, queue: job.queue) %><% if RoundhouseUi.allow_job_editing %> <%= link_to "edit", edit_job_path(set: "dead", jid: job.jid), class: "rh-trace" %><% end %></td>
+            <td>
+              <span class="rh-err"><%= job.item["error_class"] %></span>
+              <% if job.item["error_message"].present? %><br><span class="rh-sub"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
+            </td>
+            <td class="r"><%= time_ago_in_words(job.at) %> ago</td>
+          </tr>
+        <% end %>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+<%= render "roundhouse_ui/shared/pager" %>
+
+<script nonce="<%= content_nonce %>">
+  (function () {
+    var all = document.getElementById("rh-all");
+    if (!all) return;
+    all.addEventListener("change", function () {
+      document.querySelectorAll(".rh-check").forEach(function (cb) { cb.checked = all.checked; });
+    });
+  })();
+</script>

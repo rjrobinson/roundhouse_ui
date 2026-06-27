@@ -1,0 +1,33 @@
+<% content_for :title, "Retries" %>
+
+<form method="get" action="<%= retries_path %>" class="rh-search">
+  <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, error, or arg value…">
+</form>
+
+<h2 class="rh-h2">Retries · <%= number_with_delimiter @total %> jobs</h2>
+<table class="rh-table">
+  <thead><tr><th>Job</th><th>Last error</th><th class="r">Attempt</th><th class="r">Next try</th><th class="r">Actions</th></tr></thead>
+  <tbody>
+    <% if @jobs.empty? %>
+      <tr><td colspan="5" class="rh-empty"><%= @query.present? ? "No retries match “#{@query}”." : "Nothing waiting to retry 🎉" %></td></tr>
+    <% else %>
+      <% @jobs.each do |job| %>
+        <tr>
+          <td><%= link_to job.klass, job_path(set: "retry", jid: job.jid), class: "rh-joblink" %><br><span class="rh-sub"><%= job.jid %></span> <%= trace_link(klass: job.klass, jid: job.jid, queue: job.queue) %></td>
+          <td>
+            <span class="rh-err"><%= job.item["error_class"] %></span>
+            <% if job.item["error_message"].present? %><br><span class="rh-sub"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
+          </td>
+          <td class="r">#<%= job.item["retry_count"].to_i + 1 %></td>
+          <td class="r"><span class="rh-sub"><%= job.at && job.at > Time.now ? "in #{distance_of_time_in_words(Time.now, job.at)}" : "now" %></span></td>
+          <td class="r">
+            <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "retry", jid: job.jid), class: "rh-btn" %><% end %>
+            <%= button_to "Run now", run_retry_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <%= button_to "Delete", delete_retry_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+<%= render "roundhouse_ui/shared/pager" %>

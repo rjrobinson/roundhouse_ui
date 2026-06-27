@@ -1,0 +1,29 @@
+<% content_for :title, "Scheduled" %>
+
+<form method="get" action="<%= scheduled_path %>" class="rh-search">
+  <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, or arg value…">
+</form>
+
+<h2 class="rh-h2">Scheduled · <%= number_with_delimiter @total %> jobs</h2>
+<table class="rh-table">
+  <thead><tr><th>Job</th><th>Queue</th><th class="r">Runs</th><th class="r">Actions</th></tr></thead>
+  <tbody>
+    <% if @jobs.empty? %>
+      <tr><td colspan="4" class="rh-empty"><%= @query.present? ? "No scheduled jobs match “#{@query}”." : "Nothing scheduled" %></td></tr>
+    <% else %>
+      <% @jobs.each do |job| %>
+        <tr>
+          <td><%= link_to job.klass, job_path(set: "scheduled", jid: job.jid), class: "rh-joblink" %><br><span class="rh-sub"><%= job.jid %></span></td>
+          <td><span class="rh-sub"><%= job.queue %></span></td>
+          <td class="r"><span class="rh-sub"><%= job.at && job.at > Time.now ? "in #{distance_of_time_in_words(Time.now, job.at)}" : "now (overdue)" %></span></td>
+          <td class="r">
+            <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "scheduled", jid: job.jid), class: "rh-btn" %><% end %>
+            <%= button_to "Enqueue now", enqueue_scheduled_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <%= button_to "Delete", delete_scheduled_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+<%= render "roundhouse_ui/shared/pager" %>
