@@ -25,6 +25,12 @@ module RoundhouseUi
           assert_match "Idle headroom", @response.body
           assert_match "Backlog", @response.body
           assert_match "Failure ratio", @response.body
+
+          # Live-rate cards the poll fills client-side.
+          assert_match 'id="rh-m-throughput"', @response.body
+          assert_match 'id="rh-m-failrate"', @response.body
+          assert_match 'id="rh-m-velocity"', @response.body
+          assert_match 'id="rh-m-eta"', @response.body
         end
       end
     end

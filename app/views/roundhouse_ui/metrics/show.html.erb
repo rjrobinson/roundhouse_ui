@@ -24,4 +24,26 @@
   </div>
 </div>
 
-<p class="rh-note">Rate-based metrics (throughput, live failure rate, queue velocity, backlog burn-down) are coming next.</p>
+<h2 class="rh-h2">Live rates <span class="hint">computed client-side · last few seconds</span></h2>
+<div class="rh-cards">
+  <div class="rh-card">
+    <div class="k">Throughput</div>
+    <div class="v num" id="rh-m-throughput">—</div>
+    <div class="d">jobs / sec · completed</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Failure rate</div>
+    <div class="v num" id="rh-m-failrate">—</div>
+    <div class="d">share of recent jobs</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Backlog velocity</div>
+    <div class="v num" id="rh-m-velocity">—</div>
+    <div class="d">+ growing · − draining</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Burn-down ETA</div>
+    <div class="v num" id="rh-m-eta">—</div>
+    <div class="d">backlog clears in, at current rate</div>
+  </div>
+</div>
