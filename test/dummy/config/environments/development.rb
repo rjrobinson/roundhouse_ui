@@ -53,6 +53,10 @@ Rails.application.configure do
   config.hosts << "app.localtest.me"
   config.hosts << /.*\.localtest\.me/
 
-  # Demo: enable the opt-in job editing / enqueue feature locally.
-  config.after_initialize { RoundhouseUi.allow_job_editing = true }
+  # Demo: enable opt-in features locally + wire up the Datadog observability adapter
+  # so jobs show "↗ Datadog" deep-links.
+  config.after_initialize do
+    RoundhouseUi.allow_job_editing = true
+    RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "roundhouse-demo")
+  end
 end
