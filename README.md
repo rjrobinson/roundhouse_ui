@@ -2,6 +2,12 @@
 
 **A modern, real-time web UI for Sidekiq.**
 
+[![CI](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml)
+[![Gem Version](https://img.shields.io/gem/v/roundhouse_ui)](https://rubygems.org/gems/roundhouse_ui)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.1-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
+[![Rails](https://img.shields.io/badge/rails-%3E%3D%207.0-D30001?logo=rubyonrails&logoColor=white)](https://rubyonrails.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](MIT-LICENSE)
+
 Roundhouse is a mountable Rails engine that replaces the stock Sidekiq Web UI with a
 control plane built for the way you actually operate background jobs: live stats,
 searchable sets, grouped errors, safe queue management, job inspection/editing, and
@@ -152,7 +158,7 @@ Redis and run `bin/rails server` to click around.
 
 ## Contributing
 
-Bug reports and pull requests welcome at https://github.com/roundhouse/roundhouse_ui.
+Bug reports and pull requests welcome at https://github.com/rjrobinson/roundhouse_ui.
 
 ## License
 

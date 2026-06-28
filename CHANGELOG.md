@@ -15,7 +15,10 @@ All notable changes to this project are documented here. The format is based on
 - Dead set: search (class / JID / error / arg value), bulk retry/delete, and pagination.
 - Retries & Scheduled views with per-job actions, search, and pagination.
 - Grouped Errors view: failures across retry + dead fingerprinted by class + error.
-- Workers view: process fleet with quiet/stop, threads, queues, heartbeat.
+- Workers view: process fleet with quiet/stop, threads, queues, heartbeat, and a
+  fetch-strategy indicator (detects whether the pause-aware `RoundhouseUi::Fetch` is active).
+- Busy view: currently-running jobs with cooperative cancellation via
+  `RoundhouseUi::CancelMiddleware` and `RoundhouseUi.cancelled?(jid)`.
 - Redis pressure view from `INFO`, including the eviction-policy / silent-job-loss warning.
 - Job inspection (args with redaction, error, backtrace, APM link) and, opt-in via
   `allow_job_editing`, editing/re-enqueue and enqueuing new jobs.
@@ -25,4 +28,4 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
-[Unreleased]: https://github.com/roundhouse/roundhouse_ui/commits/main
+[Unreleased]: https://github.com/rjrobinson/roundhouse_ui/commits/main

@@ -5,7 +5,7 @@ Gem::Specification.new do |spec|
   spec.version     = RoundhouseUi::VERSION
   spec.authors     = [ "R.J. Robinson" ]
   spec.email       = [ "rj@trainual.com" ]
-  spec.homepage    = "https://github.com/roundhouse/roundhouse_ui"
+  spec.homepage    = "https://github.com/rjrobinson/roundhouse_ui"
   spec.summary     = "Roundhouse — a modern, real-time web UI for Sidekiq."
   spec.description = "A mountable Rails engine that replaces the Sidekiq Web UI with a real-time " \
                      "control plane: live queues, search, bulk actions, stuck-queue detection, " \
