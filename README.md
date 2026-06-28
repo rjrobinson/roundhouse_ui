@@ -1,3 +1,4 @@
+<img width="3532" height="1956" alt="CleanShot 2026-06-27 at 21 07 23@2x" src="https://github.com/user-attachments/assets/7c27c997-d8d1-4e8e-b982-94c624ebfa2a" />
 # Roundhouse
 
 **A modern, real-time web UI for Sidekiq.**
