@@ -41,6 +41,29 @@
   </div>
 </div>
 
+<div class="rh-cards">
+  <div class="rh-card">
+    <div class="k">Utilization</div>
+    <div class="v num" style="<%= "color:var(--warn)" if @metrics.utilization && @metrics.utilization >= 0.9 %>"><%= @metrics.utilization ? "#{(@metrics.utilization * 100).round}%" : "—" %></div>
+    <div class="d"><span class="num"><%= @metrics.busy %></span> / <%= @metrics.concurrency %> threads</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Idle headroom</div>
+    <div class="v num"><%= @metrics.headroom %></div>
+    <div class="d">worker threads free</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Backlog</div>
+    <div class="v num"><%= number_with_delimiter @metrics.backlog %></div>
+    <div class="d">enqueued + scheduled + retry</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Failure ratio</div>
+    <div class="v num"><%= (@metrics.failure_ratio * 100).round(2) %>%</div>
+    <div class="d">failed / processed · lifetime</div>
+  </div>
+</div>
+
 <div class="rh-chart-wrap">
   <div class="top"><h3>Throughput</h3><span class="rh-sub">jobs / sec · live</span><span class="now"><span id="rh-chart-now">—</span>/s</span></div>
   <canvas id="rh-chart" width="1100" height="180"></canvas>
