@@ -2,6 +2,7 @@ RoundhouseUi::Engine.routes.draw do
   root to: "dashboard#show"
   get "stats" => "dashboard#stats", as: :dashboard_stats # JSON, polled for live updates
   get "turbo.js" => "assets#turbo", as: :turbo_js        # vendored Turbo, served same-origin
+  get "metrics" => "metrics#show", as: :metrics          # derived metrics (separate from the live dashboard)
 
   get  "busy" => "busy#index", as: :busy
   post "busy/:jid/cancel" => "busy#cancel", as: :cancel_job, constraints: { jid: /[^\/]+/ }

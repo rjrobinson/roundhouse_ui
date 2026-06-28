@@ -11,31 +11,21 @@ module RoundhouseUi
 
     # Proves the engine mounts, the controller reads Sidekiq::Stats, the view
     # renders, and the live-update hooks are present.
-    # A fleet of one process with 50 worker threads, so derived capacity metrics
-    # have something to compute against (47 busy / 50 = 94% utilization).
-    def fake_processes
-      [ { "concurrency" => 50 } ]
-    end
-
     # Proves the engine mounts, the controller reads Sidekiq::Stats, the view
     # renders, and the live-update hooks are present.
     def test_dashboard_renders_real_sidekiq_stats
       stub_method(Sidekiq::Stats, :new, fake_stats) do
         stub_method(Sidekiq::Queue, :all, []) do
-          stub_method(Sidekiq::ProcessSet, :new, fake_processes) do
-            get "/roundhouse"
+          get "/roundhouse"
 
-            assert_response :success
-            assert_match "Roundhouse", @response.body
-            assert_match "8,420,118", @response.body          # processed, delimited
-            assert_match "No active queues", @response.body
-            assert_match "Utilization", @response.body         # derived capacity metric
-            assert_match "94%", @response.body                 # 47 busy / 50 threads
-            assert_match 'data-stat="processed"', @response.body # live-update hook
-            assert_match "/roundhouse/stats", @response.body     # poll endpoint wired
-            assert_match 'id="rh-palette"', @response.body       # ⌘K command palette present
-            assert_match "/roundhouse/turbo.js", @response.body  # Turbo loaded
-          end
+          assert_response :success
+          assert_match "Roundhouse", @response.body
+          assert_match "8,420,118", @response.body          # processed, delimited
+          assert_match "No active queues", @response.body
+          assert_match 'data-stat="processed"', @response.body # live-update hook
+          assert_match "/roundhouse/stats", @response.body     # poll endpoint wired
+          assert_match 'id="rh-palette"', @response.body       # ⌘K command palette present
+          assert_match "/roundhouse/turbo.js", @response.body  # Turbo loaded
         end
       end
     end
@@ -43,15 +33,13 @@ module RoundhouseUi
     def test_response_carries_a_self_contained_nonce_csp
       stub_method(Sidekiq::Stats, :new, fake_stats) do
         stub_method(Sidekiq::Queue, :all, []) do
-          stub_method(Sidekiq::ProcessSet, :new, fake_processes) do
-            get "/roundhouse"
+          get "/roundhouse"
 
-            csp = @response.headers["Content-Security-Policy"]
-            assert csp.present?, "engine sets its own CSP"
-            assert_match "script-src", csp
-            assert_match(/'nonce-/, csp, "script-src is nonce-based")
-            assert_match(/<script nonce="[^"]+"/, @response.body, "inline poll script is nonce'd")
-          end
+          csp = @response.headers["Content-Security-Policy"]
+          assert csp.present?, "engine sets its own CSP"
+          assert_match "script-src", csp
+          assert_match(/'nonce-/, csp, "script-src is nonce-based")
+          assert_match(/<script nonce="[^"]+"/, @response.body, "inline poll script is nonce'd")
         end
       end
     end

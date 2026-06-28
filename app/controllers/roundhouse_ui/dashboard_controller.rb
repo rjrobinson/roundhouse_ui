@@ -3,9 +3,8 @@ module RoundhouseUi
   # Everything here comes out of Redis via Sidekiq::Stats / Sidekiq::Queue.
   class DashboardController < ApplicationController
     def show
-      @stats   = Sidekiq::Stats.new
-      @queues  = Sidekiq::Queue.all
-      @metrics = Metrics.new(stats: @stats)
+      @stats  = Sidekiq::Stats.new
+      @queues = Sidekiq::Queue.all
     end
 
     # Polled by the dashboard for live counts (same approach Sidekiq Web uses —

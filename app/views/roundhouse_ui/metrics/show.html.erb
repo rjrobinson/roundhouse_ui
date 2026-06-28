@@ -1,0 +1,27 @@
+<% content_for :title, "Metrics" %>
+
+<h2 class="rh-h2">Capacity &amp; reliability <span class="hint">live snapshot</span></h2>
+<div class="rh-cards">
+  <div class="rh-card">
+    <div class="k">Utilization</div>
+    <div class="v num" style="<%= "color:var(--warn)" if @metrics.utilization && @metrics.utilization >= 0.9 %>"><%= @metrics.utilization ? "#{(@metrics.utilization * 100).round}%" : "—" %></div>
+    <div class="d"><span class="num"><%= @metrics.busy %></span> / <%= @metrics.concurrency %> threads</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Idle headroom</div>
+    <div class="v num"><%= @metrics.headroom %></div>
+    <div class="d">worker threads free</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Backlog</div>
+    <div class="v num"><%= number_with_delimiter @metrics.backlog %></div>
+    <div class="d">enqueued + scheduled + retry</div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Failure ratio</div>
+    <div class="v num"><%= (@metrics.failure_ratio * 100).round(2) %>%</div>
+    <div class="d">failed / processed · lifetime</div>
+  </div>
+</div>
+
+<p class="rh-note">Rate-based metrics (throughput, live failure rate, queue velocity, backlog burn-down) are coming next.</p>

@@ -216,6 +216,7 @@
       // command palette (⌘K)
       var CMDS = [
         { label: "Dashboard", path: "<%= root_path %>", icon: "▦" },
+        { label: "Metrics", path: "<%= metrics_path %>", icon: "▤" },
         { label: "Busy", path: "<%= busy_path %>", icon: "◐" },
         { label: "Workers", path: "<%= workers_path %>", icon: "◷" },
         { label: "Queues", path: "<%= queues_path %>", icon: "≡" },
@@ -292,6 +293,7 @@
       <nav class="rh-grp">
         <div class="rh-grp-label">Overview</div>
         <%= nav_link "Dashboard", root_path, icon: "▦" %>
+        <%= nav_link "Metrics", metrics_path, icon: "▤" %>
         <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy" %>
         <%= nav_link "Workers", workers_path, icon: "◷" %>
       </nav>
