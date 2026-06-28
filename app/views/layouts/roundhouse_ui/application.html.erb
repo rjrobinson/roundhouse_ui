@@ -234,7 +234,12 @@
       function palEl() { return document.getElementById("rh-palette"); }
       function palInputEl() { return document.getElementById("rh-palette-input"); }
       function palListEl() { return document.getElementById("rh-palette-list"); }
-      function palMark() { var l = palListEl(); if (!l) return; var it = l.children; for (var i = 0; i < it.length; i++) it[i].className = "rh-palette-item" + (i === palSel ? " sel" : ""); }
+      function palMark() {
+        var l = palListEl(); if (!l) return;
+        var it = l.children;
+        for (var i = 0; i < it.length; i++) it[i].className = "rh-palette-item" + (i === palSel ? " sel" : "");
+        if (it[palSel]) it[palSel].scrollIntoView({ block: "nearest" });
+      }
       function palRender() {
         var input = palInputEl(), list = palListEl(); if (!input || !list) return;
         var q = input.value.toLowerCase();
