@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-06-29
 
 ### Added
 - Mountable Rails engine (`RoundhouseUi::Engine`) — reads Sidekiq's API, no database.
@@ -28,4 +28,4 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
-[Unreleased]: https://github.com/rjrobinson/roundhouse_ui/commits/main
+[0.1.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.1.0
