@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-29
+
+### Changed
+- Lowered the Sidekiq floor to `>= 6.5` (was `>= 7.0`). The gem now runs on
+  Sidekiq 6.5, 7, and 8 with no code changes — all Redis access goes through the
+  low-level `conn.call(...)` API, whose splat signature is identical on redis-rb
+  (Sidekiq 6.x) and redis-client (Sidekiq 7+). CI now tests the full matrix.
+
+### Note
+- On Sidekiq 6.x, redis-rb **>= 4.6** is required (that's where `Redis#call` landed).
+  Sidekiq 6.5 resolves to redis 4.8 by default, so this only affects setups pinned
+  to redis 4.5.x. See [#5](https://github.com/rjrobinson/roundhouse_ui/issues/5).
+
 ## [0.1.0] - 2026-06-29
 
 ### Added
@@ -28,4 +41,5 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.2.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.1.0
