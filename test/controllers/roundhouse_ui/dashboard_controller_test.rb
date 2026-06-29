@@ -11,6 +11,8 @@ module RoundhouseUi
 
     # Proves the engine mounts, the controller reads Sidekiq::Stats, the view
     # renders, and the live-update hooks are present.
+    # Proves the engine mounts, the controller reads Sidekiq::Stats, the view
+    # renders, and the live-update hooks are present.
     def test_dashboard_renders_real_sidekiq_stats
       stub_method(Sidekiq::Stats, :new, fake_stats) do
         stub_method(Sidekiq::Queue, :all, []) do

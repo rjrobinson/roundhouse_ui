@@ -155,7 +155,14 @@
   <script nonce="<%= content_nonce %>">
     (function () {
       var fmt = function (n) { return Number(n).toLocaleString(); };
-      var started = false, lastProcessed = null, lastT = null, series = [];
+      var started = false, lastProcessed = null, lastFailed = null, lastBacklog = null, lastT = null, series = [];
+      function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; }
+      function humanizeEta(s) {
+        if (s < 60) return "~" + Math.round(s) + "s";
+        if (s < 3600) return "~" + Math.round(s / 60) + "m";
+        if (s < 86400) return "~" + (s / 3600).toFixed(1) + "h";
+        return "~" + (s / 86400).toFixed(1) + "d";
+      }
 
       function draw() {
         var cv = document.getElementById("rh-chart"); if (!cv) return;
@@ -180,13 +187,26 @@
           .then(function (d) {
             apply(d);
             var now = Date.now();
+            var backlog = d.enqueued + d.scheduled + d.retries;
             if (lastProcessed != null) {
-              var dt = (now - lastT) / 1000, rate = dt > 0 ? Math.max(0, (d.processed - lastProcessed) / dt) : 0;
+              var dt = (now - lastT) / 1000;
+              var dp = d.processed - lastProcessed;
+              var rate = dt > 0 ? Math.max(0, dp / dt) : 0;
               var re = document.querySelector('[data-stat="rate"]'); if (re) re.textContent = fmt(Math.round(rate * 60));
               var ne = document.getElementById("rh-chart-now"); if (ne) ne.textContent = Math.round(rate);
               series.push(rate); if (series.length > 60) series.shift(); draw();
+
+              // Metrics tab live rates (these elements exist only on that page).
+              setText("rh-m-throughput", Math.round(rate) + "/s");
+              var fr = dp > 0 ? Math.max(0, (d.failed - lastFailed) / dp) : 0;
+              setText("rh-m-failrate", (fr * 100).toFixed(1) + "%");
+              if (lastBacklog != null && dt > 0) {
+                var vel = (backlog - lastBacklog) / dt;
+                setText("rh-m-velocity", (vel >= 0 ? "+" : "") + vel.toFixed(1) + "/s");
+              }
+              setText("rh-m-eta", backlog === 0 ? "clear" : (rate > 0 ? humanizeEta(backlog / rate) : "—"));
             }
-            lastProcessed = d.processed; lastT = now;
+            lastProcessed = d.processed; lastFailed = d.failed; lastBacklog = backlog; lastT = now;
           })
           .catch(function () {});
       }
@@ -216,6 +236,7 @@
       // command palette (⌘K)
       var CMDS = [
         { label: "Dashboard", path: "<%= root_path %>", icon: "▦" },
+        { label: "Metrics", path: "<%= metrics_path %>", icon: "▤" },
         { label: "Busy", path: "<%= busy_path %>", icon: "◐" },
         { label: "Workers", path: "<%= workers_path %>", icon: "◷" },
         { label: "Queues", path: "<%= queues_path %>", icon: "≡" },
@@ -292,6 +313,7 @@
       <nav class="rh-grp">
         <div class="rh-grp-label">Overview</div>
         <%= nav_link "Dashboard", root_path, icon: "▦" %>
+        <%= nav_link "Metrics", metrics_path, icon: "▤" %>
         <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy" %>
         <%= nav_link "Workers", workers_path, icon: "◷" %>
       </nav>
