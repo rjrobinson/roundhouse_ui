@@ -22,5 +22,5 @@ Gem::Specification.new do |spec|
   end
 
   spec.add_dependency "rails", ">= 7.0"
-  spec.add_dependency "sidekiq", ">= 7.0"
+  spec.add_dependency "sidekiq", ">= 6.5"
 end
