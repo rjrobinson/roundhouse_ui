@@ -1,0 +1,9 @@
+# Code owners for roundhouse_ui.
+#
+# Listed owners are automatically requested for review on pull requests that
+# touch matching paths. With branch protection's "Require review from Code
+# Owners" enabled, their approval is required before merge.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repo.
+* @rjrobinson
