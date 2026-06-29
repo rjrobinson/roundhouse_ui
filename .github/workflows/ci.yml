@@ -37,12 +37,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # services:
-    #  redis:
-    #    image: valkey/valkey:8
-    #    ports:
-    #      - 6379:6379
-    #    options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest supported, current major, and latest. Tests use an in-memory
+        # FakeRedis, so no Redis service is needed — this matrix exists to prove
+        # each Sidekiq version resolves and loads against our API usage.
+        sidekiq: [ "~> 6.5", "~> 7.0", "~> 8.0" ]
+
+    name: test (sidekiq ${{ matrix.sidekiq }})
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -51,13 +55,21 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ruby-3.3.9
-          bundler-cache: true
+          # No bundler-cache: the Sidekiq override makes the committed
+          # Gemfile.lock stale, so we resolve fresh per matrix entry.
+          bundler-cache: false
+
+      - name: Install dependencies (Sidekiq ${{ matrix.sidekiq }})
+        env:
+          SIDEKIQ_VERSION: ${{ matrix.sidekiq }}
+        run: |
+          rm -f Gemfile.lock
+          bundle install --jobs 4 --retry 3
 
       - name: Run tests
         env:
           RAILS_ENV: test
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
+          SIDEKIQ_VERSION: ${{ matrix.sidekiq }}
         run: bin/rails test
 
       - name: Keep screenshots from failed system tests
