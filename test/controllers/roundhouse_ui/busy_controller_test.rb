@@ -53,5 +53,26 @@ module RoundhouseUi
         assert_match "No jobs running", @response.body
       end
     end
+
+    # Sidekiq 6.x yields a plain Hash (no #queue) with an epoch run_at and a JSON
+    # payload — calling work.queue/.run_at/.job there raised NoMethodError (500).
+    def test_normalizes_sidekiq_6_work_hash
+      work = {
+        "queue"   => "low",
+        "run_at"  => (Time.now - 120).to_i,
+        "payload" => %q({"class":"LegacyJob","jid":"j6","args":[]})
+      }
+      set = FakeWorkSet.new([ [ "host:6500", "tid-9", work ] ])
+
+      stub_method(Sidekiq::WorkSet, :new, set) do
+        get "/roundhouse/busy"
+
+        assert_response :success
+        assert_match "LegacyJob", @response.body
+        assert_match "j6", @response.body
+        assert_match "low", @response.body
+        assert_match "minutes", @response.body # epoch run_at coerced to a Time
+      end
+    end
   end
 end

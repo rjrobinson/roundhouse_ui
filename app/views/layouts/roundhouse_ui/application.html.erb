@@ -166,15 +166,29 @@
         return "~" + (s / 86400).toFixed(1) + "d";
       }
 
+      // Points to display, from the window picker (24 pts ≈ 1m at the 2.5s poll).
+      function chartWindow() { var s = document.getElementById("rh-chart-window"); return s ? parseInt(s.value, 10) : 24; }
+      // Moving average sized to the window — flattens the per-poll spikes into a
+      // sustained line instead of a noisy sawtooth.
+      function smooth(arr) {
+        var k = Math.max(2, Math.round(arr.length / 12)), out = [];
+        for (var i = 0; i < arr.length; i++) {
+          var a = Math.max(0, i - k + 1), sum = 0, c = 0;
+          for (var j = a; j <= i; j++) { sum += arr[j]; c++; }
+          out.push(sum / c);
+        }
+        return out;
+      }
       function draw() {
         var cv = document.getElementById("rh-chart"); if (!cv) return;
-        var ctx = cv.getContext("2d"), w = cv.width, h = cv.height, pad = 6, n = series.length;
-        ctx.clearRect(0, 0, w, h); if (n < 2) return;
-        var max = Math.max.apply(null, series) * 1.25 || 1;
+        var ctx = cv.getContext("2d"), w = cv.width, h = cv.height, pad = 6;
+        ctx.clearRect(0, 0, w, h);
+        var pts = smooth(series.slice(-chartWindow())), n = pts.length; if (n < 2) return;
+        var max = Math.max.apply(null, pts) * 1.25 || 1;
         var x = function (i) { return i / (n - 1) * w; }, y = function (v) { return h - pad - v / max * (h - pad * 2); };
         var g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(110,139,255,.30)"); g.addColorStop(1, "rgba(110,139,255,0)");
-        ctx.beginPath(); ctx.moveTo(0, h); series.forEach(function (v, i) { ctx.lineTo(x(i), y(v)); }); ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
-        ctx.beginPath(); series.forEach(function (v, i) { i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)); }); ctx.strokeStyle = "#6E8BFF"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, h); pts.forEach(function (v, i) { ctx.lineTo(x(i), y(v)); }); ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+        ctx.beginPath(); pts.forEach(function (v, i) { i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)); }); ctx.strokeStyle = "#6E8BFF"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
       }
       function apply(d) {
         Object.keys(d).forEach(function (k) {
@@ -196,7 +210,7 @@
               var rate = dt > 0 ? Math.max(0, dp / dt) : 0;
               var re = document.querySelector('[data-stat="rate"]'); if (re) re.textContent = fmt(Math.round(rate * 60));
               var ne = document.getElementById("rh-chart-now"); if (ne) ne.textContent = Math.round(rate);
-              series.push(rate); if (series.length > 60) series.shift(); draw();
+              series.push(rate); if (series.length > 360) series.shift(); draw();
 
               // Metrics tab live rates (these elements exist only on that page).
               setText("rh-m-throughput", Math.round(rate) + "/s");
@@ -255,7 +269,7 @@
         { label: "Retries", path: "<%= retries_path %>", icon: "↻" },
         { label: "Errors", path: "<%= errors_path %>", icon: "⚠" },
         { label: "Dead", path: "<%= dead_set_path %>", icon: "✕" },
-        { label: "Capsules", path: "<%= capsules_path %>", icon: "⊞" },
+        <% if defined?(Sidekiq::Capsule) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "⊞" },<% end %>
         { label: "Redis", path: "<%= redis_info_path %>", icon: "◈" },
         { label: "Snapshots", path: "<%= snapshots_path %>", icon: "⛁" },
         { label: "Audit log", path: "<%= audit_log_path %>", icon: "☷" },
@@ -303,6 +317,17 @@
         if (e.target && e.target.id === "rh-palette") { palClose(); return; }
         if (e.target.closest && e.target.closest("#rh-palette-open")) { e.preventDefault(); palOpen(); }
       });
+      // Throughput window picker — persist the choice and redraw the smoothed line.
+      function restoreChartWindow() {
+        var s = document.getElementById("rh-chart-window"); if (!s) return;
+        try { var v = localStorage.getItem("rh-chart-win"); if (v) s.value = v; } catch (_) {}
+      }
+      document.addEventListener("change", function (e) {
+        if (!e.target || e.target.id !== "rh-chart-window") return;
+        try { localStorage.setItem("rh-chart-win", e.target.value); } catch (_) {}
+        draw();
+      });
+
       document.addEventListener("keydown", function (e) {
         if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); var p = palEl(); (p && p.hidden) ? palOpen() : palClose(); return; }
         var p = palEl(); if (!p || p.hidden) return;
@@ -312,8 +337,8 @@
         else if (e.key === "Enter") { e.preventDefault(); if (palFiltered[palSel]) palRun(palFiltered[palSel]); }
       });
 
-      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); draw(); });
-      document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); });
+      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartWindow(); draw(); });
+      document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartWindow(); });
       document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
     })();
   </script>
@@ -343,7 +368,10 @@
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Infrastructure</div>
-        <%= nav_link "Capsules", capsules_path, icon: "⊞" %>
+        <%# Capsules are a Sidekiq 7+ concept — hide the nav entirely on 6.x. %>
+        <% if defined?(Sidekiq::Capsule) %>
+          <%= nav_link "Capsules", capsules_path, icon: "⊞" %>
+        <% end %>
         <%= nav_link "Redis", redis_info_path, icon: "◈" %>
         <%= nav_link "Snapshots", snapshots_path, icon: "⛁" %>
         <%= nav_link "Audit log", audit_log_path, icon: "☷" %>
