@@ -157,6 +157,12 @@
     .rh-insight-row .rh-insight-main { flex:1; min-width:0; font-size:13px; }
     .rh-insight-row .rh-pill { font-variant-numeric:tabular-nums; }
     .rh-insight .rh-empty { padding:18px 16px; }
+
+    /* collapsible disclosure (large args, full backtrace) */
+    .rh-disclose summary { cursor:pointer; font:12px var(--mono); color:var(--accent); padding:6px 0; list-style:none; }
+    .rh-disclose summary::-webkit-details-marker { display:none; }
+    .rh-disclose summary::before { content:"▸ "; }
+    .rh-disclose[open] summary::before { content:"▾ "; }
     .rh-field { margin-bottom:16px; max-width:640px; }
     .rh-field label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
     .rh-field input, .rh-field textarea { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 12px; color:var(--text); font:13px var(--mono); }
