@@ -4,7 +4,7 @@
   <div class="rh-toolbar"><%= link_to "+ Enqueue job", new_job_path, class: "rh-btn rh-btn-primary" %></div>
 <% end %>
 
-<% unless @fetch_installed %>
+<% if RoundhouseUi.pause_enabled && !@fetch_installed %>
   <div class="rh-warn">
     Pausing is <strong>recorded but not enforced</strong> — no Roundhouse fetcher has reported in.
     Add it to your Sidekiq config: <code>config[:fetch_class] = RoundhouseUi::Fetch</code>
@@ -26,10 +26,12 @@
           <td class="r"><%= number_with_delimiter q.size %></td>
           <td class="r <%= "rh-lat-warn" if q.latency > 60 %>"><%= q.latency.round(2) %>s</td>
           <td class="r">
-            <% if paused %>
-              <%= button_to "Resume", resume_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
-            <% else %>
-              <%= button_to "Pause", pause_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <% if RoundhouseUi.pause_enabled %>
+              <% if paused %>
+                <%= button_to "Resume", resume_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+              <% else %>
+                <%= button_to "Pause", pause_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+              <% end %>
             <% end %>
             <%= button_to "Snapshot", snapshot_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
             <%= button_to "Purge", purge_queue_path(q.name),

@@ -36,5 +36,17 @@ module RoundhouseUi
         assert_match "No capsule data", @response.body
       end
     end
+
+    # Sidekiq 6.x Process has no #capsules method at all (not just nil) — calling
+    # it raised NoMethodError and 500'd the page. The respond_to? guard skips it.
+    def test_handles_sidekiq_6_process_with_no_capsules_method
+      legacy_process = Object.new # responds to nothing, like a 6.x Process here
+
+      stub_method(Sidekiq::ProcessSet, :new, FakeProcessSet.new([ legacy_process ])) do
+        get "/roundhouse/capsules"
+        assert_response :success
+        assert_match "No capsule data", @response.body
+      end
+    end
   end
 end

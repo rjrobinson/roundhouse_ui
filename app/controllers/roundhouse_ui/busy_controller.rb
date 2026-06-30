@@ -9,9 +9,7 @@ module RoundhouseUi
 
     def index
       @threshold = LONG_RUNNING
-      @work = Sidekiq::WorkSet.new.map do |process_id, tid, work|
-        { process: process_id, tid: tid, queue: work.queue, run_at: work.run_at, job: work.job }
-      end
+      @work = Sidekiq::WorkSet.new.map { |process_id, tid, work| normalize(process_id, tid, work) }
     end
 
     def cancel
@@ -20,6 +18,18 @@ module RoundhouseUi
     end
 
     private
+
+    # Sidekiq 7+ yields a Sidekiq::Work (queue/run_at/job methods); Sidekiq 6.x
+    # yields a plain Hash (string keys, an epoch run_at, a JSON payload). Normalize
+    # both to the same shape the view expects (run_at as a Time, job as a JobRecord).
+    def normalize(process_id, tid, work)
+      if work.respond_to?(:queue)
+        { process: process_id, tid: tid, queue: work.queue, run_at: work.run_at, job: work.job }
+      else
+        { process: process_id, tid: tid, queue: work["queue"],
+          run_at: Time.at(work["run_at"]), job: Sidekiq::JobRecord.new(work["payload"]) }
+      end
+    end
 
     def require_writable!
       return unless RoundhouseUi.read_only

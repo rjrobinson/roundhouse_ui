@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-30
+
+### Fixed
+- **Busy** page no longer 500s on Sidekiq 6.x. `WorkSet#each` yields a plain Hash
+  there (not the `Sidekiq::Work` struct added in 7+), so `work.queue/.run_at/.job`
+  raised `NoMethodError`. The yield is now normalized across versions.
+- **Capsules** page no longer 500s on Sidekiq < 8.0.8 (incl. 6.x). `process.capsules`
+  is guarded with `respond_to?`, and the Capsules nav/command entries are hidden
+  entirely when `Sidekiq::Capsule` isn't defined (Sidekiq < 7).
+
+### Added
+- `RoundhouseUi.pause_enabled` (default `true`). Set to `false` to hide the queue
+  pause/resume controls and the "pausing not enforced" warning — for deployments
+  running reliable fetch (Sidekiq Pro/Enterprise super_fetch), where Roundhouse's
+  pause-aware fetcher can't be installed.
+- Throughput chart: a window picker (1m / 5m / 15m, persisted) plus moving-average
+  smoothing, so sustained load reads as a sustained line instead of per-poll spikes.
+
 ## [0.4.0] - 2026-06-30
 
 ### Added
@@ -58,6 +76,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.5.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.2.0

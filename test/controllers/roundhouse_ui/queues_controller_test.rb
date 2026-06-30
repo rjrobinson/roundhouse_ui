@@ -34,6 +34,24 @@ module RoundhouseUi
       end
     end
 
+    def test_pause_disabled_hides_warning_and_controls
+      RoundhouseUi.pause_enabled = false
+      with_fake_redis do
+        queues = [ FakeQueue.new("default", 10, 1.0) ]
+        stub_method(Sidekiq::Queue, :all, queues) do
+          get "/roundhouse/queues"
+
+          assert_response :success
+          assert_match "default", @response.body      # queue still listed
+          assert_match "Purge", @response.body         # non-pause controls remain
+          refute_match "not enforced", @response.body  # warning suppressed
+          refute_match "Pause", @response.body          # pause control hidden
+        end
+      end
+    ensure
+      RoundhouseUi.pause_enabled = true
+    end
+
     def test_purge_clears_the_queue
       cleared = []
       fake = Object.new.tap { |o| o.define_singleton_method(:clear) { cleared << true } }

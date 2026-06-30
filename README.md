@@ -83,6 +83,11 @@ RoundhouseUi.configure do |c|
   # Fold sidekiq-failures' `failed` set into the Errors view (see below).
   # No-op unless the sidekiq-failures gem is loaded. Default: off.
   c.show_sidekiq_failures = true
+
+  # Set false to hide queue pause/resume controls and the "not enforced" warning,
+  # e.g. when you run reliable fetch (super_fetch) instead of RoundhouseUi::Fetch.
+  # Default: true.
+  # c.pause_enabled = false
 end
 ```
 
@@ -110,7 +115,8 @@ Roundhouse detects whether a fetcher has reported in).
 > ⚠️ **Sidekiq Pro/Enterprise users:** super_fetch / reliable fetch sets its own
 > `fetch_class`, and Sidekiq allows only one. Installing `RoundhouseUi::Fetch` would
 > **replace reliable fetch and lose its crash-recovery guarantees** — don't. On those
-> tiers, leave the fetch strategy out; pause/resume stays inert and the UI says so.
+> tiers, leave the fetch strategy out and set `RoundhouseUi.pause_enabled = false` to
+> hide the pause controls and the (otherwise permanent) "not enforced" warning.
 
 ## Surfacing sidekiq-failures
 
