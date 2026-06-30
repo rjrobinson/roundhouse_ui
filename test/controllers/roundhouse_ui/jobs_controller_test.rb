@@ -116,6 +116,19 @@ module RoundhouseUi
       RoundhouseUi.redact_args = []
     end
 
+    def test_show_collapses_a_long_backtrace_but_keeps_every_line
+      RoundhouseUi.allow_job_editing = false
+      bt = (1..40).map { |i| "frame #{i}" }
+      entry = FakeEntry.new(klass: "DemoJob", queue: "default", jid: "j1", args: [],
+                            extra: { "error_class" => "Boom", "error_backtrace" => bt })
+      stub_method(Sidekiq::DeadSet, :new, FakeSet.new("j1" => entry)) do
+        get "/roundhouse/jobs/dead/j1"
+        assert_response :success
+        assert_match "40 lines backtrace", @response.body # collapsible disclosure summary
+        assert_match "frame 40", @response.body            # full trace — not truncated at 20
+      end
+    end
+
     def test_read_only_blocks_create
       RoundhouseUi.read_only = true
       capturing_push do |pushed|

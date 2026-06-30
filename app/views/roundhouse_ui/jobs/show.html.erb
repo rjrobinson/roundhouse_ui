@@ -9,7 +9,15 @@
 </div>
 
 <div class="rh-sec">Arguments<% if RoundhouseUi.redact_args.present? %> <span class="rh-sub">— sensitive keys masked</span><% end %></div>
-<pre class="rh-pre"><%= JSON.pretty_generate(RoundhouseUi::Redaction.apply(item["args"] || [])) %></pre>
+<% args_json = JSON.pretty_generate(RoundhouseUi::Redaction.apply(item["args"] || [])) %>
+<% if args_json.lines.size > 30 %>
+  <details class="rh-disclose">
+    <summary><%= pluralize(args_json.lines.size, "line") %> — expand arguments</summary>
+    <pre class="rh-pre"><%= args_json %></pre>
+  </details>
+<% else %>
+  <pre class="rh-pre"><%= args_json %></pre>
+<% end %>
 
 <% if item["error_class"].present? %>
   <div class="rh-sec">Error</div>
@@ -17,7 +25,10 @@
   <% if item["error_message"].present? %><p class="rh-sub" style="margin:6px 0 0"><%= item["error_message"] %></p><% end %>
   <% bt = item["error_backtrace"] %>
   <% if bt.is_a?(Array) && bt.any? %>
-    <pre class="rh-pre"><%= bt.first(20).join("\n") %></pre>
+    <details class="rh-disclose"<%= " open".html_safe if bt.size <= 20 %>>
+      <summary><%= pluralize(bt.size, "line") %> backtrace</summary>
+      <pre class="rh-pre"><%= bt.join("\n") %></pre>
+    </details>
   <% end %>
 <% end %>
 

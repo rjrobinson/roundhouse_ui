@@ -10,6 +10,8 @@ require "roundhouse_ui/redaction"
 require "roundhouse_ui/cancellation"
 require "roundhouse_ui/cancel_middleware"
 require "roundhouse_ui/metrics"
+require "roundhouse_ui/error_groups"
+require "roundhouse_ui/health"
 
 # Brand name is "Roundhouse"; the gem and Ruby namespace are RoundhouseUi
 # (matching the published gem name `roundhouse_ui`).

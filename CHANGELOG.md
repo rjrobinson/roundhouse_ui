@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-06-30
+
+### Added
+- High-signal dashboard overview: a **composite health banner** (rolls up error
+  rate + queue latency + worker utilization into one verdict, with an expandable
+  "why"), a **top failing job classes** panel (links to filtered Errors + Datadog),
+  and a **problem queues** panel (worst latency first).
+- **Interactive throughput chart**: a live "peak N/s" readout, a hover tooltip, and
+  an emphasized endpoint.
+- Richer metric cards (success rate, worker utilization) plus a new **Backlog** card.
+- **Job detail**: large arguments collapse into a disclosure, and the full backtrace
+  is now available (previously truncated to the first 20 frames).
+
+### Changed
+- Extracted the failing-job aggregation into `RoundhouseUi::ErrorGroups`, now shared
+  by the Errors page and the dashboard's top-failing panel.
+
 ## [0.6.0] - 2026-06-30
 
 ### Added
@@ -94,6 +111,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.7.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.4.0

@@ -117,12 +117,52 @@
     .rh-card .d.up { color:var(--good); } .rh-card .d.bad { color:var(--crit); }
     .rh-card .pill { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:4px 10px; border-radius:7px; margin-bottom:9px; background:rgba(226,165,63,.14); color:var(--warn); }
     .rh-card .pill.ok { background:rgba(68,197,140,.14); color:var(--good); }
-    .rh-chart-wrap { background:var(--panel); border:1px solid var(--line-soft); border-radius:12px; padding:18px 20px 10px; margin-bottom:24px; }
+    .rh-chart-wrap { background:var(--panel); border:1px solid var(--line-soft); border-radius:12px; padding:18px 20px 10px; margin-bottom:24px; position:relative; }
+    #rh-chart-tip { position:absolute; top:34px; transform:translateX(-50%); pointer-events:none; background:var(--panel-3); border:1px solid var(--line); color:var(--text); font:11px var(--mono); padding:2px 7px; border-radius:6px; white-space:nowrap; }
+    #rh-chart-tip[hidden] { display:none; }
     .rh-chart-wrap .top { display:flex; align-items:baseline; gap:12px; margin-bottom:6px; }
     .rh-chart-wrap h3 { font-size:13px; font-weight:600; margin:0; }
     .rh-chart-wrap .now { margin-left:auto; font-family:var(--mono); font-size:13px; color:var(--accent); }
     canvas#rh-chart { display:block; width:100%; height:90px; }
     .rh-cb { width:15px; height:15px; }
+
+    /* composite health banner */
+    .rh-health { background:var(--panel); border:1px solid var(--line-soft); border-left:3px solid var(--faint); border-radius:12px; margin-bottom:18px; }
+    .rh-health-ok { border-left-color:var(--good); }
+    .rh-health-warn { border-left-color:var(--warn); }
+    .rh-health-crit { border-left-color:var(--crit); }
+    .rh-health summary { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; list-style:none; }
+    .rh-health summary::-webkit-details-marker { display:none; }
+    .rh-health-dot { width:9px; height:9px; border-radius:50%; flex:none; background:var(--faint); }
+    .rh-health-ok .rh-health-dot { background:var(--good); }
+    .rh-health-warn .rh-health-dot { background:var(--warn); }
+    .rh-health-crit .rh-health-dot { background:var(--crit); }
+    .rh-health-verdict { font-weight:650; font-size:15px; }
+    .rh-health-ok .rh-health-verdict { color:var(--good); }
+    .rh-health-warn .rh-health-verdict { color:var(--warn); }
+    .rh-health-crit .rh-health-verdict { color:var(--crit); }
+    .rh-health-reason { color:var(--muted); font-size:13px; }
+    .rh-health-cta { margin-left:auto; font:11px var(--mono); color:var(--faint); }
+    .rh-health[open] .rh-health-cta { color:var(--accent); }
+    .rh-health-signals { padding:2px 16px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line-soft); margin-top:2px; padding-top:12px; }
+    .rh-sig { display:flex; align-items:center; gap:10px; font-size:13px; }
+    .rh-sig b { min-width:170px; font-weight:600; }
+
+    /* insight panels */
+    .rh-insights { display:grid; gap:14px; margin-bottom:24px; }
+    @media(min-width:760px){ .rh-insights { grid-template-columns:1fr 1fr; } }
+    .rh-insight { padding:6px 0; }
+    .rh-insight-h { display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; padding:13px 16px 10px; }
+    .rh-insight-row { display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--line-soft); }
+    .rh-insight-row .rh-insight-main { flex:1; min-width:0; font-size:13px; }
+    .rh-insight-row .rh-pill { font-variant-numeric:tabular-nums; }
+    .rh-insight .rh-empty { padding:18px 16px; }
+
+    /* collapsible disclosure (large args, full backtrace) */
+    .rh-disclose summary { cursor:pointer; font:12px var(--mono); color:var(--accent); padding:6px 0; list-style:none; }
+    .rh-disclose summary::-webkit-details-marker { display:none; }
+    .rh-disclose summary::before { content:"▸ "; }
+    .rh-disclose[open] summary::before { content:"▾ "; }
     .rh-field { margin-bottom:16px; max-width:640px; }
     .rh-field label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
     .rh-field input, .rh-field textarea { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 12px; color:var(--text); font:13px var(--mono); }
@@ -160,6 +200,7 @@
       var started = false, lastProcessed = null, lastFailed = null, lastBacklog = null, lastT = null;
       var POLL_MS = <%= (RoundhouseUi.poll_interval.to_f * 1000).round %>;
       var samples = [], buckets = [], bucketStart = null; // samples = current bucket; buckets = finalized per-interval averages
+      var lastPts = []; // points last drawn, for the hover tooltip to read
       function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; }
       function humanizeEta(s) {
         if (s < 60) return "~" + Math.round(s) + "s";
@@ -179,12 +220,28 @@
         // finalized buckets + the in-progress bucket as a provisional last point,
         // so the chart shows data immediately instead of waiting a full interval.
         var pts = buckets.slice(-60); if (samples.length) pts = pts.concat([ avg(samples) ]);
-        var n = pts.length; if (n < 2) return;
-        var max = Math.max.apply(null, pts) * 1.25 || 1;
+        lastPts = pts;
+        var n = pts.length; if (n < 2) { setText("rh-chart-peak", ""); return; }
+        var peak = Math.max.apply(null, pts);
+        var max = peak * 1.25 || 1;
         var x = function (i) { return i / (n - 1) * w; }, y = function (v) { return h - pad - v / max * (h - pad * 2); };
         var g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(110,139,255,.30)"); g.addColorStop(1, "rgba(110,139,255,0)");
         ctx.beginPath(); ctx.moveTo(0, h); pts.forEach(function (v, i) { ctx.lineTo(x(i), y(v)); }); ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
         ctx.beginPath(); pts.forEach(function (v, i) { i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)); }); ctx.strokeStyle = "#6E8BFF"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+        // emphasized endpoint (small marker; canvas is vertically scaled, so a rect reads cleaner than an arc)
+        ctx.fillStyle = "#6E8BFF"; ctx.fillRect(x(n - 1) - 3, y(pts[n - 1]) - 3, 6, 6);
+        setText("rh-chart-peak", "peak " + Math.round(peak) + "/s");
+      }
+      // Hover tooltip: map the cursor's fractional x to the nearest drawn point.
+      function chartHover(e) {
+        var cv = document.getElementById("rh-chart"), tip = document.getElementById("rh-chart-tip");
+        if (!cv || !tip || lastPts.length < 2) return;
+        var rect = cv.getBoundingClientRect();
+        var fx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        var idx = Math.round(fx * (lastPts.length - 1));
+        tip.textContent = Math.round(lastPts[idx]) + "/s";
+        tip.style.left = (e.clientX - rect.left) + "px";
+        tip.hidden = false;
       }
       function apply(d) {
         Object.keys(d).forEach(function (k) {
@@ -231,6 +288,11 @@
           .catch(function () {});
       }
       function startOnce() { if (started) return; started = true; poll(); setInterval(poll, POLL_MS); }
+      function wireChart() {
+        var cv = document.getElementById("rh-chart"); if (!cv) return;
+        cv.onmousemove = chartHover;
+        cv.onmouseleave = function () { var t = document.getElementById("rh-chart-tip"); if (t) t.hidden = true; };
+      }
       function syncTheme() { var b = document.getElementById("rh-theme"); if (b) b.textContent = document.documentElement.getAttribute("data-theme") === "light" ? "☀" : "☾"; }
       function syncWidth() { var b = document.getElementById("rh-width"); if (b) b.classList.toggle("is-on", document.documentElement.getAttribute("data-width") === "full"); }
 
@@ -342,8 +404,8 @@
         else if (e.key === "Enter") { e.preventDefault(); if (palFiltered[palSel]) palRun(palFiltered[palSel]); }
       });
 
-      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); draw(); });
-      document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); });
+      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
+      document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); });
       document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
     })();
   </script>
