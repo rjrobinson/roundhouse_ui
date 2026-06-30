@@ -1,49 +1,82 @@
 <% content_for :title, "Dashboard" %>
 <% content_for :crumb, Rails.env %>
 
-<% stuck = @queues.select { |q| q.latency > 60 } %>
-
-<% if stuck.any? %>
-  <div class="rh-alerts">
-    <% stuck.each do |q| %>
-      <div class="rh-alert <%= "warn" if q.latency <= 600 %>">
-        <span class="msg">Queue <b><%= q.name %></b> is <%= q.latency > 600 ? "stuck" : "over budget" %> — oldest job <%= distance_of_time_in_words(0, q.latency) %>, <%= number_with_delimiter q.size %> waiting</span>
-        <%= link_to "Manage →", queues_path, class: "rh-btn" %>
+<% verdict = { ok: "Healthy", warn: "Degraded", crit: "Critical" }[@health.status] %>
+<details class="rh-health rh-health-<%= @health.status %>"<%= " open".html_safe unless @health.healthy? %>>
+  <summary>
+    <span class="rh-health-dot"></span>
+    <span class="rh-health-verdict"><%= verdict %></span>
+    <span class="rh-health-reason"><%= @health.reason %></span>
+    <span class="rh-health-cta">why ▾</span>
+  </summary>
+  <div class="rh-health-signals">
+    <% @health.signals.each do |s| %>
+      <div class="rh-sig">
+        <span class="rh-st rh-st-<%= s.status %>"><%= s.status %></span>
+        <b><%= s.label %></b>
+        <span class="rh-sub"><%= s.detail %></span>
       </div>
     <% end %>
   </div>
-<% end %>
+</details>
 
 <div class="rh-cards">
   <div class="rh-card">
-    <% if stuck.any? %>
-      <span class="pill">⚠ Degraded</span>
-      <div class="k"><b style="color:var(--warn)"><%= stuck.first.name %></b> queue over budget</div>
-    <% else %>
-      <span class="pill ok">✓ Healthy</span>
-      <div class="k">all queues within budget</div>
-    <% end %>
-  </div>
-  <div class="rh-card">
     <div class="k">Processed</div>
     <div class="v num" data-stat="processed"><%= number_with_delimiter @stats.processed %></div>
-    <div class="d"><span class="num" data-stat="rate">—</span> / min</div>
+    <div class="d"><span class="num" data-stat="rate">—</span> / min · <%= ((1 - @metrics.failure_ratio) * 100).round(1) %>% ok</div>
   </div>
   <div class="rh-card">
     <div class="k">Failed · total</div>
     <div class="v num" data-stat="failed"><%= number_with_delimiter @stats.failed %></div>
-    <div class="d bad"><span class="num" data-stat="dead"><%= number_with_delimiter @stats.dead_size %></span> dead</div>
+    <div class="d bad"><span class="num" data-stat="dead"><%= number_with_delimiter @stats.dead_size %></span> dead · <%= (@metrics.failure_ratio * 100).round(1) %>% rate</div>
   </div>
   <div class="rh-card">
     <div class="k">Busy threads</div>
     <div class="v num" data-stat="busy"><%= @stats.workers_size %></div>
-    <div class="d">enqueued <span class="num" data-stat="enqueued"><%= number_with_delimiter @stats.enqueued %></span></div>
+    <div class="d"><%= @metrics.utilization ? "#{(@metrics.utilization * 100).round}% of #{@metrics.concurrency} busy" : "no workers reporting" %></div>
+  </div>
+  <div class="rh-card">
+    <div class="k">Backlog</div>
+    <div class="v num"><%= number_with_delimiter @metrics.backlog %></div>
+    <div class="d">enqueued <span class="num" data-stat="enqueued"><%= number_with_delimiter @stats.enqueued %></span> · scheduled <span class="num" data-stat="scheduled"><%= number_with_delimiter @stats.scheduled_size %></span></div>
   </div>
 </div>
 
 <div class="rh-chart-wrap">
   <div class="top"><h3>Throughput</h3><span class="rh-sub">jobs / sec · live</span><span class="now"><span id="rh-chart-now">—</span>/s</span><select id="rh-chart-interval" aria-label="Throughput interval" style="margin-left:12px;background:var(--panel-2);color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:3px 6px;font:12px var(--sans)"><option value="10">per 10s</option><option value="30" selected>per 30s</option><option value="60">per 1m</option><option value="300">per 5m</option></select></div>
   <canvas id="rh-chart" width="1100" height="180"></canvas>
+</div>
+
+<div class="rh-insights">
+  <div class="rh-panel rh-insight">
+    <div class="rh-insight-h">Top failing job classes <%= link_to "all errors →", errors_path, class: "rh-sub" %></div>
+    <% if @top_errors.empty? %>
+      <div class="rh-empty">No failing jobs 🎉</div>
+    <% else %>
+      <% @top_errors.each do |g| %>
+        <div class="rh-insight-row">
+          <div class="rh-insight-main"><%= link_to g[:klass], errors_path(q: g[:klass]), class: "rh-joblink" %> <%= error_trace_link(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></div>
+          <span class="rh-pill"><%= number_with_delimiter g[:count] %></span>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="rh-panel rh-insight">
+    <div class="rh-insight-h">Problem queues <%= link_to "all queues →", queues_path, class: "rh-sub" %></div>
+    <% if @problem_queues.empty? %>
+      <div class="rh-empty">All queues fresh — nothing backing up.</div>
+    <% else %>
+      <% @problem_queues.each do |q| %>
+        <% label, css = queue_state(q.latency) %>
+        <div class="rh-insight-row">
+          <div class="rh-insight-main"><%= link_to q.name, queues_path, class: "rh-joblink rh-mono" %><br><span class="rh-sub"><%= number_with_delimiter q.size %> waiting</span></div>
+          <span class="rh-st <%= css %>"><%= q.latency < 60 ? "#{q.latency.round(1)}s" : distance_of_time_in_words(0, q.latency) %></span>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
 </div>
 
 <h2 class="rh-h2">Queues <span class="hint">live · click a queue to manage</span></h2>

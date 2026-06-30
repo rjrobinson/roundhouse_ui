@@ -5,6 +5,11 @@ module RoundhouseUi
     def show
       @stats  = Sidekiq::Stats.new
       @queues = Sidekiq::Queue.all
+      @metrics = Metrics.new(stats: @stats)
+      @health  = Health.new(stats: @stats, queues: @queues, metrics: @metrics)
+      # Highest-signal slices for the overview, from data we already read.
+      @top_errors = ErrorGroups.new(limit: 200).call.groups.first(5)
+      @problem_queues = @queues.select { |q| q.latency > 5 }.sort_by { |q| -q.latency }.first(5)
     end
 
     # Polled by the dashboard for live counts (same approach Sidekiq Web uses —

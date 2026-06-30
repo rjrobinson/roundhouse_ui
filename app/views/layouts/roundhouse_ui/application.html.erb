@@ -123,6 +123,38 @@
     .rh-chart-wrap .now { margin-left:auto; font-family:var(--mono); font-size:13px; color:var(--accent); }
     canvas#rh-chart { display:block; width:100%; height:90px; }
     .rh-cb { width:15px; height:15px; }
+
+    /* composite health banner */
+    .rh-health { background:var(--panel); border:1px solid var(--line-soft); border-left:3px solid var(--faint); border-radius:12px; margin-bottom:18px; }
+    .rh-health-ok { border-left-color:var(--good); }
+    .rh-health-warn { border-left-color:var(--warn); }
+    .rh-health-crit { border-left-color:var(--crit); }
+    .rh-health summary { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; list-style:none; }
+    .rh-health summary::-webkit-details-marker { display:none; }
+    .rh-health-dot { width:9px; height:9px; border-radius:50%; flex:none; background:var(--faint); }
+    .rh-health-ok .rh-health-dot { background:var(--good); }
+    .rh-health-warn .rh-health-dot { background:var(--warn); }
+    .rh-health-crit .rh-health-dot { background:var(--crit); }
+    .rh-health-verdict { font-weight:650; font-size:15px; }
+    .rh-health-ok .rh-health-verdict { color:var(--good); }
+    .rh-health-warn .rh-health-verdict { color:var(--warn); }
+    .rh-health-crit .rh-health-verdict { color:var(--crit); }
+    .rh-health-reason { color:var(--muted); font-size:13px; }
+    .rh-health-cta { margin-left:auto; font:11px var(--mono); color:var(--faint); }
+    .rh-health[open] .rh-health-cta { color:var(--accent); }
+    .rh-health-signals { padding:2px 16px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line-soft); margin-top:2px; padding-top:12px; }
+    .rh-sig { display:flex; align-items:center; gap:10px; font-size:13px; }
+    .rh-sig b { min-width:170px; font-weight:600; }
+
+    /* insight panels */
+    .rh-insights { display:grid; gap:14px; margin-bottom:24px; }
+    @media(min-width:760px){ .rh-insights { grid-template-columns:1fr 1fr; } }
+    .rh-insight { padding:6px 0; }
+    .rh-insight-h { display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; padding:13px 16px 10px; }
+    .rh-insight-row { display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--line-soft); }
+    .rh-insight-row .rh-insight-main { flex:1; min-width:0; font-size:13px; }
+    .rh-insight-row .rh-pill { font-variant-numeric:tabular-nums; }
+    .rh-insight .rh-empty { padding:18px 16px; }
     .rh-field { margin-bottom:16px; max-width:640px; }
     .rh-field label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
     .rh-field input, .rh-field textarea { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 12px; color:var(--text); font:13px var(--mono); }
