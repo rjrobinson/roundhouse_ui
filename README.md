@@ -88,6 +88,14 @@ RoundhouseUi.configure do |c|
   # e.g. when you run reliable fetch (super_fetch) instead of RoundhouseUi::Fetch.
   # Default: true.
   # c.pause_enabled = false
+
+  # Seconds between dashboard stat polls (default 5). Raise it if polling shows
+  # up in your traces — each poll re-runs the host's auth/routing on the mount.
+  # c.poll_interval = 10
+
+  # Show the "slowest job classes" table on the Metrics page. Requires the
+  # DurationCollector middleware (see below). Default: false.
+  # c.collect_durations = true
 end
 ```
 
@@ -149,6 +157,29 @@ end
 The **Busy** page's Cancel button flags a job's JID. A queued/scheduled/retrying job
 is then skipped when it would next run; a *currently running* job stops only if it
 checks in — e.g. a long loop can `break if RoundhouseUi.cancelled?(jid)`.
+
+## Slowest job classes
+
+Sidekiq doesn't track per-class durations, so Roundhouse can record them itself.
+Install the opt-in server middleware and set `collect_durations = true`; the
+Metrics page then lists the slowest classes by total time (count + average).
+
+```ruby
+# config/initializers/sidekiq.rb
+Sidekiq.configure_server do |config|
+  config.server_middleware { |chain| chain.add RoundhouseUi::DurationCollector }
+end
+```
+
+It's two cheap Redis writes per job (a counter + a summed-ms float) into a single
+hash, and a job failure never propagates from the collector.
+
+## Bulk actions on a filter
+
+On **Retries** and **Dead**, searching narrows the set; with a filter active you
+can retry or delete **every** matching job in one action (not just the visible
+page), capped at 1,000 per run. Gated to when a filter is present so it can't
+become "retry everything", `read_only`-aware, and audit-logged.
 
 ## Observability deep-links
 
