@@ -57,6 +57,11 @@ module RoundhouseUi
     # Sidekiq's retry/dead sets, so this is the only way to surface them here.
     attr_accessor :show_sidekiq_failures
 
+    # Seconds between dashboard stat polls. Lower = livelier, but each poll also
+    # re-runs the host's auth/routing on the mount, so a busy console can add DB
+    # load. Default 5s; raise it if polling shows up in your traces.
+    attr_accessor :poll_interval
+
     # Queue pause/resume is only enforced when RoundhouseUi::Fetch is installed
     # as the server's fetch strategy. If you run reliable fetch (Sidekiq
     # Pro/Enterprise super_fetch) you can't also run our fetcher, so pause can't
@@ -85,4 +90,5 @@ module RoundhouseUi
   self.redact_args = []
   self.show_sidekiq_failures = false
   self.pause_enabled = true
+  self.poll_interval = 5
 end

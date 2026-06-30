@@ -157,7 +157,9 @@
   <script nonce="<%= content_nonce %>">
     (function () {
       var fmt = function (n) { return Number(n).toLocaleString(); };
-      var started = false, lastProcessed = null, lastFailed = null, lastBacklog = null, lastT = null, series = [];
+      var started = false, lastProcessed = null, lastFailed = null, lastBacklog = null, lastT = null;
+      var POLL_MS = <%= (RoundhouseUi.poll_interval.to_f * 1000).round %>;
+      var samples = [], buckets = [], bucketStart = null; // samples = current bucket; buckets = finalized per-interval averages
       function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; }
       function humanizeEta(s) {
         if (s < 60) return "~" + Math.round(s) + "s";
@@ -166,24 +168,18 @@
         return "~" + (s / 86400).toFixed(1) + "d";
       }
 
-      // Points to display, from the window picker (24 pts ≈ 1m at the 2.5s poll).
-      function chartWindow() { var s = document.getElementById("rh-chart-window"); return s ? parseInt(s.value, 10) : 24; }
-      // Moving average sized to the window — flattens the per-poll spikes into a
-      // sustained line instead of a noisy sawtooth.
-      function smooth(arr) {
-        var k = Math.max(2, Math.round(arr.length / 12)), out = [];
-        for (var i = 0; i < arr.length; i++) {
-          var a = Math.max(0, i - k + 1), sum = 0, c = 0;
-          for (var j = a; j <= i; j++) { sum += arr[j]; c++; }
-          out.push(sum / c);
-        }
-        return out;
-      }
+      // Bucket interval in seconds, from the picker — a new chart point lands
+      // once per interval, so "per 1m" advances every minute (not every poll).
+      function chartInterval() { var s = document.getElementById("rh-chart-interval"); return s ? parseInt(s.value, 10) : 30; }
+      function avg(a) { return a.length ? a.reduce(function (s, v) { return s + v; }, 0) / a.length : 0; }
       function draw() {
         var cv = document.getElementById("rh-chart"); if (!cv) return;
         var ctx = cv.getContext("2d"), w = cv.width, h = cv.height, pad = 6;
         ctx.clearRect(0, 0, w, h);
-        var pts = smooth(series.slice(-chartWindow())), n = pts.length; if (n < 2) return;
+        // finalized buckets + the in-progress bucket as a provisional last point,
+        // so the chart shows data immediately instead of waiting a full interval.
+        var pts = buckets.slice(-60); if (samples.length) pts = pts.concat([ avg(samples) ]);
+        var n = pts.length; if (n < 2) return;
         var max = Math.max.apply(null, pts) * 1.25 || 1;
         var x = function (i) { return i / (n - 1) * w; }, y = function (v) { return h - pad - v / max * (h - pad * 2); };
         var g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(110,139,255,.30)"); g.addColorStop(1, "rgba(110,139,255,0)");
@@ -210,7 +206,15 @@
               var rate = dt > 0 ? Math.max(0, dp / dt) : 0;
               var re = document.querySelector('[data-stat="rate"]'); if (re) re.textContent = fmt(Math.round(rate * 60));
               var ne = document.getElementById("rh-chart-now"); if (ne) ne.textContent = Math.round(rate);
-              series.push(rate); if (series.length > 360) series.shift(); draw();
+              // Accumulate into the current bucket; finalize it (one averaged point)
+              // once the chosen interval has elapsed. Live "/s" still updates each poll.
+              samples.push(rate);
+              if (bucketStart == null) bucketStart = now;
+              if ((now - bucketStart) / 1000 >= chartInterval()) {
+                buckets.push(avg(samples)); if (buckets.length > 240) buckets.shift();
+                samples = []; bucketStart = now;
+              }
+              draw();
 
               // Metrics tab live rates (these elements exist only on that page).
               setText("rh-m-throughput", Math.round(rate) + "/s");
@@ -226,7 +230,7 @@
           })
           .catch(function () {});
       }
-      function startOnce() { if (started) return; started = true; poll(); setInterval(poll, 2500); }
+      function startOnce() { if (started) return; started = true; poll(); setInterval(poll, POLL_MS); }
       function syncTheme() { var b = document.getElementById("rh-theme"); if (b) b.textContent = document.documentElement.getAttribute("data-theme") === "light" ? "☀" : "☾"; }
       function syncWidth() { var b = document.getElementById("rh-width"); if (b) b.classList.toggle("is-on", document.documentElement.getAttribute("data-width") === "full"); }
 
@@ -317,15 +321,16 @@
         if (e.target && e.target.id === "rh-palette") { palClose(); return; }
         if (e.target.closest && e.target.closest("#rh-palette-open")) { e.preventDefault(); palOpen(); }
       });
-      // Throughput window picker — persist the choice and redraw the smoothed line.
-      function restoreChartWindow() {
-        var s = document.getElementById("rh-chart-window"); if (!s) return;
-        try { var v = localStorage.getItem("rh-chart-win"); if (v) s.value = v; } catch (_) {}
+      // Throughput interval picker — persist the choice; changing it re-buckets
+      // from here on, so reset the in-progress bucket and redraw.
+      function restoreChartInterval() {
+        var s = document.getElementById("rh-chart-interval"); if (!s) return;
+        try { var v = localStorage.getItem("rh-chart-iv"); if (v) s.value = v; } catch (_) {}
       }
       document.addEventListener("change", function (e) {
-        if (!e.target || e.target.id !== "rh-chart-window") return;
-        try { localStorage.setItem("rh-chart-win", e.target.value); } catch (_) {}
-        draw();
+        if (!e.target || e.target.id !== "rh-chart-interval") return;
+        try { localStorage.setItem("rh-chart-iv", e.target.value); } catch (_) {}
+        samples = []; bucketStart = null; draw();
       });
 
       document.addEventListener("keydown", function (e) {
@@ -337,8 +342,8 @@
         else if (e.key === "Enter") { e.preventDefault(); if (palFiltered[palSel]) palRun(palFiltered[palSel]); }
       });
 
-      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartWindow(); draw(); });
-      document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartWindow(); });
+      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); draw(); });
+      document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); });
       document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
     })();
   </script>
