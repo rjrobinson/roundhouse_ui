@@ -18,7 +18,7 @@ module RoundhouseUi
       scanned = 0
       truncated = false
 
-      { "retry" => Sidekiq::RetrySet.new, "dead" => Sidekiq::DeadSet.new }.each do |source, set|
+      sources.each do |source, set|
         set.each do |entry|
           scanned += 1
           if scanned > SCAN_LIMIT
@@ -33,6 +33,17 @@ module RoundhouseUi
       list = groups.values.sort_by { |g| -g[:count] }
       list = list.select { |g| "#{g[:klass]} #{g[:error]}".downcase.include?(@query.downcase) } if @query.present?
       [ list, scanned, truncated ]
+    end
+
+    # Sidekiq's native sets, plus the sidekiq-failures `failed` set when opted in
+    # and that gem is loaded. Its FailureSet is a Sidekiq::JobSet, so it iterates
+    # exactly like the others — no special-casing in the aggregation above.
+    def sources
+      sets = { "retry" => Sidekiq::RetrySet.new, "dead" => Sidekiq::DeadSet.new }
+      if RoundhouseUi.show_sidekiq_failures && defined?(Sidekiq::Failures::FailureSet)
+        sets["failed"] = Sidekiq::Failures::FailureSet.new
+      end
+      sets
     end
 
     def record(groups, source, entry)
