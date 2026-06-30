@@ -1,15 +1,17 @@
 <% content_for :title, "Workers" %>
 
 <h2 class="rh-h2">Workers · <%= @processes.size %> <%= "process".pluralize(@processes.size) %></h2>
-<p class="rh-sub" style="margin:-4px 0 16px">
-  Fetch strategy:
-  <% if @fetch_active %>
-    <span class="rh-st rh-st-ok">RoundhouseUi::Fetch — pause-aware</span>
-  <% else %>
-    <span class="rh-st rh-st-paused">default — pause not enforced</span>
-  <% end %>
-  <span class="rh-sub" style="margin-left:6px">crash-reliable fetch (super_fetch) is Sidekiq Pro</span>
-</p>
+<% if RoundhouseUi.pause_enabled %>
+  <p class="rh-sub" style="margin:-4px 0 16px">
+    Fetch strategy:
+    <% if @fetch_active %>
+      <span class="rh-st rh-st-ok">RoundhouseUi::Fetch — pause-aware</span>
+    <% else %>
+      <span class="rh-st rh-st-paused">default — pause not enforced</span>
+    <% end %>
+    <span class="rh-sub" style="margin-left:6px">crash-reliable fetch (super_fetch) is Sidekiq Pro</span>
+  </p>
+<% end %>
 <table class="rh-table">
   <thead><tr><th>Process</th><th class="r">Threads</th><th>Queues</th><th class="r">Started</th><th class="r">Heartbeat</th><th class="r">Actions</th></tr></thead>
   <tbody>
