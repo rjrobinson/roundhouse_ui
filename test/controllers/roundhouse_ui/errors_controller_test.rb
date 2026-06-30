@@ -103,6 +103,23 @@ module RoundhouseUi
       end
     end
 
+    def test_rows_link_to_datadog_when_an_adapter_is_configured
+      original = RoundhouseUi.observability
+      RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "trainual")
+      stub_sets(
+        retry_entries: [ FakeEntry.new(klass: "BulkImportJob", error_class: "PG::Error", at: Time.now) ],
+        dead_entries: []
+      ) do
+        get "/roundhouse/errors"
+
+        assert_response :success
+        assert_match "↗ Datadog", @response.body
+        assert_match "app.datadoghq.com/apm/traces", @response.body
+      end
+    ensure
+      RoundhouseUi.observability = original
+    end
+
     def test_ignores_sidekiq_failures_when_not_opted_in
       now = Time.now
       # Flag off (the default) — the failed set must not be read even when it

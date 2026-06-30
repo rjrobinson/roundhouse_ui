@@ -14,6 +14,7 @@ module RoundhouseUi
       def label = "trace"
       def job_url(**) = nil
       def queue_url(_name) = nil
+      def error_url(**) = nil
     end
 
     class DatadogAdapter
@@ -34,6 +35,16 @@ module RoundhouseUi
 
       def queue_url(name)
         traces_url([ "@sidekiq.queue:#{name}" ])
+      end
+
+      # Grouped Errors rows have no single JID, so link to a class-wide search.
+      # The exact facet depends on your Datadog tagging; tune via `extra_query`
+      # if `resource_name` isn't how your Sidekiq spans are tagged.
+      def error_url(klass:, error: nil)
+        terms = [ "resource_name:#{klass}" ]
+        terms << "service:#{@service}" if @service
+        terms << @extra_query if @extra_query
+        traces_url(terms)
       end
 
       private

@@ -13,7 +13,7 @@
     <% else %>
       <% @groups.each do |g| %>
         <tr>
-          <td><%= g[:klass] %><br><span class="rh-err"><%= g[:error] %></span></td>
+          <td><%= g[:klass] %> <%= error_trace_link(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></td>
           <td class="r"><%= number_with_delimiter g[:count] %></td>
           <td><span class="rh-sub"><%= g[:sources].join(", ") %></span></td>
           <td><span class="rh-sub"><%= g[:queues].join(", ") %></span></td>

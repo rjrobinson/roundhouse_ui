@@ -7,6 +7,16 @@ module RoundhouseUi
       adapter = Observability::NullAdapter.new
       assert_nil adapter.job_url(klass: "X", jid: "1", queue: "default")
       assert_nil adapter.queue_url("default")
+      assert_nil adapter.error_url(klass: "X", error: "Boom")
+    end
+
+    def test_datadog_adapter_builds_a_class_search_for_grouped_errors
+      adapter = Observability::DatadogAdapter.new(service: "trainual")
+      url = adapter.error_url(klass: "BulkImportJob", error: "PG::Error")
+
+      assert_includes url, "app.datadoghq.com/apm/traces"
+      assert_includes url, CGI.escape("resource_name:BulkImportJob")
+      assert_includes url, CGI.escape("service:trainual")
     end
 
     def test_datadog_adapter_builds_a_trace_url_from_the_jid

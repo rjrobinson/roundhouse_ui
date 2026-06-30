@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-30
+
+### Added
+- Datadog deep-links on grouped **Errors** rows (`error_url` on the observability
+  adapter), searching by job class — so failures that surface only in the Errors
+  view (e.g. `sidekiq-failures` entries) can still jump out to Datadog.
+- `RoundhouseUi.poll_interval` (seconds, default `5`) — the dashboard stat-poll
+  cadence is now configurable. Frequent polling re-runs the host's auth/routing on
+  every request, so a slower interval reduces DB load on busy consoles.
+
+### Changed
+- Throughput chart now **buckets by a configurable interval** (per 10s / 30s / 1m /
+  5m) instead of redrawing every poll. A new point lands once per interval, so the
+  line reads as sustained load rather than a per-poll sawtooth. Replaces the
+  previous "window" picker.
+- Dashboard "Processed" rate no longer renders a hardcoded ▲ up-arrow (it implied an
+  upward trend on every load); it now just shows the rate.
+
 ## [0.5.0] - 2026-06-30
 
 ### Fixed
@@ -76,6 +94,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.6.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.3.0
