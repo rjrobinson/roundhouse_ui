@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-30
+
+### Added
+- Compact/full-width layout toggle. A header button (and `⌘K` → "Toggle full
+  width") flips the content area between the default 1180px column and full
+  viewport width. Saved per-browser in `localStorage` and applied before first
+  paint (no flicker), reusing the theme-toggle machinery.
+
+## [0.3.0] - 2026-06-29
+
+### Added
+- `RoundhouseUi.show_sidekiq_failures` (opt-in, default off): when the
+  [`sidekiq-failures`](https://github.com/mhfs/sidekiq-failures) gem is loaded,
+  its `failed` set is folded into the grouped Errors view. Surfaces failures from
+  `retry: false` jobs, which never enter Sidekiq's retry/dead sets. No-op unless
+  the gem is present. Closes #5.
+
 ## [0.2.0] - 2026-06-29
 
 ### Changed
@@ -41,5 +58,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.4.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.4.0
+[0.3.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.1.0

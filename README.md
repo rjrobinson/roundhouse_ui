@@ -79,8 +79,16 @@ RoundhouseUi.configure do |c|
 
   # Where queue snapshots are stored (default: Redis). Swap for a file/S3 store.
   # c.snapshot_store = MyS3SnapshotStore.new
+
+  # Fold sidekiq-failures' `failed` set into the Errors view (see below).
+  # No-op unless the sidekiq-failures gem is loaded. Default: off.
+  c.show_sidekiq_failures = true
 end
 ```
+
+Every option is independent and has a safe default — set only what you need.
+`read_only`, `allow_job_editing`, and `show_sidekiq_failures` default to `false`;
+`redact_args` to `[]`; `observability` to a no-op adapter; `snapshot_store` to Redis.
 
 ## Pausing queues
 
@@ -98,6 +106,27 @@ end
 all of Sidekiq's weighting/ordering. Until it's installed, the Queues page records pauses
 but **warns that they aren't enforced** (worker and web are separate processes, so
 Roundhouse detects whether a fetcher has reported in).
+
+> ⚠️ **Sidekiq Pro/Enterprise users:** super_fetch / reliable fetch sets its own
+> `fetch_class`, and Sidekiq allows only one. Installing `RoundhouseUi::Fetch` would
+> **replace reliable fetch and lose its crash-recovery guarantees** — don't. On those
+> tiers, leave the fetch strategy out; pause/resume stays inert and the UI says so.
+
+## Surfacing sidekiq-failures
+
+If you use [`sidekiq-failures`](https://github.com/mhfs/sidekiq-failures), failures it
+records live in their own Redis set — which Roundhouse doesn't read by default. Jobs with
+`retry: false` are the common case: they fail, get recorded there, but never enter the
+retry or dead sets, so they're invisible in Roundhouse. Opt in to fold them into the
+grouped **Errors** view:
+
+```ruby
+# config/initializers/roundhouse.rb
+RoundhouseUi.configure { |c| c.show_sidekiq_failures = true }
+```
+
+It's a no-op unless `sidekiq-failures` is loaded. Failures appear in **Errors** grouped by
+job class + error (not yet as an individual-job list with per-row actions).
 
 ## Cancelling jobs
 

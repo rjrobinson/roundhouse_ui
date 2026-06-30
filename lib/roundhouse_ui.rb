@@ -51,6 +51,12 @@ module RoundhouseUi
     # e.g. RoundhouseUi.redact_args = %w[password token secret]. Default: none.
     attr_accessor :redact_args
 
+    # Opt-in: fold failures recorded by the `sidekiq-failures` gem (its `failed`
+    # sorted set) into the grouped Errors view. Off by default, and a no-op
+    # unless sidekiq-failures is loaded. Jobs with `retry: false` never enter
+    # Sidekiq's retry/dead sets, so this is the only way to surface them here.
+    attr_accessor :show_sidekiq_failures
+
     # Configure in an initializer:
     #
     #   RoundhouseUi.configure do |c|
@@ -70,4 +76,5 @@ module RoundhouseUi
   self.read_only = false
   self.allow_job_editing = false
   self.redact_args = []
+  self.show_sidekiq_failures = false
 end
