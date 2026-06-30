@@ -30,13 +30,15 @@ RoundhouseUi::Engine.routes.draw do
   post "scheduled/:jid/delete"  => "scheduled#destroy", as: :delete_scheduled
 
   get  "retries" => "retries#index", as: :retries
+  post "retries/bulk_all"    => "retries#bulk_all", as: :bulk_all_retries
   post "retries/:jid/run"    => "retries#requeue", as: :run_retry
   post "retries/:jid/delete" => "retries#destroy", as: :delete_retry
 
   get  "dead" => "dead#index", as: :dead_set
-  post "dead/bulk"        => "dead#bulk",    as: :bulk_dead
-  post "dead/:jid/retry"  => "dead#requeue", as: :retry_dead_job
-  post "dead/:jid/delete" => "dead#destroy", as: :delete_dead_job
+  post "dead/bulk"        => "dead#bulk",      as: :bulk_dead
+  post "dead/bulk_all"    => "dead#bulk_all",  as: :bulk_all_dead
+  post "dead/:jid/retry"  => "dead#requeue",   as: :retry_dead_job
+  post "dead/:jid/delete" => "dead#destroy",   as: :delete_dead_job
 
   get "errors" => "errors#index", as: :errors
   get "capsules" => "capsules#index", as: :capsules

@@ -6,6 +6,14 @@
 
 <h2 class="rh-h2">Dead set · <%= number_with_delimiter @total %> jobs</h2>
 
+<% if @query.present? %>
+  <div class="rh-bulkbar">
+    <%= button_to "↻ Retry all matching", bulk_all_dead_path, method: :post, params: { op: "retry", q: @query }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Retry every dead job matching “#{@query}” (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+    <%= button_to "✕ Delete all matching", bulk_all_dead_path, method: :post, params: { op: "delete", q: @query }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every dead job matching “#{@query}” (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+    <span class="rh-sub">acts on every match for “<%= @query %>”, not just this page</span>
+  </div>
+<% end %>
+
 <%= form_with url: bulk_dead_path, method: :post, data: { turbo: false } do %>
   <div class="rh-bulkbar">
     <button type="submit" name="op" value="retry" class="rh-btn">↻ Retry selected</button>

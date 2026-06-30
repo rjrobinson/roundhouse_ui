@@ -5,6 +5,15 @@
 </form>
 
 <h2 class="rh-h2">Retries · <%= number_with_delimiter @total %> jobs</h2>
+
+<% if @query.present? %>
+  <div class="rh-bulkbar">
+    <%= button_to "↻ Run all matching now", bulk_all_retries_path, method: :post, params: { op: "retry", q: @query }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Run every retry matching “#{@query}” now (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+    <%= button_to "✕ Delete all matching", bulk_all_retries_path, method: :post, params: { op: "delete", q: @query }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every retry matching “#{@query}” (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+    <span class="rh-sub">acts on every match for “<%= @query %>”, not just this page</span>
+  </div>
+<% end %>
+
 <table class="rh-table">
   <thead><tr><th>Job</th><th>Last error</th><th class="r">Attempt</th><th class="r">Next try</th><th class="r">Actions</th></tr></thead>
   <tbody>

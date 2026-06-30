@@ -2,7 +2,7 @@ module RoundhouseUi
   class DeadController < ApplicationController
     include JobSetBrowsing
 
-    before_action :require_writable!, only: %i[requeue destroy bulk]
+    before_action :require_writable!, only: %i[requeue destroy bulk bulk_all]
 
     def index
       @query = params[:q].to_s.strip
@@ -34,6 +34,17 @@ module RoundhouseUi
       end
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
       redirect_to dead_set_path, notice: "#{verb} #{count} job(s)."
+    end
+
+    # Smart bulk: act on EVERY job matching the current filter (not just the
+    # selected/visible ones), capped for safety. Only offered when a filter is
+    # active, so it can't become "retry the entire dead set" by accident.
+    def bulk_all
+      count, capped = bulk_apply(Sidekiq::DeadSet.new, params[:q].to_s.strip, params[:op])
+      verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
+      note = "#{verb} #{count} matching job(s)."
+      note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if capped
+      redirect_to dead_set_path, notice: note
     end
 
     private
