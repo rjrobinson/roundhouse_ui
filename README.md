@@ -1,6 +1,6 @@
-<img width="3532" height="1956" alt="CleanShot 2026-06-27 at 21 07 23@2x" src="https://github.com/user-attachments/assets/7c27c997-d8d1-4e8e-b982-94c624ebfa2a" />
 # Roundhouse
-
+<img width="1254" height="1254" alt="ChatGPT Logo Jul 1 2026" src="https://github.com/user-attachments/assets/883b173e-afd5-4eb0-a157-fceb2e93ec33" />
+<img width="4460" height="3152" alt="CleanShot 2026-07-01 at 09 42 17@2x" src="https://github.com/user-attachments/assets/3484709b-9c4f-449e-8776-53ad2de4781f" />
 **A modern, real-time web UI for Sidekiq.**
 
 [![CI](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml)
