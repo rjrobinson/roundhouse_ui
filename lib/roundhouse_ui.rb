@@ -12,6 +12,7 @@ require "roundhouse_ui/cancel_middleware"
 require "roundhouse_ui/metrics"
 require "roundhouse_ui/error_groups"
 require "roundhouse_ui/health"
+require "roundhouse_ui/duration_collector"
 
 # Brand name is "Roundhouse"; the gem and Ruby namespace are RoundhouseUi
 # (matching the published gem name `roundhouse_ui`).
@@ -59,6 +60,12 @@ module RoundhouseUi
     # Sidekiq's retry/dead sets, so this is the only way to surface them here.
     attr_accessor :show_sidekiq_failures
 
+    # Opt-in: record per-class job durations (via RoundhouseUi::DurationCollector
+    # server middleware) so the Metrics page can show the slowest job classes.
+    # Default false; reads/writes a single Redis hash. The flag gates the UI; the
+    # collection itself is enabled by installing the middleware.
+    attr_accessor :collect_durations
+
     # Seconds between dashboard stat polls. Lower = livelier, but each poll also
     # re-runs the host's auth/routing on the mount, so a busy console can add DB
     # load. Default 5s; raise it if polling shows up in your traces.
@@ -93,4 +100,5 @@ module RoundhouseUi
   self.show_sidekiq_failures = false
   self.pause_enabled = true
   self.poll_interval = 5
+  self.collect_durations = false
 end

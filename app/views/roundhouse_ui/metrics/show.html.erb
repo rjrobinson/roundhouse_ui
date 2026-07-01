@@ -47,3 +47,24 @@
     <div class="d">backlog clears in, at current rate</div>
   </div>
 </div>
+
+<% if RoundhouseUi.collect_durations %>
+  <h2 class="rh-h2">Slowest job classes <span class="hint">by total time · from RoundhouseUi::DurationCollector</span></h2>
+  <% if @durations.blank? %>
+    <div class="rh-panel"><div class="rh-empty">No durations recorded yet — jobs need to run with the collector middleware installed.</div></div>
+  <% else %>
+    <table class="rh-table">
+      <thead><tr><th>Job class</th><th class="r">Runs</th><th class="r">Avg</th><th class="r">Total time</th></tr></thead>
+      <tbody>
+        <% @durations.each do |d| %>
+          <tr>
+            <td class="rh-mono"><%= d[:klass] %></td>
+            <td class="r rh-mono"><%= number_with_delimiter d[:count] %></td>
+            <td class="r rh-mono <%= "rh-lat-warn" if d[:avg_ms] >= 1000 %>"><%= d[:avg_ms] >= 1000 ? "#{(d[:avg_ms] / 1000).round(1)}s" : "#{d[:avg_ms].round}ms" %></td>
+            <td class="r rh-mono"><%= d[:total_ms] >= 1000 ? "#{(d[:total_ms] / 1000).round(1)}s" : "#{d[:total_ms].round}ms" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+<% end %>
