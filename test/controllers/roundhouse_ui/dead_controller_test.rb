@@ -118,6 +118,23 @@ module RoundhouseUi
       assert_empty @entries.last.actions
     end
 
+    def test_bulk_all_acts_on_every_match_not_just_selected
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        post "/roundhouse/dead/bulk_all", params: { op: "retry", q: "stripe" }
+      end
+      assert_response :redirect
+      assert_empty @entries.first.actions, "BulkImportJob doesn't match the filter"
+      assert_includes @entries.last.actions, :retry, "the Stripe job matches and is retried"
+    end
+
+    def test_bulk_all_blocked_in_read_only
+      RoundhouseUi.read_only = true
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        post "/roundhouse/dead/bulk_all", params: { op: "delete", q: "stripe" }
+      end
+      assert_empty @entries.last.actions
+    end
+
     def test_bulk_blocked_in_read_only
       RoundhouseUi.read_only = true
       stub_method(Sidekiq::DeadSet, :new, @set) do

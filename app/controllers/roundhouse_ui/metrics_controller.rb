@@ -3,6 +3,7 @@ module RoundhouseUi
   class MetricsController < ApplicationController
     def show
       @metrics = Metrics.new
+      @durations = DurationCollector.summary if RoundhouseUi.collect_durations
     end
   end
 end

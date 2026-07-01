@@ -70,5 +70,22 @@ module RoundhouseUi
       assert_empty @entries.first.actions
       assert_empty @entries.last.actions
     end
+
+    def test_bulk_all_acts_on_every_match
+      stub_method(Sidekiq::RetrySet, :new, @set) do
+        post "/roundhouse/retries/bulk_all", params: { op: "retry", q: "slack" }
+      end
+      assert_response :redirect
+      assert_includes @entries.first.actions, :retry, "the Slack job matches and is re-run"
+      assert_empty @entries.last.actions, "the Stripe job doesn't match the filter"
+    end
+
+    def test_bulk_all_blocked_in_read_only
+      RoundhouseUi.read_only = true
+      stub_method(Sidekiq::RetrySet, :new, @set) do
+        post "/roundhouse/retries/bulk_all", params: { op: "delete", q: "slack" }
+      end
+      assert_empty @entries.first.actions
+    end
   end
 end

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-07-01
+
+### Added
+- **Smart bulk match-set** on Retries + Dead: with a filter active, retry or
+  delete *every* matching job in one action (not just the visible page), capped
+  at 1,000 per run. Filter-gated (can't become "retry everything"), `read_only`-
+  aware, and audit-logged.
+- **Per-class duration tracking** (opt-in): `RoundhouseUi::DurationCollector`
+  server middleware + `collect_durations` surface the slowest job classes (by
+  total time, with count + average) on the Metrics page. Two cheap Redis writes
+  per job; off by default; never lets collection break a job.
+
+### Changed
+- **On-call hardening:** responsive layout (sidebar collapses to a top nav and
+  cards stack on phones), visible `:focus-visible` outlines on every control, and
+  a poll-failure indicator ("reconnecting…") so a failed stat poll no longer reads
+  as a silent live `0`.
+
 ## [0.7.0] - 2026-06-30
 
 ### Added
@@ -111,6 +129,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.8.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.5.0
