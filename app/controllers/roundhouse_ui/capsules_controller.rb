@@ -12,7 +12,7 @@ module RoundhouseUi
     def aggregate
       capsules = Hash.new { |h, k| h[k] = { name: k, concurrency: 0, processes: 0, queues: {} } }
 
-      Sidekiq::ProcessSet.new.each do |process|
+      backend.process_set.each do |process|
         # `capsules` is a Sidekiq 8.0.8+ Process attribute; absent on 6.x/early 7,
         # where calling it would raise NoMethodError. Skip → view shows empty state.
         next unless process.respond_to?(:capsules)

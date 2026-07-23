@@ -9,7 +9,7 @@ module RoundhouseUi
 
     def index
       @threshold = LONG_RUNNING
-      @work = Sidekiq::WorkSet.new.map { |process_id, tid, work| normalize(process_id, tid, work) }
+      @work = backend.work_set.map { |process_id, tid, work| normalize(process_id, tid, work) }
     end
 
     def cancel

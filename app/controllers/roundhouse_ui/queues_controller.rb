@@ -3,14 +3,14 @@ module RoundhouseUi
     before_action :require_writable!, only: %i[purge pause resume]
 
     def index
-      @queues = Sidekiq::Queue.all
+      @queues = backend.queues
       @paused = RoundhouseUi::Pause.paused_set
       @fetch_installed = RoundhouseUi::Pause.fetch_installed?
     end
 
     # Real, OSS-supported destructive action: empties the queue in Redis.
     def purge
-      Sidekiq::Queue.new(params[:name]).clear
+      backend.queue(params[:name]).clear
       redirect_to queues_path, notice: "Purged queue “#{params[:name]}”."
     end
 

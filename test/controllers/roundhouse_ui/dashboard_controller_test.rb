@@ -48,6 +48,22 @@ module RoundhouseUi
       end
     end
 
+    # Proves the UI reads through RoundhouseUi.backend, not hardcoded Sidekiq —
+    # a non-Sidekiq object supplies the data (the seam Solid Queue will use).
+    def test_reads_through_the_configured_backend
+      stats = fake_stats # capture as a local so the singleton method closes over it
+      fake = Object.new
+      fake.define_singleton_method(:stats) { stats }
+      fake.define_singleton_method(:queues) { [] }
+      RoundhouseUi.backend = fake
+
+      get "/roundhouse/stats"
+      assert_response :success
+      assert_equal 8_420_118, JSON.parse(@response.body)["processed"]
+    ensure
+      RoundhouseUi.backend = nil # fall back to the default Sidekiq backend
+    end
+
     def test_response_carries_a_self_contained_nonce_csp
       stub_dashboard do
         get "/roundhouse"
