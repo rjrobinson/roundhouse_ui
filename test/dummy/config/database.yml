@@ -1,0 +1,19 @@
+# Only used to exercise the Solid Queue backend adapter in tests. The Sidekiq
+# path needs no database; this is here so ActiveRecord (and Solid Queue's tables)
+# have somewhere to live during the test run.
+default: &default
+  adapter: sqlite3
+  pool: 5
+  timeout: 5000
+
+development:
+  <<: *default
+  database: storage/development.sqlite3
+
+test:
+  <<: *default
+  database: ":memory:"
+
+production:
+  <<: *default
+  database: storage/production.sqlite3

@@ -33,7 +33,7 @@ Everything reads through Sidekiq's public API — **no database**.
 
 ## Requirements
 
-- Ruby >= 3.1 · Rails >= 7.0 · Sidekiq >= 7.0
+- Ruby >= 3.1 · Rails >= 7.0 · Sidekiq >= 6.5 (or Solid Queue — see Backends)
 
 ## Installation
 
@@ -41,6 +41,28 @@ Everything reads through Sidekiq's public API — **no database**.
 # Gemfile
 gem "roundhouse_ui"
 ```
+
+## Backends
+
+Roundhouse reads through a **backend port**, so the same UI can drive different
+job systems. It defaults to **Sidekiq**; point it at **Solid Queue** in an
+initializer:
+
+```ruby
+# config/initializers/roundhouse.rb
+RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
+```
+
+The UI adapts to each backend's capabilities — on Solid Queue, queue **pause is
+native** (no fetcher, no warning), and the **Retries / Redis / Capsules / Workers**
+sections hide (Solid Queue has no distinct retry set, isn't Redis-backed, and
+processes are a follow-up). Dashboard, Queues, Scheduled, Dead, Busy, and the
+grouped Errors view all work on both. See
+[docs/adr/0001](docs/adr/0001-backend-port-multi-queue.md).
+
+> Running **both** Sidekiq and Solid Queue in one app (e.g. mid-migration)? That's
+> [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17) — for now, one
+> backend per Roundhouse instance.
 
 ## Mounting
 

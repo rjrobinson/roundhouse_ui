@@ -59,3 +59,7 @@ The UX edge over Mission Control is the reason to invest at all.
   interface is wrong — redesign it or fall back to Option 3 (partial).
 - A **third backend** is requested (e.g. GoodJob): use it to confirm the port
   generalizes rather than encoding two-backend assumptions.
+- **Dual-backend demand** — an app wanting to watch Sidekiq *and* Solid Queue at
+  once (migrations, split workloads). Tracked in
+  [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17); would make
+  `RoundhouseUi.backend` resolvable per-mount instead of a global singleton.

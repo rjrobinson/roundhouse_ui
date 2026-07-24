@@ -14,6 +14,7 @@ require "roundhouse_ui/error_groups"
 require "roundhouse_ui/health"
 require "roundhouse_ui/duration_collector"
 require "roundhouse_ui/backends/sidekiq"
+require "roundhouse_ui/backends/solid_queue"
 
 # Brand name is "Roundhouse"; the gem and Ruby namespace are RoundhouseUi
 # (matching the published gem name `roundhouse_ui`).

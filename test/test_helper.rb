@@ -4,6 +4,13 @@ ENV["RAILS_ENV"] = "test"
 require_relative "../test/dummy/config/environment"
 require "rails/test_help"
 
+# Load the Solid Queue schema into the (in-memory) test database so the Solid
+# Queue backend adapter can be exercised. The Sidekiq path needs no database.
+if defined?(ActiveRecord::Base)
+  ActiveRecord::Schema.verbose = false
+  load Rails.root.join("db/queue_schema.rb")
+end
+
 class ActiveSupport::TestCase
   # Temporarily replace a class method, restoring it after the block.
   # (minitest/mock's #stub won't load under the bundled minitest here.)

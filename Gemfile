@@ -11,6 +11,13 @@ gem "puma"
 
 gem "propshaft"
 
+# Solid Queue is a soft/optional backend — only needed to exercise the Solid Queue
+# adapter in tests, so it lives here, not in the gemspec runtime deps.
+group :test do
+  gem "solid_queue"
+  gem "sqlite3"
+end
+
 # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
 gem "rubocop-rails-omakase", require: false
 
