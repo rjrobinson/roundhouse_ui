@@ -357,14 +357,14 @@
         { label: "Dashboard", path: "<%= root_path %>", icon: "▦" },
         { label: "Metrics", path: "<%= metrics_path %>", icon: "▤" },
         { label: "Busy", path: "<%= busy_path %>", icon: "◐" },
-        { label: "Workers", path: "<%= workers_path %>", icon: "◷" },
+        <% if RoundhouseUi.backend.supports?(:workers) %>{ label: "Workers", path: "<%= workers_path %>", icon: "◷" },<% end %>
         { label: "Queues", path: "<%= queues_path %>", icon: "≡" },
         { label: "Scheduled", path: "<%= scheduled_path %>", icon: "◔" },
-        { label: "Retries", path: "<%= retries_path %>", icon: "↻" },
+        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "↻" },<% end %>
         { label: "Errors", path: "<%= errors_path %>", icon: "⚠" },
         { label: "Dead", path: "<%= dead_set_path %>", icon: "✕" },
-        <% if defined?(Sidekiq::Capsule) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "⊞" },<% end %>
-        { label: "Redis", path: "<%= redis_info_path %>", icon: "◈" },
+        <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "⊞" },<% end %>
+        <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "◈" },<% end %>
         { label: "Snapshots", path: "<%= snapshots_path %>", icon: "⛁" },
         { label: "Audit log", path: "<%= audit_log_path %>", icon: "☷" },
         <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", icon: "＋" },<% end %>
@@ -448,13 +448,17 @@
         <%= nav_link "Dashboard", root_path, icon: "▦" %>
         <%= nav_link "Metrics", metrics_path, icon: "▤" %>
         <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy" %>
-        <%= nav_link "Workers", workers_path, icon: "◷" %>
+        <% if RoundhouseUi.backend.supports?(:workers) %>
+          <%= nav_link "Workers", workers_path, icon: "◷" %>
+        <% end %>
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Work</div>
         <%= nav_link "Queues", queues_path, icon: "≡", badge: "queues" %>
         <%= nav_link "Scheduled", scheduled_path, icon: "◔", badge: "scheduled" %>
-        <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn" %>
+        <% if RoundhouseUi.backend.supports?(:retries) %>
+          <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn" %>
+        <% end %>
         <%= nav_link "Errors", errors_path, icon: "⚠" %>
         <%= nav_link "Dead", dead_set_path, icon: "✕", badge: "dead", badge_class: "crit" %>
         <% if RoundhouseUi.allow_job_editing %>
@@ -463,11 +467,13 @@
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Infrastructure</div>
-        <%# Capsules are a Sidekiq 7+ concept — hide the nav entirely on 6.x. %>
-        <% if defined?(Sidekiq::Capsule) %>
+        <%# Capsules are a Sidekiq 7+ concept — hide on 6.x and on non-Sidekiq backends. %>
+        <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>
           <%= nav_link "Capsules", capsules_path, icon: "⊞" %>
         <% end %>
-        <%= nav_link "Redis", redis_info_path, icon: "◈" %>
+        <% if RoundhouseUi.backend.supports?(:redis) %>
+          <%= nav_link "Redis", redis_info_path, icon: "◈" %>
+        <% end %>
         <%= nav_link "Snapshots", snapshots_path, icon: "⛁" %>
         <%= nav_link "Audit log", audit_log_path, icon: "☷" %>
       </nav>

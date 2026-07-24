@@ -4,8 +4,11 @@ module RoundhouseUi
 
     def index
       @queues = backend.queues
-      @paused = RoundhouseUi::Pause.paused_set
-      @fetch_installed = RoundhouseUi::Pause.fetch_installed?
+      @paused = backend.paused_queues
+      # Native-pause backends (Solid Queue) enforce pauses without a fetcher, so
+      # they never trigger the "not enforced" warning.
+      @fetch_installed = backend.supports?(:native_pause) ||
+                         (backend.respond_to?(:fetch_installed?) && backend.fetch_installed?)
     end
 
     # Real, OSS-supported destructive action: empties the queue in Redis.
@@ -15,12 +18,12 @@ module RoundhouseUi
     end
 
     def pause
-      RoundhouseUi::Pause.pause!(params[:name])
+      backend.pause(params[:name])
       redirect_to queues_path, notice: "Paused “#{params[:name]}”."
     end
 
     def resume
-      RoundhouseUi::Pause.unpause!(params[:name])
+      backend.resume(params[:name])
       redirect_to queues_path, notice: "Resumed “#{params[:name]}”."
     end
 

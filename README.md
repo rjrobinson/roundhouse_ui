@@ -1,6 +1,6 @@
 # Roundhouse
 <img width="4460" height="3152" alt="CleanShot 2026-07-01 at 09 42 17@2x" src="https://github.com/user-attachments/assets/3484709b-9c4f-449e-8776-53ad2de4781f" />
-**A modern, real-time web UI for Sidekiq.**
+**A modern, real-time web UI for Sidekiq and Solid Queue.**
 
 [![CI](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml)
 [![Gem Version](https://img.shields.io/gem/v/roundhouse_ui)](https://rubygems.org/gems/roundhouse_ui)
@@ -8,32 +8,34 @@
 [![Rails](https://img.shields.io/badge/rails-%3E%3D%207.0-D30001?logo=rubyonrails&logoColor=white)](https://rubyonrails.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](MIT-LICENSE)
 
-Roundhouse is a mountable Rails engine that replaces the stock Sidekiq Web UI with a
-control plane built for the way you actually operate background jobs: live stats,
-searchable sets, grouped errors, safe queue management, job inspection/editing, and
-Redis health — all server-rendered with Turbo (no build step), and **no Sidekiq Pro
-required**.
+Roundhouse is a mountable Rails engine — a control plane built for the way you
+actually operate background jobs: a high-signal dashboard, searchable sets, grouped
+errors, smart bulk actions, safe queue management, and job inspection/editing. It
+reads through a **backend port**, so the same UI drives **Sidekiq** or **Solid
+Queue** (see [Backends](#backends)). All server-rendered with Turbo — **no build
+step, no frontend dependency** — and **no Sidekiq Pro required**.
 
 > Gem name is `roundhouse_ui`; the brand and mount path are **Roundhouse**.
 
 ## Features
 
-- **Live dashboard** — throughput chart + stat cards refresh in place (no reload); polling pauses when the tab is hidden.
-- **Search** — find a job across the dead/retry/scheduled sets by class, JID, error, or argument value.
-- **Bulk actions** — select many dead jobs and retry/delete them at once (not 25-at-a-time).
-- **Grouped errors** — failures fingerprinted by `class + error`, so one bad deploy is a single issue with a count.
-- **Queue management** — pause/resume (OSS, see below), purge with an impact count, and **snapshot → restore**.
-- **Job inspection & editing** — view a job's full args (with redaction), error, and backtrace; edit & re-enqueue, or enqueue a brand-new job (opt-in).
-- **Workers** — process fleet with quiet/stop, threads, queues, and heartbeat.
-- **Redis pressure** — memory, ops/sec, and the eviction-policy check that flags silent job loss.
+- **High-signal dashboard** — a composite health verdict (error rate + queue latency + utilization, with a "why"), *top failing job classes* and *problem queues* panels, and a live throughput chart with a configurable interval — all refreshing in place (polling pauses when the tab is hidden).
+- **Grouped errors** — failures fingerprinted by `class + error`, so one bad deploy is a single issue with a count, not thousands of rows.
+- **Smart bulk actions** — retry/delete every job matching a filter (not just the visible page), plus select-and-act on Dead.
+- **Search** — across the dead/retry/scheduled sets by class, JID, error, or argument value.
+- **Queue management** — pause/resume, purge with an impact count, and **snapshot → restore**.
+- **Job inspection & editing** — full args (with redaction), error, and collapsible backtrace; edit & re-enqueue, or enqueue a new job (opt-in).
+- **Per-class durations** (opt-in) — the slowest job classes, which Sidekiq doesn't track.
 - **Audit log** — every state-changing action recorded and attributable.
-- **⌘K command palette**, light/dark themes, read-only mode, and a strict self-contained CSP.
+- **⌘K command palette**, light/dark themes, compact/full-width toggle, read-only mode, and a strict self-contained CSP.
 
-Everything reads through Sidekiq's public API — **no database**.
+Sidekiq-specific extras: **Workers** (quiet/stop, threads, heartbeat), **Redis pressure** (eviction-policy check for silent job loss), and **Capsules**.
+
+There's **no database of its own** — Roundhouse reads your job backend directly (Sidekiq via its API, Solid Queue via its tables).
 
 ## Requirements
 
-- Ruby >= 3.1 · Rails >= 7.0 · Sidekiq >= 7.0
+- Ruby >= 3.1 · Rails >= 7.0 · Sidekiq >= 6.5 (or Solid Queue — see Backends)
 
 ## Installation
 
@@ -41,6 +43,28 @@ Everything reads through Sidekiq's public API — **no database**.
 # Gemfile
 gem "roundhouse_ui"
 ```
+
+## Backends
+
+Roundhouse reads through a **backend port**, so the same UI can drive different
+job systems. It defaults to **Sidekiq**; point it at **Solid Queue** in an
+initializer:
+
+```ruby
+# config/initializers/roundhouse.rb
+RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
+```
+
+The UI adapts to each backend's capabilities — on Solid Queue, queue **pause is
+native** (no fetcher, no warning), and the **Retries / Redis / Capsules / Workers**
+sections hide (Solid Queue has no distinct retry set, isn't Redis-backed, and
+processes are a follow-up). Dashboard, Queues, Scheduled, Dead, Busy, and the
+grouped Errors view all work on both. See
+[docs/adr/0001](docs/adr/0001-backend-port-multi-queue.md).
+
+> Running **both** Sidekiq and Solid Queue in one app (e.g. mid-migration)? That's
+> [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17) — for now, one
+> backend per Roundhouse instance.
 
 ## Mounting
 
@@ -104,8 +128,11 @@ Every option is independent and has a safe default — set only what you need.
 
 ## Pausing queues
 
-Pause/resume is pure OSS. To make a pause actually stop a queue from being worked,
-install Roundhouse's fetch strategy in your Sidekiq **server** config:
+> On **Solid Queue**, pause is **native** — it's enforced by the backend, so there's
+> nothing to install and no warning. The rest of this section is Sidekiq-only.
+
+On Sidekiq, pause/resume is pure OSS. To make a pause actually stop a queue from being
+worked, install Roundhouse's fetch strategy in your Sidekiq **server** config:
 
 ```ruby
 # config/initializers/sidekiq.rb
@@ -219,8 +246,10 @@ Redis and run `bin/rails server` to click around.
 
 ## Roadmap
 
+- Solid Queue: Workers view + enqueue, and the multi-DB (separate queue database) case.
+- Watch Sidekiq **and** Solid Queue from one install ([#17](https://github.com/rjrobinson/roundhouse_ui/issues/17)).
 - Multi-Redis / multi-cluster view (one pane across shards).
-- Capsules and cron/periodic views.
+- Cron/periodic (recurring) views.
 
 ## Contributing
 
