@@ -5,10 +5,14 @@ require_relative "../test/dummy/config/environment"
 require "rails/test_help"
 
 # Load the Solid Queue schema into the (in-memory) test database so the Solid
-# Queue backend adapter can be exercised. The Sidekiq path needs no database.
-if defined?(ActiveRecord::Base)
+# Queue backend adapter can be exercised. Loaded from the installed gem's own
+# template, so it always matches the Solid Queue version under test (the CI
+# matrix varies that version). The Sidekiq path needs no database.
+if defined?(SolidQueue)
+  spec = Gem.loaded_specs["solid_queue"]
+  schema = File.join(spec.gem_dir, "lib/generators/solid_queue/install/templates/db/queue_schema.rb")
   ActiveRecord::Schema.verbose = false
-  load Rails.root.join("db/queue_schema.rb")
+  load schema
 end
 
 class ActiveSupport::TestCase

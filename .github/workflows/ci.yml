@@ -79,3 +79,39 @@ jobs:
           name: screenshots
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
+
+  # Dedicated Solid Queue lane — varies the Solid Queue version (its schema is
+  # loaded from the installed gem), so the Solid Queue backend is proven against
+  # each version, not just implicitly inside the Sidekiq lanes.
+  test_solid_queue:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        solid_queue: [ "~> 1.0", "~> 1.5" ]
+
+    name: test (solid_queue ${{ matrix.solid_queue }})
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ruby-3.3.9
+          bundler-cache: false
+
+      - name: Install dependencies (Solid Queue ${{ matrix.solid_queue }})
+        env:
+          SOLID_QUEUE_VERSION: ${{ matrix.solid_queue }}
+        run: |
+          rm -f Gemfile.lock
+          bundle install --jobs 4 --retry 3
+
+      - name: Run tests
+        env:
+          RAILS_ENV: test
+          SOLID_QUEUE_VERSION: ${{ matrix.solid_queue }}
+        run: bin/rails test
