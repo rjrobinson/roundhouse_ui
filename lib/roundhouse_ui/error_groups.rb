@@ -43,7 +43,7 @@ module RoundhouseUi
     # Sidekiq's native sets, plus the sidekiq-failures `failed` set when opted in
     # and loaded. Its FailureSet is a Sidekiq::JobSet, so it iterates like the rest.
     def sources
-      sets = { "retry" => Sidekiq::RetrySet.new, "dead" => Sidekiq::DeadSet.new }
+      sets = { "retry" => RoundhouseUi.backend.retry_set, "dead" => RoundhouseUi.backend.dead_set }
       if RoundhouseUi.show_sidekiq_failures && defined?(Sidekiq::Failures::FailureSet)
         sets["failed"] = Sidekiq::Failures::FailureSet.new
       end

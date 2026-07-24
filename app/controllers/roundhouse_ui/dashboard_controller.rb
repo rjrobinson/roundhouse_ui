@@ -3,8 +3,8 @@ module RoundhouseUi
   # Everything here comes out of Redis via Sidekiq::Stats / Sidekiq::Queue.
   class DashboardController < ApplicationController
     def show
-      @stats  = Sidekiq::Stats.new
-      @queues = Sidekiq::Queue.all
+      @stats  = backend.stats
+      @queues = backend.queues
       @metrics = Metrics.new(stats: @stats)
       @health  = Health.new(stats: @stats, queues: @queues, metrics: @metrics)
       # Highest-signal slices for the overview, from data we already read.
@@ -15,7 +15,7 @@ module RoundhouseUi
     # Polled by the dashboard for live counts (same approach Sidekiq Web uses —
     # cheap JSON, no WebSocket/build step required).
     def stats
-      s = Sidekiq::Stats.new
+      s = backend.stats
       render json: {
         processed: s.processed,
         failed:    s.failed,
@@ -24,7 +24,7 @@ module RoundhouseUi
         scheduled: s.scheduled_size,
         retries:   s.retry_size,
         dead:      s.dead_size,
-        queues:    Sidekiq::Queue.all.size
+        queues:    backend.queues.size
       }
     end
   end

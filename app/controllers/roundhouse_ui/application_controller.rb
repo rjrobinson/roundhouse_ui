@@ -36,6 +36,12 @@ module RoundhouseUi
 
     private
 
+    # The queue backend (Sidekiq by default). Controllers read through this
+    # rather than naming Sidekiq directly. See ADR 0001.
+    def backend
+      RoundhouseUi.backend
+    end
+
     def record_audit_event
       target = params[:name] || params[:jid] || params[:id] || params[:job_class] ||
                (params[:jids].presence && "#{Array(params[:jids]).size} jobs") || params[:op]

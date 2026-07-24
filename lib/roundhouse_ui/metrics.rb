@@ -7,7 +7,7 @@ module RoundhouseUi
   # client-side from the dashboard's poll stream; per-class durations need the
   # collector (a separate, opt-in piece).
   class Metrics
-    def initialize(stats: Sidekiq::Stats.new, processes: Sidekiq::ProcessSet.new)
+    def initialize(stats: RoundhouseUi.backend.stats, processes: RoundhouseUi.backend.process_set)
       @stats = stats
       @processes = processes
     end

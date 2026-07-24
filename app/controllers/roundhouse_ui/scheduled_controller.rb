@@ -7,19 +7,19 @@ module RoundhouseUi
     def index
       @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
-      @total = Sidekiq::ScheduledSet.new.size
-      @jobs, @has_next = browse(Sidekiq::ScheduledSet.new, @query, @page)
+      @total = backend.scheduled_set.size
+      @jobs, @has_next = browse(backend.scheduled_set, @query, @page)
     end
 
     # Enqueue now — pulls the job out of the schedule and onto its queue.
     def enqueue
-      entry = Sidekiq::ScheduledSet.new.find_job(params[:jid])
+      entry = backend.scheduled_set.find_job(params[:jid])
       entry&.add_to_queue
       redirect_to scheduled_path, notice: entry ? "Enqueued #{params[:jid]} now." : "Job is no longer scheduled."
     end
 
     def destroy
-      entry = Sidekiq::ScheduledSet.new.find_job(params[:jid])
+      entry = backend.scheduled_set.find_job(params[:jid])
       entry&.delete
       redirect_to scheduled_path, notice: entry ? "Deleted #{params[:jid]}." : "Job is no longer scheduled."
     end

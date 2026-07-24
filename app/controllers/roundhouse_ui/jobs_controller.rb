@@ -5,11 +5,6 @@ module RoundhouseUi
   # Sidekiq has no in-place edit: a job in a set is keyed by its payload, so an
   # "edit" is delete-the-old + push-the-modified.
   class JobsController < ApplicationController
-    SET_BUILDERS = {
-      "dead"      => -> { Sidekiq::DeadSet.new },
-      "retry"     => -> { Sidekiq::RetrySet.new },
-      "scheduled" => -> { Sidekiq::ScheduledSet.new }
-    }.freeze
     REDIRECTS = { "dead" => :dead_set_path, "retry" => :retries_path, "scheduled" => :scheduled_path }.freeze
 
     before_action :require_editing_enabled!, except: :show
@@ -32,7 +27,7 @@ module RoundhouseUi
       raise ArgumentError, "Job class is required" if klass.empty?
 
       queue = params[:queue].presence || "default"
-      Sidekiq::Client.push("class" => klass, "queue" => queue, "args" => args)
+      backend.push("class" => klass, "queue" => queue, "args" => args)
       redirect_to queues_path, notice: "Enqueued #{klass} → #{queue}."
     rescue ArgumentError => e
       render_form_error(:new, jobs_path, e)
@@ -56,7 +51,7 @@ module RoundhouseUi
       queue = params[:queue].presence || entry.queue
 
       entry.delete
-      Sidekiq::Client.push("class" => klass, "queue" => queue, "args" => args)
+      backend.push("class" => klass, "queue" => queue, "args" => args)
       redirect_to send(REDIRECTS[params[:set]]), notice: "Edited & re-enqueued #{klass} → #{queue}."
     rescue ArgumentError => e
       @action_path = job_path(set: params[:set], jid: params[:jid])
@@ -66,8 +61,8 @@ module RoundhouseUi
     private
 
     def find_entry
-      builder = SET_BUILDERS[params[:set]] or return nil
-      builder.call.find_job(params[:jid])
+      set = backend.set(params[:set]) or return nil
+      set.find_job(params[:jid])
     end
 
     def parse_args!(raw)

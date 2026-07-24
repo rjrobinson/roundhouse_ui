@@ -13,6 +13,7 @@ require "roundhouse_ui/metrics"
 require "roundhouse_ui/error_groups"
 require "roundhouse_ui/health"
 require "roundhouse_ui/duration_collector"
+require "roundhouse_ui/backends/sidekiq"
 
 # Brand name is "Roundhouse"; the gem and Ruby namespace are RoundhouseUi
 # (matching the published gem name `roundhouse_ui`).
@@ -85,6 +86,15 @@ module RoundhouseUi
     #   end
     def configure
       yield self
+    end
+
+    # The queue backend the UI reads through. Defaults to Sidekiq; assign a
+    # different adapter (e.g. Solid Queue) to point Roundhouse at another system.
+    # See docs/adr/0001-backend-port-multi-queue.md.
+    attr_writer :backend
+
+    def backend
+      @backend ||= Backends::Sidekiq.new
     end
 
     # Cooperative cancellation check for long-running jobs:

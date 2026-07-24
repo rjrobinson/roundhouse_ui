@@ -5,7 +5,7 @@ module RoundhouseUi
     before_action :require_writable!, only: %i[quiet stop]
 
     def index
-      @processes = Sidekiq::ProcessSet.new.to_a
+      @processes = backend.process_set.to_a
       @fetch_active = RoundhouseUi::Pause.fetch_installed?
     end
 
@@ -22,7 +22,7 @@ module RoundhouseUi
     private
 
     def find_process(identity)
-      Sidekiq::ProcessSet.new.find { |process| process.identity == identity }
+      backend.process_set.find { |process| process.identity == identity }
     end
 
     def require_writable!
