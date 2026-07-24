@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-24
+
+### Added
+- **Solid Queue backend.** Roundhouse now reads through a pluggable backend port —
+  set `RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new` to drive Solid
+  Queue (ActiveRecord-backed) with the same UI, no build step, no new frontend
+  dependency. Capability-driven: queue pause is native, and Retries / Redis /
+  Capsules / Workers hide where Solid Queue has no equivalent. Sidekiq stays the
+  default. See [docs/adr/0001](docs/adr/0001-backend-port-multi-queue.md).
+- Dedicated Solid Queue CI matrix (`~> 1.0` / `~> 1.5`) alongside the Sidekiq matrix.
+
+### Changed
+- Internal: extracted the `RoundhouseUi.backend` port; controllers, `Metrics`, and
+  `ErrorGroups` read through it, and Busy normalization moved into the backend. No
+  behavior change for Sidekiq (delegates to the same API).
+
 ## [0.8.0] - 2026-07-01
 
 ### Added
@@ -129,6 +145,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.9.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.0
 [0.8.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.6.0
