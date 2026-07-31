@@ -116,15 +116,34 @@ RoundhouseUi.configure do |c|
   # up in your traces — each poll re-runs the host's auth/routing on the mount.
   # c.poll_interval = 10
 
-  # Show the "slowest job classes" table on the Metrics page. Requires the
-  # DurationCollector middleware (see below). Default: false.
+  # Show the "slowest job classes" table on the Metrics page. The flag alone shows
+  # nothing — it also needs the DurationCollector middleware (see below).
+  # Default: false.
   # c.collect_durations = true
 end
 ```
 
-Every option is independent and has a safe default — set only what you need.
-`read_only`, `allow_job_editing`, and `show_sidekiq_failures` default to `false`;
-`redact_args` to `[]`; `observability` to a no-op adapter; `snapshot_store` to Redis.
+Every option is independent and has a safe default — **set only what you need**. Nothing
+here is required to mount Roundhouse.
+
+### When to turn each one on
+
+| Option | Default | Turn it on when | Leave it alone when |
+|---|---|---|---|
+| `read_only` | `false` | **Production, almost always.** Blocks purge/retry/delete/edit *server-side*, not just in the UI — so it holds even if someone hand-crafts a request. The usual shape is `!Rails.env.development?`. | You need operators to actually fix things from the UI, and you trust everyone behind the mount. |
+| `redact_args` | `[]` | **Any app whose job args carry secrets or PII** — args render in full on the job page. Matches keys case-insensitively as substrings, and walks nested hashes/arrays. | Args are all IDs and enum values. |
+| `actor_resolver` | `"anonymous"` | You want the audit log to name *who* did something. One line: `->(c) { c.current_user&.email }`. | Single-operator app, or you already audit at another layer. |
+| `allow_job_editing` | `false` | Development and debugging. **Sharp tool** — a bad edit creates an unrunnable job, and it lets the UI enqueue arbitrary classes. | Production, unless you specifically want that power and have `read_only` off anyway. |
+| `observability` | no-op | You run an APM and want per-job deep links out to it. Ships a Datadog adapter; duck-type `job_url`/`queue_url`/`error_url` for anything else. | No APM, or you'd rather not add links that only some people can open. |
+| `snapshot_store` | Redis | Your snapshots are large or need to outlive Redis (S3/disk). Duck-type `write`/`read`/`delete`/`ids`. | Redis is fine — which it usually is for occasional queue snapshots. |
+| `show_sidekiq_failures` | `false` | You use the `sidekiq-failures` gem **and** run jobs with `retry: false` — those never enter Sidekiq's retry/dead sets, so this is the only way to see them. | You don't have the gem (it's a no-op then anyway). |
+| `poll_interval` | `5` | **Raise it** if dashboard polling shows up in your traces — every poll re-runs your app's auth and routing on the mount, so a busy console adds real load. Lower it only for a livelier demo. | Default is fine for most apps. |
+| `collect_durations` | `false` | You want "slowest job classes" on Metrics, which Sidekiq doesn't track. **Also requires installing the `DurationCollector` middleware** — the flag alone shows nothing. Costs one pipelined Redis round-trip per job. | You already get per-job timing from your APM. |
+| `pause_enabled` | `true` | Leave it on. | **Rarely set this to `false`.** Pause is enforced natively on Sidekiq Pro and Solid Queue, and on OSS Sidekiq by installing `RoundhouseUi::Fetch` — so turning it off usually just hides a working feature. Only useful if you want the controls gone entirely. |
+
+Two that pair with a middleware rather than working alone: `collect_durations`
+(`DurationCollector`) and job cancellation (`CancelMiddleware`) — see
+[Cancelling jobs](#cancelling-jobs) and [Slowest job classes](#slowest-job-classes).
 
 ## Pausing queues
 
@@ -200,6 +219,15 @@ The **Busy** page's Cancel button flags a job's JID. A queued/scheduled/retrying
 is then skipped when it would next run; a *currently running* job stops only if it
 checks in — e.g. a long loop can `break if RoundhouseUi.cancelled?(jid)`.
 
+**Timing and cost.** The middleware is close to free when nothing is cancelled: rather
+than checking each job's JID against Redis, it asks "is *anything* cancelled?" from a
+process-local gate refreshed at most every 2s, and only does the exact per-job lookup
+while cancellations are pending. The tradeoff is that a cancellation takes **up to ~2s
+to reach a worker process** — the UI and your workers are separate processes, so expect
+a brief lag after clicking Cancel. Jobs already in flight are unaffected either way
+(cancellation is cooperative), and `RoundhouseUi.cancelled?(jid)` — what a long-running
+job polls — is never gated, so it always reads current state.
+
 ## Slowest job classes
 
 Sidekiq doesn't track per-class durations, so Roundhouse can record them itself.
@@ -213,8 +241,8 @@ Sidekiq.configure_server do |config|
 end
 ```
 
-It's two cheap Redis writes per job (a counter + a summed-ms float) into a single
-hash, and a job failure never propagates from the collector.
+It's two cheap Redis writes per job (a counter + a summed-ms float) into a single hash,
+pipelined into **one round-trip**, and a job failure never propagates from the collector.
 
 ## Bulk actions on a filter
 

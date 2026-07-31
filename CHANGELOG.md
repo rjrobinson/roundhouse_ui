@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-07-31
+
+### Fixed
+- **Queue pause now works on Sidekiq Pro / Enterprise.** Pro keeps its paused queues
+  in its own Redis set, so Roundhouse's registry wrote a key nothing read: pausing
+  silently did nothing and the UI (correctly) warned it wasn't enforced. Roundhouse
+  now feature-detects Pro's pause API, delegates to `Sidekiq::Queue#pause!` — which
+  also publishes the `pro:config` message Pro's fetchers need to pick a change up
+  without a restart — reads paused state from Pro's registry, and advertises
+  `native_pause` so the warning drops away.
+
+  Pro enforces pause in *both* its fetchers (it prepends onto `Sidekiq::BasicFetch`,
+  and `super_fetch` honors it too), so this needs no fetch strategy and no
+  configuration. **If you set `RoundhouseUi.pause_enabled = false` on the previous
+  advice, remove it** — pause works natively, and leaving it set only hides a working
+  feature. No change for OSS Sidekiq (still needs `RoundhouseUi::Fetch`) or Solid
+  Queue (already native).
+
+### Changed
+- **Lower per-job Redis cost for the opt-in server middleware.** Running both
+  `CancelMiddleware` and `DurationCollector` cost three Redis round-trips per job.
+  `DurationCollector` now pipelines its two writes into one round-trip, and
+  `CancelMiddleware` answers "is anything cancelled at all?" from a process-local
+  gate refreshed at most every 2s, so the per-job `SISMEMBER` only runs while
+  cancellations are actually pending. Idle cost drops from three round-trips per job
+  to one. A cancellation issued by another process is now honored within ~2s rather
+  than immediately — cancellation is cooperative and already racy, and
+  `RoundhouseUi.cancelled?` (which long-running jobs poll) stays exact.
+
 ## [0.9.0] - 2026-07-24
 
 ### Added
@@ -145,6 +174,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.9.1]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.1
 [0.9.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.0
 [0.8.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.7.0
