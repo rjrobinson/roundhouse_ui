@@ -107,9 +107,9 @@ RoundhouseUi.configure do |c|
   # No-op unless the sidekiq-failures gem is loaded. Default: off.
   c.show_sidekiq_failures = true
 
-  # Set false to hide queue pause/resume controls and the "not enforced" warning,
-  # e.g. when you run reliable fetch (super_fetch) instead of RoundhouseUi::Fetch.
-  # Default: true.
+  # Set false to hide queue pause/resume controls entirely. Rarely needed — on
+  # Sidekiq Pro and Solid Queue pause is enforced natively, and on OSS Sidekiq
+  # installing RoundhouseUi::Fetch enforces it. Default: true.
   # c.pause_enabled = false
 
   # Seconds between dashboard stat polls (default 5). Raise it if polling shows
@@ -128,11 +128,12 @@ Every option is independent and has a safe default — set only what you need.
 
 ## Pausing queues
 
-> On **Solid Queue**, pause is **native** — it's enforced by the backend, so there's
-> nothing to install and no warning. The rest of this section is Sidekiq-only.
+> Pause is **native** — enforced with nothing to install and no warning — on both
+> **Solid Queue** and **Sidekiq Pro/Enterprise** (see below). The fetch strategy
+> below is only needed on **OSS Sidekiq**.
 
-On Sidekiq, pause/resume is pure OSS. To make a pause actually stop a queue from being
-worked, install Roundhouse's fetch strategy in your Sidekiq **server** config:
+On OSS Sidekiq, pause/resume is pure OSS. To make a pause actually stop a queue from
+being worked, install Roundhouse's fetch strategy in your Sidekiq **server** config:
 
 ```ruby
 # config/initializers/sidekiq.rb
@@ -146,11 +147,26 @@ all of Sidekiq's weighting/ordering. Until it's installed, the Queues page recor
 but **warns that they aren't enforced** (worker and web are separate processes, so
 Roundhouse detects whether a fetcher has reported in).
 
-> ⚠️ **Sidekiq Pro/Enterprise users:** super_fetch / reliable fetch sets its own
-> `fetch_class`, and Sidekiq allows only one. Installing `RoundhouseUi::Fetch` would
-> **replace reliable fetch and lose its crash-recovery guarantees** — don't. On those
-> tiers, leave the fetch strategy out and set `RoundhouseUi.pause_enabled = false` to
-> hide the pause controls and the (otherwise permanent) "not enforced" warning.
+### Sidekiq Pro / Enterprise — nothing to install
+
+Pro ships its own enforced pause, and Roundhouse uses it automatically. Pro reopens
+`Sidekiq::Queue` with `pause!`/`unpause!` and *prepends* pause support onto
+`Sidekiq::BasicFetch` (`super_fetch` honors it too), so **any Pro worker enforces
+pauses** whether or not a fetch strategy is configured.
+
+When Roundhouse detects Pro it delegates pause/resume to `Sidekiq::Queue#pause!`,
+reads paused state from Pro's registry, advertises `native_pause`, and drops the
+"not enforced" warning. So on Pro:
+
+- **Don't** install `RoundhouseUi::Fetch` — it isn't needed, and on `super_fetch`
+  installs it would displace reliable fetch and lose its crash-recovery guarantees.
+- **Don't** set `pause_enabled = false` — pause genuinely works; disabling it only
+  hides a feature you already have.
+
+Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
+Redis key directly: Pro's fetchers read that set once at startup and afterwards
+only update on the `pro:config` pubsub message `pause!` publishes, so a raw write
+would leave running workers pulling the queue until they restarted.
 
 ## Surfacing sidekiq-failures
 

@@ -14,10 +14,17 @@ module RoundhouseUi
       def name = "Sidekiq"
 
       # Capabilities let the UI hide what a backend can't do. Sidekiq supports
-      # all the sets/views; pause is NOT native (needs the fetcher), so it does
-      # not advertise :native_pause — the "not enforced" warning still applies.
+      # all the sets/views. On OSS Sidekiq pause is NOT native (it needs our
+      # fetcher), so :native_pause is withheld and the "not enforced" warning
+      # applies — but Sidekiq Pro ships its own enforced pause, so there it is
+      # advertised and the warning drops away.
       CAPABILITIES = %i[retries dead scheduled busy workers redis capsules].freeze
-      def supports?(capability) = CAPABILITIES.include?(capability)
+
+      def supports?(capability)
+        return RoundhouseUi::Pause.native? if capability == :native_pause
+
+        CAPABILITIES.include?(capability)
+      end
 
       def stats        = ::Sidekiq::Stats.new
       def queues       = ::Sidekiq::Queue.all

@@ -1,8 +1,8 @@
 module RoundhouseUi
   # Opt-in server middleware that records per-class execution time, so the UI can
   # answer "which job classes are slow?" — something Sidekiq doesn't track. Two
-  # cheap Redis writes per job (a counter + a summed-ms float). Off by default;
-  # enable in your Sidekiq server config:
+  # cheap Redis writes per job (a counter + a summed-ms float), pipelined into a
+  # single round-trip. Off by default; enable in your Sidekiq server config:
   #
   #   Sidekiq.configure_server do |config|
   #     config.server_middleware { |chain| chain.add RoundhouseUi::DurationCollector }
@@ -22,9 +22,16 @@ module RoundhouseUi
     def record(klass, elapsed_ms)
       return unless klass
 
+      commands = [
+        [ "HINCRBY", KEY, "#{klass}\x00count", 1 ],
+        [ "HINCRBYFLOAT", KEY, "#{klass}\x00ms", elapsed_ms ]
+      ]
       Sidekiq.redis do |conn|
-        conn.call("HINCRBY", KEY, "#{klass}\x00count", 1)
-        conn.call("HINCRBYFLOAT", KEY, "#{klass}\x00ms", elapsed_ms)
+        if conn.respond_to?(:pipelined) # redis-client and redis-rb 4.5+: one round-trip
+          conn.pipelined { |pipe| commands.each { |c| pipe.call(*c) } }
+        else
+          commands.each { |c| conn.call(*c) }
+        end
       end
     rescue => e
       # Metrics collection must never break a job.

@@ -16,6 +16,17 @@ module RoundhouseUi
       end
     end
 
+    # HashRedis, but supporting #pipelined the way real clients do — so the
+    # collector's pipelined (production) path is exercised too. The plain
+    # HashRedis keeps the sequential fallback covered.
+    class PipelinedHashRedis < HashRedis
+      attr_reader :pipelined_used
+      def pipelined
+        @pipelined_used = true
+        yield self
+      end
+    end
+
     def with_redis(fake)
       original = Sidekiq.method(:redis)
       Sidekiq.define_singleton_method(:redis) { |&blk| blk.call(fake) }
@@ -31,6 +42,16 @@ module RoundhouseUi
         DurationCollector.new.call(nil, { "class" => "DemoJob" }, nil) { ran = true }
       end
       assert ran, "middleware must yield to the job"
+      assert_equal 1, fake.h["DemoJob\x00count"]
+      assert fake.h["DemoJob\x00ms"] >= 0
+    end
+
+    def test_records_through_a_pipeline_when_the_client_supports_it
+      fake = PipelinedHashRedis.new
+      with_redis(fake) do
+        DurationCollector.new.call(nil, { "class" => "DemoJob" }, nil) { }
+      end
+      assert fake.pipelined_used, "both writes must go through one pipelined round-trip"
       assert_equal 1, fake.h["DemoJob\x00count"]
       assert fake.h["DemoJob\x00ms"] >= 0
     end

@@ -66,7 +66,9 @@ class ActiveSupport::TestCase
       when "SMEMBERS"  then @sets[args[0]].dup
       when "SET"       then @strings[args[0]] = args[1]; "OK"
       when "GET"       then @strings[args[0]]
-      when "EXISTS"    then (@strings.key?(args[0]) || @sets.key?(args[0])) ? 1 : 0
+      # Real Redis deletes a set once its last member is removed, so EXISTS
+      # must ignore keys the Hash default-proc materialized as empty arrays.
+      when "EXISTS"    then (@strings.key?(args[0]) || @sets.fetch(args[0], []).any?) ? 1 : 0
       when "DEL"       then args.each { |k| @strings.delete(k); @sets.delete(k) }; 1
       when "RPUSH"     then key, *vals = args; @lists[key].concat(vals); @lists[key].size
       when "LPUSH"     then key, *vals = args; vals.each { |v| @lists[key].unshift(v) }; @lists[key].size
