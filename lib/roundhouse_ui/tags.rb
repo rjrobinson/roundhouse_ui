@@ -85,12 +85,11 @@ module RoundhouseUi
 
     # -- internals ----------------------------------------------------------
 
-    # ActiveJob-on-Sidekiq stores the adapter's JobWrapper in item["class"] and
-    # the real job class in item["wrapped"]; Solid Queue and raw Sidekiq
-    # workers put the real class in klass. Resolvers always get the real one.
+    # Resolvers always see the real job class. The unwrap now lives on
+    # RoundhouseUi so search, grouping and APM links resolve to the identical
+    # string — see RoundhouseUi.unwrapped_class.
     def effective_klass(klass, item)
-      wrapped = item["wrapped"] if item.is_a?(Hash)
-      (wrapped || klass)&.to_s
+      RoundhouseUi.unwrapped_class(klass, item)
     end
 
     # `item` is nil in class-cached mode: an args-reading resolver cached by

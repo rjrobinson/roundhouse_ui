@@ -132,6 +132,23 @@ module RoundhouseUi
       @backend ||= Backends::Sidekiq.new
     end
 
+    # ActiveJob-on-Sidekiq stores the adapter's JobWrapper in item["class"] and
+    # the real job class in item["wrapped"]. Solid Queue and raw Sidekiq workers
+    # put the real class in klass, and Solid Queue's synthetic item never carries
+    # a "wrapped" key — so this is a no-op there and safe to call unconditionally.
+    #
+    # Reading item["wrapped"] rather than matching on the wrapper's name also
+    # covers Sidekiq 7+/8's native Sidekiq::ActiveJob::Wrapper for free.
+    #
+    # Use for display, search, grouping and APM links, so all four agree on one
+    # string. NOT for re-enqueue: a payload pushed back to Redis must keep
+    # item["class"] exactly as Sidekiq stored it, or the job is re-created as a
+    # raw worker and fails on every attempt.
+    def unwrapped_class(klass, item)
+      wrapped = item["wrapped"] if item.is_a?(Hash)
+      (wrapped || klass)&.to_s
+    end
+
     # Cooperative cancellation check for long-running jobs:
     #   raise SomeStop if RoundhouseUi.cancelled?(jid)
     def cancelled?(jid)

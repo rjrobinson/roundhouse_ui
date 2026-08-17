@@ -89,6 +89,25 @@ module RoundhouseUi
       end
     end
 
+    # Display, search, grouping and APM links all resolve the ActiveJob wrapper
+    # to the real class. Re-enqueue must NOT: Sidekiq stored item["class"] as the
+    # wrapper, and its args are the serialized ActiveJob envelope. Pushing the
+    # inner class with that envelope re-creates the job as a raw worker, which
+    # then fails on every attempt — and the original was already deleted.
+    def test_update_repushes_the_wrapper_class_not_the_unwrapped_one
+      entry = FakeEntry.new(klass: "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper",
+                            queue: "mailers", args: [ { "job_class" => "RealJob" } ],
+                            extra: { "wrapped" => "RealJob" })
+      stub_method(Sidekiq::DeadSet, :new, FakeSet.new("e1" => entry)) do
+        capturing_push do |pushed|
+          post "/roundhouse/jobs/dead/e1", params: { args: '[{"job_class":"RealJob"}]', queue: "mailers" }
+          assert_response :redirect
+          assert_equal "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper", pushed.first["class"],
+            "the payload must go back exactly as Sidekiq stored it"
+        end
+      end
+    end
+
     def test_disabled_blocks_create
       RoundhouseUi.allow_job_editing = false
       capturing_push do |pushed|
