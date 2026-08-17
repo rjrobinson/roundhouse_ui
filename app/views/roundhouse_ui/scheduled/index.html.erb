@@ -3,23 +3,26 @@
 <form method="get" action="<%= scheduled_path %>" class="rh-search">
   <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, or arg value…">
   <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
+  <% if params[:queue].present? %><input type="hidden" name="queue" value="<%= params[:queue] %>"><% end %>
 </form>
 
 <%= render "roundhouse_ui/shared/tag_filter" %>
 
-<h2 class="rh-h2">Scheduled · <%= number_with_delimiter @total %> jobs</h2>
+<%= set_heading("Scheduled", showing: @jobs.size, total: @total, query: @query, tag: @tag) %>
 <table class="rh-table">
-  <thead><tr><th>Job</th><th>Queue</th><th class="r">Runs</th><th class="r">Actions</th></tr></thead>
+  <thead><tr><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th class="r">Runs</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @jobs.empty? %>
-      <tr><td colspan="4" class="rh-empty"><%= @query.present? ? "No scheduled jobs match “#{@query}”." : "Nothing scheduled" %></td></tr>
+      <tr><td colspan="<%= tag_column? ? 5 : 4 %>" class="rh-empty"><%= any_filter?(@query, @tag) ? "No scheduled jobs #{filter_description(@query, @tag)}." : "Nothing scheduled" %></td></tr>
     <% else %>
       <% @jobs.each do |job| %>
         <tr>
-          <td><%= link_to job.klass, job_path(set: "scheduled", jid: job.jid), class: "rh-joblink" %> <%= tag_badges(tags_for(job)) %><br><span class="rh-sub"><%= job.jid %></span></td>
-          <td><span class="rh-sub"><%= job.queue %></span></td>
-          <td class="r"><span class="rh-sub"><%= job.at && job.at > Time.now ? "in #{distance_of_time_in_words(Time.now, job.at)}" : "now (overdue)" %></span></td>
+          <td><%= job_identity(job.klass, job.jid, job_path(set: "scheduled", jid: job.jid)) %></td>
+          <% if tag_column? %><td><%= tag_cell(tags_for(job)) %></td><% end %>
+          <td><%= queue_pill(job.queue, link: true) %></td>
+          <td class="r"><%= job_time(job.at) %></td>
           <td class="r">
+            <%= trace_icon(klass: job.klass, jid: job.jid, queue: job.queue) %>
             <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "scheduled", jid: job.jid), class: "rh-btn" %><% end %>
             <%= button_to "Enqueue now", enqueue_scheduled_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
             <%= button_to "Delete", delete_scheduled_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>

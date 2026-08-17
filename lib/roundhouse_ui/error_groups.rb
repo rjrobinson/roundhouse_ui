@@ -14,6 +14,7 @@ module RoundhouseUi
     def initialize(query: nil, limit: DEFAULT_SCAN_LIMIT)
       @query = query.to_s.strip
       @limit = limit
+      @tag_cache = {}
     end
 
     def call
@@ -34,11 +35,21 @@ module RoundhouseUi
       end
 
       list = groups.values.sort_by { |g| -g[:count] }
-      list = list.select { |g| "#{g[:klass]} #{g[:error]}".downcase.include?(@query.downcase) } if @query.present?
+      list = list.select { |g| matches?(g) } if @query.present?
       Result.new(groups: list, scanned: scanned, truncated: truncated)
     end
 
     private
+
+    # Tag values are part of the haystack here for the same reason they are on
+    # the job sets: typing a squad name should find that squad's failures. A
+    # group's entries all share a class, so the tag is constant for the group
+    # and resolves once per group rather than per scanned entry.
+    def matches?(group)
+      haystack = [ group[:klass], group[:error] ]
+      haystack.concat(Tags.for(klass: group[:klass], item: {}, cache: @tag_cache).values) if RoundhouseUi.job_tags
+      haystack.join(" ").downcase.include?(@query.downcase)
+    end
 
     # Sidekiq's native sets, plus the sidekiq-failures `failed` set when opted in
     # and loaded. Its FailureSet is a Sidekiq::JobSet, so it iterates like the rest.

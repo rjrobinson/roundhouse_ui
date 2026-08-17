@@ -1,23 +1,44 @@
 <% content_for :title, "Errors" %>
 
 <form method="get" action="<%= errors_path %>" class="rh-search">
-  <input type="search" name="q" value="<%= @query %>" placeholder="filter by job class or error…">
+  <input type="search" name="q" value="<%= @query %>" placeholder="filter by job class, error, or squad…">
+  <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
 </form>
 
-<h2 class="rh-h2">Errors · <%= @groups.size %> issues</h2>
+<%# Counts come from the same scan that built the groups, so this costs no extra
+    Redis work. Each chip narrows the list below rather than sending you elsewhere. %>
+<%= render "roundhouse_ui/shared/tag_filter", counts: @tag_counts %>
+
+<h2 class="rh-h2">
+  Errors · <%= @groups.size %> issues
+  <% if @tag %><span class="hint">filtered to <%= @tag[0] %>: <%= @tag[1] %></span><% end %>
+</h2>
+
 <table class="rh-table">
-  <thead><tr><th>Issue</th><th class="r">Occurrences</th><th>In</th><th>Queues</th><th class="r">Last seen</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Issue</th>
+      <% if tag_column? %><th><%= tag_column_label %></th><% end %>
+      <th class="r">Occurrences</th>
+      <th>In</th>
+      <th>Queues</th>
+      <th class="r">Last seen</th>
+    </tr>
+  </thead>
   <tbody>
     <% if @groups.empty? %>
-      <tr><td colspan="5" class="rh-empty"><%= @query.present? ? "No issues match “#{@query}”." : "No failing jobs 🎉" %></td></tr>
+      <tr><td colspan="<%= tag_column? ? 6 : 5 %>" class="rh-empty">
+        <%= @query.present? || @tag ? "No issues match the current filter." : "No failing jobs 🎉" %>
+      </td></tr>
     <% else %>
       <% @groups.each do |g| %>
         <tr>
-          <td><%= g[:klass] %> <%= tag_badges(tags_for_class(g[:klass])) %> <%= error_trace_link(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></td>
+          <td><%= g[:klass] %> <%= error_trace_icon(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></td>
+          <% if tag_column? %><td><%= tag_cell(@group_tags[g[:klass]]) %></td><% end %>
           <td class="r"><%= number_with_delimiter g[:count] %></td>
           <td><span class="rh-sub"><%= g[:sources].join(", ") %></span></td>
-          <td><span class="rh-sub"><%= g[:queues].join(", ") %></span></td>
-          <td class="r"><%= g[:last_at] ? "#{time_ago_in_words(g[:last_at])} ago" : "—" %></td>
+          <td><%= safe_join(g[:queues].map { |q| queue_pill(q) }, " ") %></td>
+          <td class="r"><%= job_time(g[:last_at], overdue: "#{time_ago_in_words(g[:last_at])} ago" ) if g[:last_at] %><%= content_tag(:span, "—", class: "rh-sub") unless g[:last_at] %></td>
         </tr>
       <% end %>
     <% end %>

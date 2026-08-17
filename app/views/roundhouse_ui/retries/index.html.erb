@@ -3,36 +3,44 @@
 <form method="get" action="<%= retries_path %>" class="rh-search">
   <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, error, or arg value…">
   <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
+  <% if params[:queue].present? %><input type="hidden" name="queue" value="<%= params[:queue] %>"><% end %>
 </form>
 
 <%= render "roundhouse_ui/shared/tag_filter" %>
 
-<h2 class="rh-h2">Retries · <%= number_with_delimiter @total %> jobs</h2>
+<%= set_heading("Retries", showing: @jobs.size, total: @total, query: @query, tag: @tag) %>
 
 <% if any_filter?(@query, @tag) %>
-  <div class="rh-bulkbar">
-    <%= button_to "↻ Run all matching now", bulk_all_retries_path, method: :post, params: { op: "retry", q: @query, tag: params[:tag] }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Run every retry #{filter_description(@query, @tag)} now (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
-    <%= button_to "✕ Delete all matching", bulk_all_retries_path, method: :post, params: { op: "delete", q: @query, tag: params[:tag] }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every retry #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
-    <span class="rh-sub">acts on every job <%= filter_description(@query, @tag) %>, not just this page</span>
+  <div class="rh-actionbar">
+    <div class="rh-actiongroup">
+      <span class="rh-actionlabel" title="<%= filter_description(@query, @tag) %>">
+        All <%= number_with_delimiter @total %> <%= filter_description(@query, @tag) %>
+      </span>
+      <%= button_to "↻ Run now", bulk_all_retries_path, method: :post, params: { op: "retry", q: @query, tag: params[:tag], queue: params[:queue] }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Run every retry #{filter_description(@query, @tag)} now (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+      <%= button_to "✕ Delete", bulk_all_retries_path, method: :post, params: { op: "delete", q: @query, tag: params[:tag], queue: params[:queue] }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every retry #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+    </div>
   </div>
 <% end %>
 
 <table class="rh-table">
-  <thead><tr><th>Job</th><th>Last error</th><th class="r">Attempt</th><th class="r">Next try</th><th class="r">Actions</th></tr></thead>
+  <thead><tr><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th class="r">Attempt</th><th class="r">Next try</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @jobs.empty? %>
-      <tr><td colspan="5" class="rh-empty"><%= @query.present? ? "No retries match “#{@query}”." : "Nothing waiting to retry 🎉" %></td></tr>
+      <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= any_filter?(@query, @tag) ? "No retries #{filter_description(@query, @tag)}." : "Nothing waiting to retry 🎉" %></td></tr>
     <% else %>
       <% @jobs.each do |job| %>
         <tr>
-          <td><%= link_to job.klass, job_path(set: "retry", jid: job.jid), class: "rh-joblink" %> <%= tag_badges(tags_for(job)) %><br><span class="rh-sub"><%= job.jid %></span> <%= trace_link(klass: job.klass, jid: job.jid, queue: job.queue) %></td>
+          <td><%= job_identity(job.klass, job.jid, job_path(set: "retry", jid: job.jid)) %></td>
+          <% if tag_column? %><td><%= tag_cell(tags_for(job)) %></td><% end %>
+          <td><%= queue_pill(job.queue, link: true) %></td>
           <td>
             <span class="rh-err"><%= job.item["error_class"] %></span>
-            <% if job.item["error_message"].present? %><br><span class="rh-sub"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
+            <% if job.item["error_message"].present? %><br><span class="rh-sub" title="<%= job.item["error_message"] %>"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
           </td>
-          <td class="r">#<%= job.item["retry_count"].to_i + 1 %></td>
-          <td class="r"><span class="rh-sub"><%= job.at && job.at > Time.now ? "in #{distance_of_time_in_words(Time.now, job.at)}" : "now" %></span></td>
+          <td class="r"><%= job.item["retry_count"].to_i + 1 %></td>
+          <td class="r"><%= job_time(job.at, overdue: "now") %></td>
           <td class="r">
+            <%= trace_icon(klass: job.klass, jid: job.jid, queue: job.queue) %>
             <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "retry", jid: job.jid), class: "rh-btn" %><% end %>
             <%= button_to "Run now", run_retry_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
             <%= button_to "Delete", delete_retry_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>

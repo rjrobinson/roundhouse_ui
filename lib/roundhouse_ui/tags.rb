@@ -30,7 +30,13 @@ module RoundhouseUi
       return EMPTY unless effective
 
       if RoundhouseUi.job_tags_per_job
-        resolve(resolver, effective, item)
+        # Per-job mode still memoizes, keyed by jid rather than class: a job's
+        # tags cannot change within one request, and the same entry is resolved
+        # twice otherwise — once while scanning, once when its badge renders.
+        jid = item["jid"] if item.is_a?(Hash)
+        return resolve(resolver, effective, item) unless cache && jid
+
+        cache.key?(jid) ? cache[jid] : cache[jid] = resolve(resolver, effective, item)
       elsif cache
         # Class-cached mode: item is withheld (deliberately — see resolve).
         cache.key?(effective) ? cache[effective] : cache[effective] = resolve(resolver, effective, nil)

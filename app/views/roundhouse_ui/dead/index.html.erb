@@ -3,41 +3,59 @@
 <form method="get" action="<%= dead_set_path %>" class="rh-search">
   <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, error, or arg value…">
   <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
+  <% if params[:queue].present? %><input type="hidden" name="queue" value="<%= params[:queue] %>"><% end %>
 </form>
 
 <%= render "roundhouse_ui/shared/tag_filter" %>
 
-<h2 class="rh-h2">Dead set · <%= number_with_delimiter @total %> jobs</h2>
+<%= set_heading("Dead set", showing: @jobs.size, total: @total, query: @query, tag: @tag) %>
 
-<% if any_filter?(@query, @tag) %>
-  <div class="rh-bulkbar">
-    <%= button_to "↻ Retry all matching", bulk_all_dead_path, method: :post, params: { op: "retry", q: @query, tag: params[:tag] }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Retry every dead job #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
-    <%= button_to "✕ Delete all matching", bulk_all_dead_path, method: :post, params: { op: "delete", q: @query, tag: params[:tag] }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every dead job #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
-    <span class="rh-sub">acts on every job <%= filter_description(@query, @tag) %>, not just this page</span>
+<%# One toolbar, two scopes. They used to be stacked bars whose captions were the
+    only thing distinguishing "the rows you ticked" from "every job that matches",
+    which is a dangerous distinction to bury. The selected-rows buttons live here
+    but submit the form wrapping the table, via the HTML form= attribute. %>
+<div class="rh-actionbar">
+  <div class="rh-actiongroup">
+    <span class="rh-actionlabel">Selected rows</span>
+    <button type="submit" form="rh-bulk-dead" name="op" value="retry" class="rh-btn">↻ Retry</button>
+    <button type="submit" form="rh-bulk-dead" name="op" value="delete" class="rh-btn rh-btn-danger">✕ Delete</button>
   </div>
-<% end %>
 
-<%= form_with url: bulk_dead_path, method: :post, data: { turbo: false } do %>
-  <div class="rh-bulkbar">
-    <button type="submit" name="op" value="retry" class="rh-btn">↻ Retry selected</button>
-    <button type="submit" name="op" value="delete" class="rh-btn rh-btn-danger">✕ Delete selected</button>
-    <span class="rh-sub">tick rows, then choose an action</span>
-  </div>
+  <% if any_filter?(@query, @tag) %>
+    <div class="rh-actiongroup">
+      <span class="rh-actionlabel" title="<%= filter_description(@query, @tag) %>">
+        All <%= number_with_delimiter @total %> <%= filter_description(@query, @tag) %>
+      </span>
+      <%= button_to "↻ Retry", bulk_all_dead_path, method: :post, params: { op: "retry", q: @query, tag: params[:tag], queue: params[:queue] }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Retry every dead job #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+      <%= button_to "✕ Delete", bulk_all_dead_path, method: :post, params: { op: "delete", q: @query, tag: params[:tag], queue: params[:queue] }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every dead job #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+    </div>
+  <% end %>
+</div>
+
+<%= form_with url: bulk_dead_path, method: :post, id: "rh-bulk-dead", data: { turbo: false } do %>
   <table class="rh-table">
-    <thead><tr><th style="width:28px"><input type="checkbox" id="rh-all" aria-label="select all"></th><th>Job</th><th>Last error</th><th class="r">Died</th></tr></thead>
+    <thead><tr><th style="width:28px"><input type="checkbox" id="rh-all" aria-label="select all"></th><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th class="r">Died</th><th class="r">Actions</th></tr></thead>
     <tbody>
       <% if @jobs.empty? %>
-        <tr><td colspan="4" class="rh-empty"><%= @query.present? ? "No dead jobs match “#{@query}”." : "Dead set is empty 🎉" %></td></tr>
+        <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= any_filter?(@query, @tag) ? "No dead jobs #{filter_description(@query, @tag)}." : "Dead set is empty 🎉" %></td></tr>
       <% else %>
         <% @jobs.each do |job| %>
           <tr>
             <td><input type="checkbox" name="jids[]" value="<%= job.jid %>" class="rh-check" aria-label="select <%= job.jid %>"></td>
-            <td><%= link_to job.klass, job_path(set: "dead", jid: job.jid), class: "rh-joblink" %> <%= tag_badges(tags_for(job)) %><br><span class="rh-sub"><%= job.jid %></span> <%= trace_link(klass: job.klass, jid: job.jid, queue: job.queue) %><% if RoundhouseUi.allow_job_editing %> <%= link_to "edit", edit_job_path(set: "dead", jid: job.jid), class: "rh-trace" %><% end %></td>
+            <td><%= job_identity(job.klass, job.jid, job_path(set: "dead", jid: job.jid)) %></td>
+            <% if tag_column? %><td><%= tag_cell(tags_for(job)) %></td><% end %>
+            <td><%= queue_pill(job.queue, link: true) %></td>
             <td>
               <span class="rh-err"><%= job.item["error_class"] %></span>
-              <% if job.item["error_message"].present? %><br><span class="rh-sub"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
+              <% if job.item["error_message"].present? %><br><span class="rh-sub" title="<%= job.item["error_message"] %>"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
             </td>
-            <td class="r"><%= time_ago_in_words(job.at) %> ago</td>
+            <td class="r"><%= job_time(job.at, overdue: "#{time_ago_in_words(job.at)} ago") %></td>
+            <td class="r">
+              <%= trace_icon(klass: job.klass, jid: job.jid, queue: job.queue) %>
+              <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "dead", jid: job.jid), class: "rh-btn" %><% end %>
+              <%= button_to "Retry", retry_dead_job_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+              <%= button_to "Delete", delete_dead_job_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>
+            </td>
           </tr>
         <% end %>
       <% end %>
@@ -46,12 +64,5 @@
 <% end %>
 <%= render "roundhouse_ui/shared/pager" %>
 
-<script nonce="<%= content_nonce %>">
-  (function () {
-    var all = document.getElementById("rh-all");
-    if (!all) return;
-    all.addEventListener("change", function () {
-      document.querySelectorAll(".rh-check").forEach(function (cb) { cb.checked = all.checked; });
-    });
-  })();
-</script>
+<%# The select-all handler lives in the layout head, delegated from document, so
+    it survives Turbo body swaps. Don't reintroduce a body script here. #26 %>

@@ -3,7 +3,9 @@ module RoundhouseUi
     before_action :require_writable!, only: %i[purge pause resume]
 
     def index
+      @query = params[:q].to_s.strip
       @queues = backend.queues
+      @queues = @queues.select { |q| q.name.to_s.downcase.include?(@query.downcase) } if @query.present?
       @paused = backend.paused_queues
       # Native-pause backends (Solid Queue) enforce pauses without a fetcher, so
       # they never trigger the "not enforced" warning.

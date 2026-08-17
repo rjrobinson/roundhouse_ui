@@ -66,32 +66,62 @@ module RoundhouseUi
     end
 
     # Both the browse and bulk paths run every candidate through this, so the
-    # rows an operator sees are exactly the rows a bulk action will touch.
+    # rows an operator sees are exactly the rows a bulk action will touch —
+    # including when a tag value is what matched the free-text search.
     def entry_selected?(entry, query, tag, cache)
-      return false if query.present? && !entry_matches?(entry, query)
+      return false if @queue_filter.present? && entry.queue.to_s != @queue_filter
+
+      tags = entry_tags(entry, cache)
+      return false if query.present? && !entry_matches?(entry, query, tags)
       return true if tag.nil?
 
-      entry_tagged?(entry, tag, cache)
+      entry_tagged?(tags, tag)
     end
 
-    def entry_tagged?(entry, (key, value), cache)
+    # `?queue=name` — exact match, so clicking a queue pill or picking one from
+    # the palette narrows to that queue. Exact rather than substring because
+    # this feeds bulk_apply too, and "default" must never also select
+    # "default_low".
+    def queue_filter
+      params[:queue].to_s.strip.presence
+    end
+
+    def entry_tagged?(tags, (key, value))
       # A declared vocabulary is authoritative: filtering on a key the host
       # never declared matches nothing rather than everything.
       declared = Tags.filters
       return false if declared && !declared.key?(key)
 
-      Tags.match?(Tags.for(klass: entry.klass, item: entry.item, cache: cache), key, value)
+      Tags.match?(tags, key, value)
     end
 
-    # One memo per browse/bulk pass. Nil in per-job mode, where tags vary by
-    # payload and caching by class would be wrong.
-    def tag_cache_for(tag)
-      tag && !RoundhouseUi.job_tags_per_job ? {} : nil
+    def entry_tags(entry, cache)
+      return Tags::EMPTY unless RoundhouseUi.job_tags
+
+      Tags.for(klass: entry.klass, item: entry.item, cache: cache)
     end
 
-    def entry_matches?(entry, query)
+    # Shares the request memo with TagsHelper — controller ivars carry into the
+    # view, so an entry resolved while scanning is not resolved again when its
+    # badge renders. Tags.for picks the key: class name normally, jid in per-job
+    # mode.
+    def tag_cache_for(_tag)
+      @rh_tag_cache ||= {}
+    end
+
+    # Tag values are part of the haystack, so typing a squad name finds its jobs
+    # without reaching for the structured filter. Safe to widen here only because
+    # browse and bulk_apply share this predicate — if they diverged, a search
+    # would show one set of rows and "delete all matching" would act on another.
+    def entry_matches?(entry, query, tags = Tags::EMPTY)
       needle = query.downcase
-      [ entry.klass, entry.jid, entry.item["error_class"], entry.item["error_message"], entry.args.to_s ]
+      # Queue matches on equality, not substring: typing a queue name should
+      # find its jobs, but this predicate also drives bulk_apply, so "default"
+      # must never additionally select "default_low".
+      return true if entry.queue.to_s.downcase == needle
+
+      [ entry.klass, entry.jid, entry.item["error_class"], entry.item["error_message"], entry.args.to_s,
+        *tags.values ]
         .any? { |hay| hay.to_s.downcase.include?(needle) }
     end
   end

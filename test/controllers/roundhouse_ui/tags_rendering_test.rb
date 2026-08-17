@@ -13,7 +13,7 @@ module RoundhouseUi
       attr_reader :klass, :jid, :args, :item, :at, :queue
       def initialize(klass:, jid:, queue: "default", wrapped: nil)
         @klass, @jid, @queue, @args, @at = klass, jid, queue, [], Time.now + 60
-        @item = { "error_class" => "Boom", "error_message" => "boom", "retry_count" => 1, "args" => [] }
+        @item = { "jid" => jid, "error_class" => "Boom", "error_message" => "boom", "retry_count" => 1, "args" => [] }
         @item["wrapped"] = wrapped if wrapped
       end
       define_method(:retry) { }
