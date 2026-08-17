@@ -88,7 +88,39 @@
     .rh-st-paused { background:var(--panel-3); color:var(--muted); }
     .rh-pill { font-size:11px; padding:2px 8px; border-radius:999px; font-family:var(--mono); background:var(--panel-2); color:var(--muted); }
     .rh-pill-warn { background:rgba(226,165,63,.16); color:var(--warn); }
-    .rh-pill-tag { background:var(--panel-2); color:var(--fg); border:1px solid var(--border); max-width:22ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+    .rh-pill-tag { background:var(--panel-2); color:var(--text); border:1px solid var(--line); max-width:22ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+    /* jid sits inline after the class now; dim it so it reads as a copy target
+       rather than competing with the job name. Still fully selectable. */
+    /* --muted, not --faint: the jid is secondary but still has to be readable
+       at a glance when you're comparing it against a log line. */
+    .rh-jid { color:var(--muted); opacity:1; font-size:11.5px; letter-spacing:.02em; margin-top:3px; }
+
+    /* Bulk actions. Two scopes — ticked rows vs every match — kept visually
+       separate, because confusing them destroys the wrong jobs. */
+    .rh-actionbar { display:flex; flex-wrap:wrap; align-items:stretch; gap:10px; margin-bottom:14px; }
+    .rh-actiongroup { display:flex; align-items:center; gap:7px; padding:7px 12px; border:1px solid var(--line-soft);
+                      border-radius:11px; background:var(--panel); }
+    .rh-actionlabel { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--faint);
+                      font-weight:600; margin-right:3px; max-width:34ch; overflow:hidden; text-overflow:ellipsis;
+                      white-space:nowrap; }
+    .rh-actiongroup form { display:inline; margin:0; }
+    /* Icon-only observability link for table rows. Sized like a button so it
+       sits on the Actions baseline without stretching the row. */
+    .rh-trace-ico { display:inline-block; width:24px; text-align:center; padding:5px 0; border-radius:7px;
+                    border:1px solid transparent; text-decoration:none; }
+    .rh-trace-ico:hover { border-color:var(--accent); background:var(--panel-2); }
+    .rh-pill-link { text-decoration:none; border:1px solid transparent; }
+    .rh-pill-link:hover { border-color:var(--accent); color:var(--text); }
+    .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }
+
+    /* Quick filters: counts by tag, from the scan that already ran. */
+    .rh-quickfilters { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
+    .rh-qf { display:inline-flex; align-items:center; gap:7px; font-size:12px; text-decoration:none;
+             background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 10px; color:var(--muted); }
+    .rh-qf:hover { border-color:var(--accent); color:var(--text); }
+    .rh-qf.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-2); }
+    .rh-qf-n { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:11px; color:var(--faint); }
+    .rh-qf.is-on .rh-qf-n { color:var(--accent); }
 
     .rh-btn { font:inherit; font-size:12px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); padding:5px 11px; border-radius:7px; cursor:pointer; text-decoration:none; display:inline-block; }
     .rh-btn:hover { border-color:var(--accent); }
@@ -278,6 +310,7 @@
           .then(function (d) {
             setConn(true);
             apply(d);
+            if (d.queue_names) QUEUE_NAMES = d.queue_names; // feeds the ⌘K palette
             var now = Date.now();
             var backlog = d.enqueued + d.scheduled + d.retries;
             if (lastProcessed != null) {
@@ -353,7 +386,63 @@
         try { localStorage.setItem("rh-width", next); } catch (_) {}
         syncWidth();
       });
-      // command palette (⌘K)
+      // command palette (⌘K). Two halves: static navigation, and search actions
+      // built from whatever you type — paste a JID, a queue, or a squad and the
+      // palette offers the searches that will actually find it, rather than
+      // making you pick a page first and search again once you're there.
+      // Capability-gated exactly like the sidebar: a backend without a retry
+      // set must not be offered a search into one.
+      var SETS = [
+        { label: "Dead",      path: "<%= dead_set_path %>",  icon: "✕" },
+        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "↻" },<% end %>
+        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "◔" },
+        { label: "Errors",    path: "<%= errors_path %>",    icon: "⚠" }
+      ];
+      // Declared tag vocabulary and live queue names, so the palette can tell a
+      // squad from a queue from a free-text term.
+      var TAG_VOCAB = <%== (RoundhouseUi::Tags.filters || {}).to_json %>;
+      // Filled by the stats poll, which already loads queues for its count, so
+      // knowing the queue names costs no extra Redis work.
+      var QUEUE_NAMES = [];
+
+      function palQuery(q) {
+        var out = [], seen = {};
+        // A 12+ char hex string is a Sidekiq JID — offer the sets directly.
+        if (/^[0-9a-f]{12,}$/i.test(q)) {
+          SETS.forEach(function (s) {
+            out.push({ label: "Find job " + q + " in " + s.label, icon: s.icon,
+                       path: s.path + "?q=" + encodeURIComponent(q) });
+          });
+          return out;
+        }
+        // Exact squad / tag value → the structured filter, which is stricter
+        // and safer than a substring match.
+        Object.keys(TAG_VOCAB).forEach(function (key) {
+          TAG_VOCAB[key].forEach(function (value) {
+            if (value.toLowerCase().indexOf(q) !== 0) return;
+            seen[value] = true;
+            SETS.forEach(function (s) {
+              out.push({ label: key + ": " + value + " — " + s.label, icon: "◆",
+                         path: s.path + "?tag=" + encodeURIComponent(key + ":" + value) });
+            });
+          });
+        });
+        // Known queue name → filter by queue.
+        QUEUE_NAMES.forEach(function (name) {
+          if (name.toLowerCase().indexOf(q) !== 0) return;
+          SETS.slice(0, 3).forEach(function (s) {
+            out.push({ label: "Queue " + name + " — " + s.label, icon: "≣",
+                       path: s.path + "?queue=" + encodeURIComponent(name) });
+          });
+        });
+        // Always offer plain text search as a fallback.
+        SETS.forEach(function (s) {
+          out.push({ label: "Search " + s.label + " for “" + q + "”", icon: s.icon,
+                     path: s.path + "?q=" + encodeURIComponent(q) });
+        });
+        return out;
+      }
+
       var CMDS = [
         { label: "Dashboard", path: "<%= root_path %>", icon: "▦" },
         { label: "Metrics", path: "<%= metrics_path %>", icon: "▤" },
@@ -384,8 +473,11 @@
       }
       function palRender() {
         var input = palInputEl(), list = palListEl(); if (!input || !list) return;
-        var q = input.value.toLowerCase();
-        palFiltered = CMDS.filter(function (c) { return c.label.toLowerCase().indexOf(q) !== -1; });
+        var q = input.value.trim().toLowerCase();
+        var nav = CMDS.filter(function (c) { return c.label.toLowerCase().indexOf(q) !== -1; });
+        // Search actions lead once you've typed: with a query, finding the job
+        // is the intent; jumping to a page is the fallback.
+        palFiltered = q ? palQuery(q).concat(nav) : nav;
         if (palSel >= palFiltered.length) palSel = Math.max(0, palFiltered.length - 1);
         list.innerHTML = "";
         palFiltered.forEach(function (c, i) {
@@ -434,6 +526,17 @@
       });
 
       document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
+
+      // Dead set "select all". Delegated from document rather than bound to the
+      // checkbox, because a Turbo visit (searching, paging, arriving via the
+      // nav) replaces <body> — the old element and its listener are discarded,
+      // and a re-inserted body script carries a nonce the original page's CSP
+      // does not accept. document survives both, so this binds once and keeps
+      // working. See issue #26.
+      document.addEventListener("change", function (e) {
+        if (!e.target || e.target.id !== "rh-all") return;
+        document.querySelectorAll(".rh-check").forEach(function (cb) { cb.checked = e.target.checked; });
+      });
       document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); });
       document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
     })();
@@ -501,7 +604,7 @@
 
   <div id="rh-palette" class="rh-palette" data-turbo-permanent hidden>
     <div class="rh-palette-box">
-      <input id="rh-palette-input" type="text" placeholder="Jump to…  (type to filter, ↑↓ to move, ↵ to go)" autocomplete="off">
+      <input id="rh-palette-input" type="text" placeholder="Search a job ID, queue, squad, or class — or jump to a page" autocomplete="off">
       <div id="rh-palette-list" class="rh-palette-list"></div>
     </div>
   </div>

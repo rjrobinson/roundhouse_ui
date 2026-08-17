@@ -16,6 +16,10 @@ module RoundhouseUi
     # cheap JSON, no WebSocket/build step required).
     def stats
       s = backend.stats
+      # queues was already loaded here for the count, so the names ride along
+      # free — the command palette uses them to tell a queue name from a plain
+      # search term without adding a Redis call to every page render.
+      qs = backend.queues
       render json: {
         processed: s.processed,
         failed:    s.failed,
@@ -24,7 +28,8 @@ module RoundhouseUi
         scheduled: s.scheduled_size,
         retries:   s.retry_size,
         dead:      s.dead_size,
-        queues:    backend.queues.size
+        queues:      qs.size,
+        queue_names: qs.map(&:name).sort
       }
     end
   end

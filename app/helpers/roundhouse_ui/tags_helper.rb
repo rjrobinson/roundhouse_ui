@@ -4,11 +4,11 @@ module RoundhouseUi
   # scans up to DEFAULT_SCAN_LIMIT entries, so the host's resolver must not be
   # called once per row when it only varies by class.
   module TagsHelper
-    # The per-request memo handed to Tags.for. Nil in per-job mode, where tags
-    # vary by payload and caching by class would be wrong.
+    # The per-request memo handed to Tags.for, shared with JobSetBrowsing so a
+    # class (or job) resolved while scanning is not resolved again when its
+    # badge renders. Tags.for chooses the key: class name normally, jid in
+    # per-job mode.
     def tag_cache
-      return nil if RoundhouseUi.job_tags_per_job
-
       @rh_tag_cache ||= {}
     end
 
@@ -37,23 +37,65 @@ module RoundhouseUi
       safe_join(tags.map { |key, value| tag_badge(key, value) }, " ")
     end
 
+    # Tags get their own table column rather than an inline badge: class names
+    # vary wildly in length, so inline badges land at ragged x-positions and
+    # can't be scanned down. Only worth a column when a host configured tags.
+    def tag_column?
+      RoundhouseUi.job_tags.present?
+    end
+
+    # Header for that column. With the usual single dimension this is the tag's
+    # own name ("squad"); with several there's no one right label.
+    def tag_column_label
+      keys = Tags.filters&.keys
+      keys&.one? ? keys.first.titleize : "Tags"
+    end
+
+    # Cell contents. Stacks when a host defines more than one dimension.
+    def tag_cell(tags)
+      return content_tag(:span, "—", class: "rh-sub") if tags.blank?
+
+      tag_badges(tags)
+    end
+
+    # Values offered as filter chips where no counts are available. Prefers the
+    # host's declared vocabulary, so the chips stay put as you filter; falls back
+    # to whatever the visible rows happen to carry, which at least beats nothing
+    # but shifts as you page.
+    def tag_vocabulary
+      declared = Tags.filters
+      return declared if declared.present?
+
+      seen = Hash.new { |h, k| h[k] = [] }
+      Array(@jobs).each do |job|
+        tags_for(job).each { |key, value| seen[key] << value unless seen[key].include?(value) }
+      end
+      seen.transform_values(&:sort)
+    end
+
     # Human description of the active filter set, so a bulk confirm names every
     # constraint that will be applied — not just the text query.
-    def filter_description(query, tag)
+    # Every active constraint must appear here. A confirm that names only the
+    # text query while a queue or tag also narrows the set understates what is
+    # about to be destroyed.
+    def filter_description(query, tag, queue = @queue_filter)
       parts = []
       parts << "matching “#{query}”" if query.present?
       parts << "tagged #{tag[0]}: #{tag[1]}" if tag
+      parts << "in queue #{queue}" if queue.present?
       parts.join(" and ")
     end
 
     # Any filter active? Bulk-on-match is filter-gated, so this decides whether
-    # the bulk bar renders at all.
-    def any_filter?(query, tag)
-      query.present? || !tag.nil?
+    # the bulk bar renders at all — and which empty-state copy is honest.
+    def any_filter?(query, tag, queue = @queue_filter)
+      query.present? || !tag.nil? || queue.present?
     end
 
+    # Value only — the key is near-constant down a column, so repeating it is
+    # noise. It stays in the tooltip for hosts with more than one dimension.
     def tag_badge(key, value)
-      content_tag(:span, "#{key}: #{value}", class: "rh-pill rh-pill-tag", title: "#{key}: #{value}")
+      content_tag(:span, value, class: "rh-pill rh-pill-tag", title: "#{key}: #{value}")
     end
   end
 end
