@@ -112,6 +112,10 @@ RoundhouseUi.configure do |c|
   # installing RoundhouseUi::Fetch enforces it. Default: true.
   # c.pause_enabled = false
 
+  # Surface your own labels (owning team, tenant, …) on job rows, the job page,
+  # and grouped errors — and filter by them. See "Job tags" below.
+  # c.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
+
   # Seconds between dashboard stat polls (default 5). Raise it if polling shows
   # up in your traces — each poll re-runs the host's auth/routing on the mount.
   # c.poll_interval = 10
@@ -139,6 +143,9 @@ here is required to mount Roundhouse.
 | `show_sidekiq_failures` | `false` | You use the `sidekiq-failures` gem **and** run jobs with `retry: false` — those never enter Sidekiq's retry/dead sets, so this is the only way to see them. | You don't have the gem (it's a no-op then anyway). |
 | `poll_interval` | `5` | **Raise it** if dashboard polling shows up in your traces — every poll re-runs your app's auth and routing on the mount, so a busy console adds real load. Lower it only for a livelier demo. | Default is fine for most apps. |
 | `collect_durations` | `false` | You want "slowest job classes" on Metrics, which Sidekiq doesn't track. **Also requires installing the `DurationCollector` middleware** — the flag alone shows nothing. Costs one pipelined Redis round-trip per job. | You already get per-job timing from your APM. |
+| `job_tags` | `nil` | You already know which team, tenant or product area owns a job — usually as a constant on the class — and want that visible and filterable in the UI. See [Job tags](#job-tags). | Every job belongs to the same team. |
+| `job_tags_per_job` | `false` | **Only** when `job_tags` reads the payload (tagging by tenant, account, …). Costs one resolver call per row rather than one per class. | Tags derive from the job class, which is the common case. |
+| `tag_filters` | `nil` | You want stable filter dropdowns instead of ones that only list what happens to be on screen — and want filtering on an unknown key to match nothing. | The `?tag=` URL is enough. |
 | `pause_enabled` | `true` | Leave it on. | **Rarely set this to `false`.** Pause is enforced natively on Sidekiq Pro and Solid Queue, and on OSS Sidekiq by installing `RoundhouseUi::Fetch` — so turning it off usually just hides a working feature. Only useful if you want the controls gone entirely. |
 
 Two that pair with a middleware rather than working alone: `collect_durations`
@@ -186,6 +193,60 @@ Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
 Redis key directly: Pro's fetchers read that set once at startup and afterwards
 only update on the `pro:config` pubsub message `pause!` publishes, so a raw write
 would leave running workers pulling the queue until they restarted.
+
+## Job tags
+
+Most apps already know who owns a job — commonly a constant on the class. Point
+Roundhouse at it and that label shows up as a badge on Retries, Dead, Scheduled, the
+job detail page and grouped Errors, and becomes a filter.
+
+```ruby
+# config/initializers/roundhouse.rb
+RoundhouseUi.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
+```
+
+That's the whole setup for the `OWNER = :growth` convention — every class defining the
+constant (including by inheritance) is tagged. Any callable works if your labels come
+from somewhere else:
+
+```ruby
+RoundhouseUi.job_tags = ->(klass:, item:) {
+  { squad: OwnershipMap.for(klass), tier: klass.end_with?("CriticalJob") ? "p1" : "p3" }
+}
+```
+
+Tags are resolved **when a page renders** — no middleware, no enqueue changes, nothing
+stored. They apply retroactively to jobs already sitting in the sets, and work the same
+on Sidekiq and Solid Queue. `klass` is always the real job class: the ActiveJob adapter's
+wrapper is unwrapped before your resolver sees it. See
+[ADR 0002](docs/adr/0002-job-tagging.md).
+
+### Filtering
+
+`?tag=key:value` filters Retries, Dead and Scheduled — for example
+`/roundhouse/retries?tag=squad:growth`. It combines with the search box, survives
+pagination, and **applies to bulk actions too**, so "delete all matching" acts on exactly
+the rows shown and never more.
+
+Declare a vocabulary to get stable dropdowns instead of relying on the URL:
+
+```ruby
+RoundhouseUi.tag_filters = { squad: %w[core training growth platform ops ai] }
+```
+
+Values may be a callable if the list is dynamic. Once declared, filtering on a key you
+didn't declare matches nothing rather than everything.
+
+### Cost and safety
+
+- By default the resolver is treated as a **pure function of the job class** and is called
+  once per class per request — a 1,000-row page costs a handful of calls, not 1,000. If
+  your resolver reads the payload, set `RoundhouseUi.job_tags_per_job = true`; it will
+  then be called once per row, so keep it cheap.
+- Tag values pass through `redact_args`, so a tag keyed `tenant_token` masks itself. This
+  is key-based only — a tag *named* `squad` whose *value* is sensitive is not masked.
+- A resolver that raises is caught and logged; the page renders without tags rather than
+  failing.
 
 ## Surfacing sidekiq-failures
 
