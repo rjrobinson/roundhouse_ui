@@ -7,6 +7,7 @@ require "roundhouse_ui/snapshots"
 require "roundhouse_ui/observability"
 require "roundhouse_ui/audit"
 require "roundhouse_ui/redaction"
+require "roundhouse_ui/tags"
 require "roundhouse_ui/cancellation"
 require "roundhouse_ui/cancel_middleware"
 require "roundhouse_ui/metrics"
@@ -55,6 +56,39 @@ module RoundhouseUi
     # Argument keys (substring, case-insensitive) to mask when displaying jobs.
     # e.g. RoundhouseUi.redact_args = %w[password token secret]. Default: none.
     attr_accessor :redact_args
+
+    # Host-defined job tags, resolved at read time (see ADR 0002): a callable
+    # given the job's class name and payload, returning a Hash of tags or nil.
+    # `klass` is always the real job class (the ActiveJob adapter wrapper is
+    # unwrapped first). For the class-constant convention there's a shorthand:
+    #
+    #   RoundhouseUi.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
+    #   # equivalent to:
+    #   RoundhouseUi.job_tags = ->(klass:, item:) {
+    #     k = klass.safe_constantize
+    #     { squad: k.const_get(:OWNER) } if k&.const_defined?(:OWNER)
+    #   }
+    #
+    # Tag values render in the UI and pass through redact_args masking (by tag
+    # key). Must be cheap: by default it's memoized per class per request and
+    # called with item: nil. Default: nil (no tags anywhere).
+    attr_accessor :job_tags
+
+    # Set true when job_tags derives tags from the payload (args, tenant, …):
+    # the resolver is then called once per job with the full item, and nothing
+    # is cached — a 1,000-entry scan means 1,000 calls, so keep it fast. Leave
+    # false for class-derived tags (OWNER-style constants). Default: false.
+    attr_accessor :job_tags_per_job
+
+    # Optional declared filter vocabulary, so tag filter dropdowns are stable
+    # instead of discovered from whatever jobs happen to be visible:
+    #
+    #   RoundhouseUi.tag_filters = { squad: %w[core training growth platform ops ai] }
+    #
+    # Values (or the whole setting) may be callables for dynamic vocabularies.
+    # When set, filtering by an undeclared key matches nothing (fail-closed).
+    # Default: nil — the filter UI discovers values from the entries it scans.
+    attr_accessor :tag_filters
 
     # Opt-in: fold failures recorded by the `sidekiq-failures` gem (its `failed`
     # sorted set) into the grouped Errors view. Off by default, and a no-op
@@ -112,4 +146,5 @@ module RoundhouseUi
   self.pause_enabled = true
   self.poll_interval = 5
   self.collect_durations = false
+  self.job_tags_per_job = false
 end
