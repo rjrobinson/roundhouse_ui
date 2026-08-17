@@ -11,7 +11,7 @@
         <% elapsed = (Time.now - w[:run_at]).to_i %>
         <% long = elapsed >= @threshold %>
         <tr>
-          <td><%= w[:job].klass %><br><span class="rh-sub"><%= w[:job].jid %></span></td>
+          <td><%= job_display_class(w[:job]) %><br><span class="rh-sub"><%= w[:job].jid %></span></td>
           <td><span class="rh-sub"><%= w[:queue] %></span></td>
           <td><span class="rh-sub"><%= w[:process] %></span></td>
           <td class="r rh-mono <%= "rh-lat-warn" if long %>"><%= elapsed < 60 ? "#{elapsed}s" : distance_of_time_in_words(0, elapsed) %><%= " ⚠" if long %></td>

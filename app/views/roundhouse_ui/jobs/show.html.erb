@@ -1,5 +1,7 @@
-<% content_for :title, @entry.item["class"] %>
+<%# item binds first: the title needs it, and reading @entry.item["class"] above
+    this line would leave the two able to disagree. %>
 <% item = @entry.item %>
+<% content_for :title, RoundhouseUi.unwrapped_class(item["class"], item) %>
 
 <div class="rh-tags">
   <span class="rh-tag"><%= @set %></span>
@@ -33,7 +35,7 @@
   <% end %>
 <% end %>
 
-<% trace = trace_link(klass: item["class"], jid: @entry.jid, queue: @entry.queue) %>
+<% trace = trace_link(klass: RoundhouseUi.unwrapped_class(item["class"], item), jid: @entry.jid, queue: @entry.queue) %>
 <% if trace.present? %>
   <div class="rh-sec">Observability</div>
   <%= trace %>

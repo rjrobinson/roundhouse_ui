@@ -1,5 +1,13 @@
 module RoundhouseUi
   module ApplicationHelper
+    # The class name a row should show: the real job class, not the ActiveJob
+    # adapter's wrapper. Resolved here rather than in each template so every
+    # surface prints the string the Errors page groups on and the APM link
+    # searches for.
+    def job_display_class(entry)
+      RoundhouseUi.unwrapped_class(entry.klass, entry.item)
+    end
+
     # A job row's identity cell. Class on the first line where the eye lands,
     # jid on a second, dimmer line — one long line of class + hex + link is
     # unreadable once the row also carries squad, queue and error.

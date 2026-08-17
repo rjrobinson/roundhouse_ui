@@ -17,12 +17,12 @@
     <% else %>
       <% @jobs.each do |job| %>
         <tr>
-          <td><%= job_identity(job.klass, job.jid, job_path(set: "scheduled", jid: job.jid)) %></td>
+          <td><%= job_identity(job_display_class(job), job.jid, job_path(set: "scheduled", jid: job.jid)) %></td>
           <% if tag_column? %><td><%= tag_cell(tags_for(job)) %></td><% end %>
           <td><%= queue_pill(job.queue, link: true) %></td>
           <td class="r"><%= job_time(job.at) %></td>
           <td class="r">
-            <%= trace_icon(klass: job.klass, jid: job.jid, queue: job.queue) %>
+            <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
             <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "scheduled", jid: job.jid), class: "rh-btn" %><% end %>
             <%= button_to "Enqueue now", enqueue_scheduled_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
             <%= button_to "Delete", delete_scheduled_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>

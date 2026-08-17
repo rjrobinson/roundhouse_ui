@@ -434,6 +434,28 @@ module RoundhouseUi
       assert_equal [ "w1" ], entries.select { |e| e.actions.any? }.map(&:jid)
     end
 
+
+    def test_rows_show_the_real_class_not_the_wrapper
+      { "/roundhouse/retries" => Sidekiq::RetrySet,
+        "/roundhouse/dead" => Sidekiq::DeadSet,
+        "/roundhouse/scheduled" => Sidekiq::ScheduledSet }.each do |path, klass|
+        stub_method(klass, :new, wrapped_set) do
+          get path
+          assert_response :success
+          assert_match "ReportJob", @response.body, "#{path} should name the real class"
+          assert_no_match "JobWrapper", @response.body, "#{path} should not leak the adapter wrapper"
+        end
+      end
+    end
+
+    def test_the_job_page_shows_the_real_class
+      stub_method(Sidekiq::RetrySet, :new, wrapped_set) do
+        get "/roundhouse/jobs/retry/w1"
+        assert_response :success
+        assert_match "ReportJob", @response.body
+      end
+    end
+
     # --- step 3: error groups ------------------------------------------------
 
     def test_error_groups_are_annotated_with_the_class_tag
