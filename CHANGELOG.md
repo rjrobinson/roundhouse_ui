@@ -4,6 +4,60 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-17
+
+### Added
+- **Job tags.** Surface your own label — owning team, tenant, product area — on
+  the job rows, the job page and grouped errors, and filter by it. Point
+  Roundhouse at a constant your jobs already carry and you're done:
+
+  ```ruby
+  RoundhouseUi.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
+  RoundhouseUi.tag_filters = { squad: %w[core training growth platform] }
+  ```
+
+  Any callable works if your labels come from elsewhere. Tags resolve **when a
+  page renders** — no middleware, no storage, no enqueue changes — so they apply
+  retroactively to jobs already in the sets and behave identically on Sidekiq and
+  Solid Queue. `klass` is always the real job class: the ActiveJob adapter's
+  wrapper is unwrapped before your resolver sees it. Resolution is memoized per
+  class per request; set `job_tags_per_job = true` if your tags read the payload.
+  Tag values pass through `redact_args`, and a resolver that raises degrades to
+  no tags rather than failing the page. See
+  [ADR 0002](docs/adr/0002-job-tagging.md).
+- **Filter by tag and by queue.** `?tag=key:value` and `?queue=name` narrow
+  Retries, Dead and Scheduled; queue pills are the control, and Errors gains
+  counted filter chips. Both combine with text search, and squad names are
+  searchable from the box. Filters apply identically to bulk actions, so the rows
+  you see are the rows "delete all matching" touches.
+- **The ⌘K palette searches.** Paste a job ID, queue, squad, or class and it
+  offers the searches that will find it, instead of only jumping between pages.
+- **Per-job actions on the dead set.** Retry and delete a single dead job from
+  its row; previously the routes existed but the only way in was a checkbox.
+- **A queue filter on the Queues page**, which had no search at all.
+
+### Changed
+- **The job views share one structure** — identity, squad, queue, error, when,
+  actions — rendered the same way everywhere. Job IDs move to a second line,
+  observability deep-links become an icon in the Actions column, times show
+  relative *and* absolute, and queues render as pills.
+- **The two bulk scopes are visually separate.** "The rows you ticked" and "every
+  job that matches" were stacked bars distinguished only by caption text.
+- **Headings and empty states tell the truth under a filter** — the filtered
+  count and the active filter, rather than the whole-set size above a narrowed
+  table, or "the set is empty" when a filter simply matched nothing.
+
+### Fixed
+- **Select-all on the dead set stopped working after any Turbo navigation**
+  ([#26](https://github.com/rjrobinson/roundhouse_ui/issues/26)) — most visibly
+  after a search. The handler was an inline body script bound to the checkbox
+  element; a Turbo visit replaces `<body>`, discarding both the element and its
+  listener, and the re-inserted script carries a nonce the original page's CSP
+  rejects. It is now delegated from `document` in the layout head.
+- **The Errors page returned a 500 on a search that matched nothing** — including
+  on a fresh install with no failing jobs and a declared tag vocabulary.
+- **Errors search ignored tags** while advertising that it matched them.
+
 ## [0.9.1] - 2026-07-31
 
 ### Fixed
@@ -174,6 +228,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.10.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.10.0
 [0.9.1]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.1
 [0.9.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.0
 [0.8.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.8.0
