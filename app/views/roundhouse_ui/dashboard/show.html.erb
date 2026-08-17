@@ -57,7 +57,7 @@
     <% else %>
       <% @top_errors.each do |g| %>
         <div class="rh-insight-row">
-          <div class="rh-insight-main"><%= link_to g[:klass], errors_path(q: g[:klass]), class: "rh-joblink" %> <%= error_trace_link(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></div>
+          <div class="rh-insight-main"><%= link_to g[:klass], errors_path(q: g[:klass]), class: "rh-joblink" %> <%= tag_badges(tags_for_class(g[:klass])) %> <%= error_trace_link(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></div>
           <span class="rh-pill"><%= number_with_delimiter g[:count] %></span>
         </div>
       <% end %>

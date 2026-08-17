@@ -113,7 +113,7 @@ module RoundhouseUi
         get "/roundhouse/errors"
 
         assert_response :success
-        assert_match "↗ Datadog", @response.body
+        assert_match "Open in Datadog", @response.body # icon-only link, name in the title
         assert_match "app.datadoghq.com/apm/traces", @response.body
       end
     ensure

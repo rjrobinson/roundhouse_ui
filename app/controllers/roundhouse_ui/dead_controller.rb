@@ -8,7 +8,9 @@ module RoundhouseUi
       @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.dead_set.size
-      @jobs, @has_next = browse(backend.dead_set, @query, @page)
+      @tag = tag_filter
+      @queue_filter = queue_filter
+      @jobs, @has_next = browse(backend.dead_set, @query, @page, PER_PAGE, tag: @tag)
     end
 
     def requeue
@@ -40,7 +42,8 @@ module RoundhouseUi
     # selected/visible ones), capped for safety. Only offered when a filter is
     # active, so it can't become "retry the entire dead set" by accident.
     def bulk_all
-      count, capped = bulk_apply(backend.dead_set, params[:q].to_s.strip, params[:op])
+      @queue_filter = queue_filter
+      count, capped = bulk_apply(backend.dead_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
       note = "#{verb} #{count} matching job(s)."
       note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if capped

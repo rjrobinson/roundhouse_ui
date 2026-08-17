@@ -8,7 +8,9 @@ module RoundhouseUi
       @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.scheduled_set.size
-      @jobs, @has_next = browse(backend.scheduled_set, @query, @page)
+      @tag = tag_filter
+      @queue_filter = queue_filter
+      @jobs, @has_next = browse(backend.scheduled_set, @query, @page, PER_PAGE, tag: @tag)
     end
 
     # Enqueue now — pulls the job out of the schedule and onto its queue.
