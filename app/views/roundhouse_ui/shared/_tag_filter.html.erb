@@ -1,0 +1,30 @@
+<%# Tag filter control (ADR 0002 step 4). Renders only when the host configured
+    tags. A declared vocabulary (RoundhouseUi.tag_filters) becomes dropdowns; with
+    none declared, ?tag=key:value still works and the active filter shows as a
+    clearable chip. %>
+<% if RoundhouseUi.job_tags %>
+  <% declared = RoundhouseUi::Tags.filters %>
+  <div class="rh-bulkbar">
+    <% if declared.present? %>
+      <form method="get" action="<%= url_for(only_path: true, page: nil) %>" class="rh-inline">
+        <% if @query.present? %><input type="hidden" name="q" value="<%= @query %>"><% end %>
+        <select name="tag" class="rh-btn" onchange="this.form.requestSubmit()" aria-label="filter by tag">
+          <option value="">all tags</option>
+          <% declared.each do |key, values| %>
+            <optgroup label="<%= key %>">
+              <% values.each do |value| %>
+                <option value="<%= key %>:<%= value %>" <%= "selected" if @tag == [ key, value ] %>><%= key %>: <%= value %></option>
+              <% end %>
+            </optgroup>
+          <% end %>
+        </select>
+        <noscript><button type="submit" class="rh-btn">Filter</button></noscript>
+      </form>
+    <% end %>
+
+    <% if @tag %>
+      <span class="rh-pill rh-pill-tag"><%= @tag[0] %>: <%= @tag[1] %></span>
+      <%= link_to "clear", url_for(only_path: true, tag: nil, page: nil, q: @query.presence), class: "rh-sub" %>
+    <% end %>
+  </div>
+<% end %>

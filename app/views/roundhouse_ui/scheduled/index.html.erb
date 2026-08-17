@@ -2,7 +2,10 @@
 
 <form method="get" action="<%= scheduled_path %>" class="rh-search">
   <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, or arg value…">
+  <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
 </form>
+
+<%= render "roundhouse_ui/shared/tag_filter" %>
 
 <h2 class="rh-h2">Scheduled · <%= number_with_delimiter @total %> jobs</h2>
 <table class="rh-table">
@@ -13,7 +16,7 @@
     <% else %>
       <% @jobs.each do |job| %>
         <tr>
-          <td><%= link_to job.klass, job_path(set: "scheduled", jid: job.jid), class: "rh-joblink" %><br><span class="rh-sub"><%= job.jid %></span></td>
+          <td><%= link_to job.klass, job_path(set: "scheduled", jid: job.jid), class: "rh-joblink" %> <%= tag_badges(tags_for(job)) %><br><span class="rh-sub"><%= job.jid %></span></td>
           <td><span class="rh-sub"><%= job.queue %></span></td>
           <td class="r"><span class="rh-sub"><%= job.at && job.at > Time.now ? "in #{distance_of_time_in_words(Time.now, job.at)}" : "now (overdue)" %></span></td>
           <td class="r">

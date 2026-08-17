@@ -5,6 +5,7 @@ module RoundhouseUi
     # Isolated engines don't auto-include the host's helpers; include ours.
     helper ObservabilityHelper
     helper NavHelper
+    helper TagsHelper
     helper_method :content_nonce
 
     # Self-contained CSP, set per-request on our own responses so Roundhouse is
