@@ -120,8 +120,14 @@ module RoundhouseUi
       # must never additionally select "default_low".
       return true if entry.queue.to_s.downcase == needle
 
-      [ entry.klass, entry.jid, entry.item["error_class"], entry.item["error_message"], entry.args.to_s,
-        *tags.values ]
+      # The unwrapped class is added rather than substituted. Since bulk actions
+      # run through this same predicate, replacing would silently empty a saved
+      # or habitual "JobWrapper" query — safe in direction, but a bulk query
+      # that used to select thousands would quietly select none. Appending only
+      # ever widens, and the real class name starts working.
+      item = entry.item
+      [ entry.klass, RoundhouseUi.unwrapped_class(entry.klass, item), entry.jid,
+        item["error_class"], item["error_message"], entry.args.to_s, *tags.values ]
         .any? { |hay| hay.to_s.downcase.include?(needle) }
     end
   end
