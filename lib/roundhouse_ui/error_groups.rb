@@ -62,9 +62,19 @@ module RoundhouseUi
     end
 
     def record(groups, source, entry)
-      error = entry.item["error_class"] || "UnknownError"
-      group = (groups["#{entry.klass}|#{error}"] ||= {
-        klass: entry.klass, error: error, count: 0, last_at: nil, queues: [], sources: []
+      # The bucket key and the stored label must unwrap together — split them and
+      # rows merge under one name while a different one renders. Everything
+      # downstream reads group[:klass]: the label, the search haystack, the tag
+      # lookup, the Datadog link, and the dashboard's errors_path(q:) href.
+      #
+      # item is bound once because Solid Queue's Entry#item builds a fresh Hash
+      # and touches the execution on every call, and this runs up to
+      # DEFAULT_SCAN_LIMIT times per render.
+      item  = entry.item
+      klass = RoundhouseUi.unwrapped_class(entry.klass, item)
+      error = item["error_class"] || "UnknownError"
+      group = (groups["#{klass}|#{error}"] ||= {
+        klass: klass, error: error, count: 0, last_at: nil, queues: [], sources: []
       })
       group[:count]  += 1
       group[:queues] |= [ entry.queue ]
