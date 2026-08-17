@@ -98,7 +98,7 @@ RoundhouseUi.configure do |c|
   c.actor_resolver = ->(controller) { controller.current_user&.email }
 
   # Deep-link jobs out to your APM (see Observability).
-  c.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "my-app")
+  c.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "sidekiq")
 
   # Where queue snapshots are stored (default: Redis). Swap for a file/S3 store.
   # c.snapshot_store = MyS3SnapshotStore.new
@@ -319,8 +319,14 @@ only if one comes back. A Datadog adapter ships in the box; write your own by du
 `job_url` / `queue_url` / `label`:
 
 ```ruby
-RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(site: "datadoghq.com", service: "my-app")
+RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(site: "datadoghq.com", service: "sidekiq")
 ```
+
+`service:` is the service your **Sidekiq spans** carry, which is frequently *not* your
+app name — apps commonly set `c.tracing.instrument :sidekiq, service_name: "sidekiq"`,
+and dd-trace has no default of its own. Passing your app name when the spans say
+something else produces links that silently match nothing. Omit it if you're unsure:
+the term is left out of the query entirely when nil.
 
 ## Snapshots
 
