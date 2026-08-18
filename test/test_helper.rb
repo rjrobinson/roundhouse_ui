@@ -80,6 +80,24 @@ class ActiveSupport::TestCase
       else raise "FakeRedis: unexpected command #{cmd}"
       end
     end
+
+    # Real clients batch commands and return their replies in order; the batched
+    # queue read depends on that ordering, so the fake has to model it rather
+    # than being bypassed.
+    def pipelined
+      collector = Pipeline.new(self)
+      yield collector
+      collector.replies
+    end
+
+    class Pipeline
+      attr_reader :replies
+      def initialize(conn)
+        @conn = conn
+        @replies = []
+      end
+      def call(cmd, *args) = @replies << @conn.call(cmd, *args)
+    end
   end
 
   def with_fake_redis

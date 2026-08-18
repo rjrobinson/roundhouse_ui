@@ -2,51 +2,57 @@ require "test_helper"
 
 module RoundhouseUi
   class QueuesControllerTest < ActionDispatch::IntegrationTest
-    FakeQueue = Struct.new(:name, :size, :latency)
+    # Seed real Redis keys rather than stubbing Sidekiq::Queue: the page now reads
+    # every queue's depth and latency in one pipelined batch, so stubbing the
+    # Queue objects would skip the code under test entirely.
+    def seed_queue(fake, name, size: 0, age: nil)
+      fake.call("SADD", "queues", name)
+      size.times do |i|
+        enqueued = age ? Time.now.to_f - age : Time.now.to_f
+        fake.call("RPUSH", "queue:#{name}", Sidekiq.dump_json("jid" => "#{name}#{i}", "enqueued_at" => enqueued))
+      end
+    end
 
     def setup = RoundhouseUi.read_only = false
     def teardown = RoundhouseUi.read_only = false
 
     def test_index_lists_queues_with_paused_state_and_controls
-      with_fake_redis do
+      with_fake_redis do |_fake_redis|
         Pause.pause!("low")
-        queues = [ FakeQueue.new("default", 1_284, 2.3), FakeQueue.new("low", 8_932, 846.0) ]
-        stub_method(Sidekiq::Queue, :all, queues) do
-          get "/roundhouse/queues"
+        seed_queue(_fake_redis, "default", size: 2)
+        seed_queue(_fake_redis, "low", size: 3, age: 846)
+        get "/roundhouse/queues"
 
-          assert_response :success
-          assert_match "default", @response.body
-          assert_match "8,932", @response.body
-          assert_match "paused", @response.body  # low is paused
-          assert_match "Resume", @response.body  # control for the paused queue
-          assert_match "Pause", @response.body   # control for the active queue
-        end
+        assert_response :success
+        assert_match "default", @response.body
+        assert_match "paused", @response.body  # low is paused
+        assert_match "Resume", @response.body  # control for the paused queue
+        assert_match "Pause", @response.body   # control for the active queue
+        assert_match "5 waiting", @response.body, "the heading should total every queue"
+        # 846s must not render as raw seconds
+        assert_match "14m", @response.body
       end
     end
 
     def test_index_warns_when_fetcher_not_installed
       with_fake_redis do
-        stub_method(Sidekiq::Queue, :all, []) do
-          get "/roundhouse/queues"
-          assert_match "not enforced", @response.body
-          assert_match "RoundhouseUi::Fetch", @response.body
-        end
+        get "/roundhouse/queues"
+        assert_match "not enforced", @response.body
+        assert_match "RoundhouseUi::Fetch", @response.body
       end
     end
 
     def test_pause_disabled_hides_warning_and_controls
       RoundhouseUi.pause_enabled = false
-      with_fake_redis do
-        queues = [ FakeQueue.new("default", 10, 1.0) ]
-        stub_method(Sidekiq::Queue, :all, queues) do
-          get "/roundhouse/queues"
+      with_fake_redis do |_fake_redis|
+        seed_queue(_fake_redis, "default", size: 1)
+        get "/roundhouse/queues"
 
-          assert_response :success
-          assert_match "default", @response.body      # queue still listed
-          assert_match "Purge", @response.body         # non-pause controls remain
-          refute_match "not enforced", @response.body  # warning suppressed
-          refute_match "Pause", @response.body          # pause control hidden
-        end
+        assert_response :success
+        assert_match "default", @response.body      # queue still listed
+        assert_match "Purge", @response.body         # non-pause controls remain
+        refute_match "not enforced", @response.body  # warning suppressed
+        refute_match "Pause", @response.body          # pause control hidden
       end
     ensure
       RoundhouseUi.pause_enabled = true

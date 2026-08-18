@@ -4,8 +4,16 @@ module RoundhouseUi
 
     def index
       @query = params[:q].to_s.strip
-      @queues = backend.queues
+      # queue_summaries reads depth and latency for every queue in one batch.
+      # Mapping over backend.queues instead costs a round-trip per queue per
+      # column, which on an app with sixty queues is most of a page render.
+      @queues = backend.queue_summaries
+      @total_size = @queues.sum(&:size)
       @queues = @queues.select { |q| q.name.to_s.downcase.include?(@query.downcase) } if @query.present?
+      # Worst first, matching the dashboard and Sidekiq's own convention. Sorted
+      # by name the one backed-up queue sits wherever the alphabet puts it,
+      # behind however many rows of zeros.
+      @queues = @queues.sort_by { |q| [ -q.latency.to_f, -q.size.to_i, q.name.to_s ] }
       @paused = backend.paused_queues
       # Native-pause backends (Solid Queue) enforce pauses without a fetcher, so
       # they never trigger the "not enforced" warning.

@@ -244,10 +244,11 @@ module RoundhouseUi
       end
     end
 
+    # Seeds Redis rather than stubbing Sidekiq::Queue — the page reads every
+    # queue's depth and latency in one pipelined batch, which a stub would skip.
     def test_queues_index_can_be_filtered_by_name
-      queues = [ Struct.new(:name, :size, :latency).new("mailers", 3, 1.0),
-                 Struct.new(:name, :size, :latency).new("critical", 1, 0.5) ]
-      stub_method(Sidekiq::Queue, :all, queues) do
+      with_fake_redis do |fake|
+        %w[mailers critical].each { |n| fake.call("SADD", "queues", n) }
         get "/roundhouse/queues?q=mail"
         assert_response :success
         assert_match "mailers", @response.body
