@@ -62,6 +62,21 @@ module RoundhouseUi
       end
     end
 
+    # The poll endpoint is the hottest read in the app — every open tab hits it
+    # every few seconds — so it has to use the batched read too. Reading depths
+    # off `backend.queues` instead put an LLEN per queue on every poll, which is
+    # the same N+1 this file exists to prevent, in the one place it costs most.
+    def test_the_poll_endpoint_does_not_read_a_depth_per_queue
+      seed = (1..12).to_h { |i| [ "q#{i}", [ { "class" => "W", "jid" => "j#{i}" } ] ] }
+      with_counting_redis(seed) do |conn|
+        summaries = Backends::Sidekiq.new.queue_summaries
+        assert_equal 12, summaries.size
+        assert summaries.all? { |q| q.size == 1 }, "depths must come from the batched read"
+        assert_equal 2, conn.calls,
+          "twelve queues must still cost two round-trips, not two plus twelve"
+      end
+    end
+
     def test_reports_size_and_latency_per_queue
       now = Time.now.to_f
       seed = {

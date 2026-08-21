@@ -104,11 +104,17 @@ module RoundhouseUi
       fake = Object.new
       fake.define_singleton_method(:stats) { stats }
       fake.define_singleton_method(:queues) { [] }
+      # The poll reads depths through the port too, so a backend that satisfies
+      # the contract needs no Redis of any kind.
+      summaries = [ RoundhouseUi::QueueSummary.new(name: "mailers", size: 7, latency: 3.0) ]
+      fake.define_singleton_method(:queue_summaries) { summaries }
       RoundhouseUi.backend = fake
 
       get "/roundhouse/stats"
       assert_response :success
-      assert_equal 8_420_118, JSON.parse(@response.body)["processed"]
+      body = JSON.parse(@response.body)
+      assert_equal 8_420_118, body["processed"]
+      assert_equal({ "mailers" => 7 }, body["queue_depths"])
     ensure
       RoundhouseUi.backend = nil # fall back to the default Sidekiq backend
     end

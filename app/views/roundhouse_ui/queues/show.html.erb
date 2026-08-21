@@ -12,6 +12,7 @@
   <span class="hint">
     <%= number_with_delimiter @total %> waiting
     <% if @latency %>· oldest <%= duration(@latency) %><% end %>
+    · <span class="rh-fc rh-fc-wait" data-rh-forecast="<%= @name %>">measuring…</span>
     <% if @paused %>· <span class="rh-pill rh-pill-warn">paused</span><% end %>
   </span>
   <span class="rh-spacer"></span>

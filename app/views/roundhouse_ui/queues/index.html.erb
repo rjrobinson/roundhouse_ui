@@ -17,10 +17,10 @@
 
 <h2 class="rh-h2">Queues · <%= number_with_delimiter @total_size %> waiting<% if @query.present? %> <span class="hint">filtered to “<%= @query %>”</span><% end %></h2>
 <table class="rh-table">
-  <thead><tr><th>Queue</th><th>State</th><th class="r">Size</th><th class="r">Latency</th><th class="r">Actions</th></tr></thead>
+  <thead><tr><th>Queue</th><th>State</th><th class="r">Size</th><th class="r">Latency</th><th>Forecast</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @queues.empty? %>
-      <tr><td colspan="5" class="rh-empty"><%= @query.present? ? "No queues match “#{@query}”." : "No active queues" %></td></tr>
+      <tr><td colspan="6" class="rh-empty"><%= @query.present? ? "No queues match “#{@query}”." : "No active queues" %></td></tr>
     <% else %>
       <% @queues.each do |q| %>
         <% paused = @paused.include?(q.name) %>
@@ -30,6 +30,9 @@
           <td><% if paused %><span class="rh-pill rh-pill-warn">paused</span><% else %><span class="rh-sub">active</span><% end %></td>
           <td class="r"><%= number_with_delimiter q.size %></td>
           <td class="r <%= "rh-lat-warn" if latency > 60 %>"><%= duration(latency) %></td>
+          <%# Filled by the stats poll — it needs two samples for a velocity, so
+              the first paint honestly says it is still measuring. %>
+          <td><span class="rh-fc rh-fc-wait" data-rh-forecast="<%= q.name %>"><%= q.size.zero? ? "clear" : "measuring…" %></span></td>
           <td class="r">
             <% if RoundhouseUi.pause_enabled %>
               <% if paused %>

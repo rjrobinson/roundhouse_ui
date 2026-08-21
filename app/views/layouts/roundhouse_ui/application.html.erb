@@ -114,6 +114,14 @@
     .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }
 
     /* Quick filters: counts by tag, from the scan that already ran. */
+    /* Drain forecast (#35). "Growing" is the state that matters during an
+       incident, so it is the only one that gets a colour that demands attention. */
+    .rh-fc { font-size:12px; font-family:var(--mono); white-space:nowrap; }
+    .rh-fc-wait { color:var(--faint); }
+    .rh-fc-draining { color:var(--good); }
+    .rh-fc-stalled { color:var(--warn); }
+    .rh-fc-growing { color:var(--crit); font-weight:600; }
+
     .rh-settings { padding:4px 0; }
     .rh-setting { display:flex; align-items:center; gap:24px; padding:16px 18px; border-bottom:1px solid var(--line-soft); }
     .rh-setting:last-child { border-bottom:none; }
@@ -277,6 +285,42 @@
       var samples = [], buckets = [], bucketStart = null; // samples = current bucket; buckets = finalized per-interval averages
       var lastPts = []; // points last drawn, for the hover tooltip to read
       function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; }
+      // Drain forecast (#35). The question during a backlog is not "how long if
+      // arrivals stopped" — it is "will this clear at all", and that needs *net*
+      // velocity, not throughput. Three answers, because a signed number is the
+      // whole point: draining, stalled, or growing.
+      //
+      // Depth is an integer and dt is a few seconds, so a single sample's
+      // velocity is quantised and noisy — one unlucky poll would flip the label.
+      // Smoothed with an EWMA so the label reflects a trend rather than a tick.
+      var lastDepths = null, smoothVel = {};
+      var STALLED_PER_MIN = 1; // below one job a minute either way, nothing is happening
+
+      function smooth(key, v) {
+        var prev = smoothVel[key];
+        return (smoothVel[key] = prev == null ? v : (prev * 0.7) + (v * 0.3));
+      }
+
+      // vel is jobs/second, signed: negative drains, positive grows.
+      function forecast(depth, vel) {
+        if (depth === 0) return { text: "clear", cls: "" };
+        if (vel == null) return { text: "measuring…", cls: "rh-fc-wait" };
+        if (Math.abs(vel) * 60 < STALLED_PER_MIN) return { text: "stalled", cls: "rh-fc-stalled" };
+        if (vel > 0) return { text: "growing " + rateLabel(vel) + " — will not drain", cls: "rh-fc-growing" };
+        return { text: "clears in " + humanizeEta(depth / -vel), cls: "rh-fc-draining" };
+      }
+
+      function rateLabel(vel) {
+        var v = Math.abs(vel);
+        return v >= 1 ? v.toFixed(0) + "/s" : Math.round(v * 60) + "/min";
+      }
+
+      function paintForecast(el, depth, vel) {
+        var f = forecast(depth, vel);
+        el.textContent = f.text;
+        el.className = "rh-fc " + f.cls;
+      }
+
       function humanizeEta(s) {
         if (s < 60) return "~" + Math.round(s) + "s";
         if (s < 3600) return "~" + Math.round(s / 60) + "m";
@@ -358,7 +402,26 @@
                 var vel = (backlog - lastBacklog) / dt;
                 setText("rh-m-velocity", (vel >= 0 ? "+" : "") + vel.toFixed(1) + "/s");
               }
-              setText("rh-m-eta", backlog === 0 ? "clear" : (rate > 0 ? humanizeEta(backlog / rate) : "—"));
+              // Was backlog/throughput, which answers "how long if nothing else
+              // arrives" — a number that stays reassuring while the backlog grows.
+              setText("rh-m-eta", forecast(backlog, lastBacklog != null && dt > 0 ? smooth("__total", (backlog - lastBacklog) / dt) : null).text);
+            }
+            // Per-queue forecast. Rendered wherever a cell asks for one, so the
+            // Queues table, a queue page and the dashboard all read the same
+            // number rather than three approximations of it.
+            if (d.queue_depths) {
+              var dtq = lastT ? (now - lastT) / 1000 : 0;
+              document.querySelectorAll("[data-rh-forecast]").forEach(function (el) {
+                var name = el.getAttribute("data-rh-forecast");
+                var depth = d.queue_depths[name];
+                if (depth == null) return;
+                var vel = null;
+                if (lastDepths && lastDepths[name] != null && dtq > 0) {
+                  vel = smooth(name, (depth - lastDepths[name]) / dtq);
+                }
+                paintForecast(el, depth, vel);
+              });
+              lastDepths = d.queue_depths;
             }
             lastProcessed = d.processed; lastFailed = d.failed; lastBacklog = backlog; lastT = now;
           })

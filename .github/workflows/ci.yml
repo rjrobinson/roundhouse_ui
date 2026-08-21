@@ -72,6 +72,18 @@ jobs:
           SIDEKIQ_VERSION: ${{ matrix.sidekiq }}
         run: bin/rails test
 
+      # The layout carries real JavaScript and had no coverage at all. The drain
+      # forecast is the first branch-heavy piece of it, and its whole job is to
+      # be right about what an operator sees mid-incident. Node is a CI-only
+      # dependency — the gem itself still has no build step.
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Run JavaScript tests
+        run: node test/js/forecast_test.js
+
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v7
         if: failure()
