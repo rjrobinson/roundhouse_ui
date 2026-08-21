@@ -2,13 +2,13 @@ module RoundhouseUi
   module NavHelper
     # A sidebar nav item with active state and an optional live-updating badge
     # (filled client-side from /stats via the poll in the layout).
-    def nav_link(label, path, icon:, badge: nil, badge_class: nil)
+    def nav_link(label, path, icon:, badge: nil, badge_class: nil, badge_title: nil)
       here = request.path == path || (path != root_path && request.path.start_with?(path))
       link_to path, class: "rh-nav#{' is-active' if here}" do
         safe_join([
           content_tag(:span, icon, class: "rh-ico"),
           content_tag(:span, label, class: "rh-lbl"),
-          badge ? content_tag(:span, "", class: "rh-badge #{badge_class}", data: { nav: badge }) : "".html_safe
+          badge ? content_tag(:span, "", class: "rh-badge #{badge_class}", title: badge_title, data: { nav: badge }) : "".html_safe
         ])
       end
     end

@@ -241,6 +241,9 @@
     .rh-palette-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:9px; cursor:pointer; font-size:13px; }
     .rh-palette-item.sel { background:var(--panel-2); }
     .rh-palette-ico { width:20px; text-align:center; color:var(--muted); }
+    <%# Host colour overrides, emitted last so they win without !important. Only
+        known tokens, values shape-checked — see lib/roundhouse_ui/theme.rb %>
+    <%= RoundhouseUi::Theme.css&.html_safe %>
   </style>
   <%# Apply the saved theme before first paint so it persists across navigations with no flash. %>
   <script nonce="<%= content_nonce %>">
@@ -551,20 +554,20 @@
         <div class="rh-grp-label">Overview</div>
         <%= nav_link "Dashboard", root_path, icon: "▦" %>
         <%= nav_link "Metrics", metrics_path, icon: "▤" %>
-        <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy" %>
+        <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy", badge_title: "Jobs running right now" %>
         <% if RoundhouseUi.backend.supports?(:workers) %>
           <%= nav_link "Workers", workers_path, icon: "◷" %>
         <% end %>
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Work</div>
-        <%= nav_link "Queues", queues_path, icon: "≡", badge: "queues" %>
-        <%= nav_link "Scheduled", scheduled_path, icon: "◔", badge: "scheduled" %>
+        <%= nav_link "Queues", queues_path, icon: "≡", badge: "enqueued", badge_title: "Jobs enqueued across all queues" %>
+        <%= nav_link "Scheduled", scheduled_path, icon: "◔", badge: "scheduled", badge_title: "Jobs scheduled for later" %>
         <% if RoundhouseUi.backend.supports?(:retries) %>
-          <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn" %>
+          <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn", badge_title: "Jobs waiting to retry" %>
         <% end %>
         <%= nav_link "Errors", errors_path, icon: "⚠" %>
-        <%= nav_link "Dead", dead_set_path, icon: "✕", badge: "dead", badge_class: "crit" %>
+        <%= nav_link "Dead", dead_set_path, icon: "✕", badge: "dead", badge_class: "crit", badge_title: "Jobs that exhausted their retries" %>
         <% if RoundhouseUi.allow_job_editing %>
           <%= nav_link "Enqueue job", new_job_path, icon: "＋" %>
         <% end %>
