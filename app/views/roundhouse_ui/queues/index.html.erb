@@ -26,7 +26,7 @@
         <% paused = @paused.include?(q.name) %>
         <% latency = q.latency %>
         <tr>
-          <td><%= queue_pill(q.name) %></td>
+          <td><%= link_to queue_pill(q.name), queue_path(q.name), class: "rh-pill-link" %></td>
           <td><% if paused %><span class="rh-pill rh-pill-warn">paused</span><% else %><span class="rh-sub">active</span><% end %></td>
           <td class="r"><%= number_with_delimiter q.size %></td>
           <td class="r <%= "rh-lat-warn" if latency > 60 %>"><%= duration(latency) %></td>

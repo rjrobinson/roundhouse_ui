@@ -32,6 +32,11 @@ module RoundhouseUi
       def queues = ::SolidQueue::Queue.all
       def queue(name) = ::SolidQueue::Queue.new(name)
 
+      # The jobs waiting on one queue, in the same JobSet shape the other sets
+      # use — so the queue detail page reuses the shared browse/search path
+      # rather than growing a second one.
+      def queue_jobs(name) = JobSet.new(sq(:ReadyExecution).queued_as(name))
+
       # Depth and latency for every queue in two queries, not two per queue.
       #
       # SolidQueue::Queue#size and #latency each run their own COUNT and MIN, so

@@ -30,6 +30,11 @@ module RoundhouseUi
       def queues       = ::Sidekiq::Queue.all
       def queue(name)  = ::Sidekiq::Queue.new(name)
 
+      # The jobs waiting on one queue. Sidekiq::Queue is Enumerable and pages
+      # through Redis in chunks, so callers that stop early (browse fills one
+      # page and breaks) never load a large queue into memory.
+      def queue_jobs(name) = ::Sidekiq::Queue.new(name)
+
       # Depth and latency for every queue in two Redis round-trips, regardless
       # of how many queues there are.
       #
@@ -119,14 +124,8 @@ module RoundhouseUi
         payload = entry.is_a?(Array) ? entry.first : entry
         return 0.0 unless payload
 
-        timestamp = ::Sidekiq.load_json(payload)["enqueued_at"]
-        return 0.0 unless timestamp
-
-        if timestamp.is_a?(Float)
-          Time.now.to_f - timestamp
-        else
-          (::Process.clock_gettime(::Process::CLOCK_REALTIME, :millisecond) - timestamp) / 1000.0
-        end
+        at = RoundhouseUi.enqueued_at(::Sidekiq.load_json(payload))
+        at ? (Time.now - at).to_f : 0.0
       rescue StandardError
         0.0
       end

@@ -1,5 +1,7 @@
 module RoundhouseUi
   class QueuesController < ApplicationController
+    include JobSetBrowsing
+
     before_action :require_writable!, only: %i[purge pause resume]
 
     def index
@@ -19,6 +21,22 @@ module RoundhouseUi
       # they never trigger the "not enforced" warning.
       @fetch_installed = backend.supports?(:native_pause) ||
                          (backend.respond_to?(:fetch_installed?) && backend.fetch_installed?)
+    end
+
+    # The jobs waiting on one queue — what Sidekiq Web shows and we did not.
+    # Goes through the shared browse path, so it pages rather than loading a
+    # queue that could hold hundreds of thousands of jobs, and inherits search
+    # and the tag filter for free.
+    def show
+      @name = params[:name]
+      @query = params[:q].to_s.strip
+      @tag = tag_filter
+      @page = [ params[:page].to_i, 1 ].max
+      summary = backend.queue_summaries.find { |q| q.name == @name }
+      @total = summary&.size.to_i
+      @latency = summary&.latency
+      @paused = backend.paused_queues.include?(@name)
+      @jobs, @has_next = browse(backend.queue_jobs(@name), @query, @page, PER_PAGE, tag: @tag)
     end
 
     # Real, OSS-supported destructive action: empties the queue in Redis.
