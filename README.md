@@ -116,6 +116,9 @@ RoundhouseUi.configure do |c|
   # and grouped errors — and filter by them. See "Job tags" below.
   # c.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
 
+  # Recolour the UI — pure CSS custom properties, no build step. See "Theming".
+  # c.theme = { accent: "#FF2BD1", accent_2: "#00E5FF" }
+
   # Seconds between dashboard stat polls (default 5). Raise it if polling shows
   # up in your traces — each poll re-runs the host's auth/routing on the mount.
   # c.poll_interval = 10
@@ -146,6 +149,7 @@ here is required to mount Roundhouse.
 | `job_tags` | `nil` | You already know which team, tenant or product area owns a job — usually as a constant on the class — and want that visible and filterable in the UI. See [Job tags](#job-tags). | Every job belongs to the same team. |
 | `job_tags_per_job` | `false` | **Only** when `job_tags` reads the payload (tagging by tenant, account, …). Costs one resolver call per row rather than one per class. | Tags derive from the job class, which is the common case. |
 | `tag_filters` | `nil` | You want stable filter dropdowns instead of ones that only list what happens to be on screen — and want filtering on an unknown key to match nothing. | The `?tag=` URL is enough. |
+| `theme` | `nil` | You want Roundhouse to match your own admin's palette, or you just want it to look different. Partial themes are fine — unset tokens keep their shipped values. See [Theming](#theming). | The shipped light/dark pair is fine. |
 | `pause_enabled` | `true` | Leave it on. | **Rarely set this to `false`.** Pause is enforced natively on Sidekiq Pro and Solid Queue, and on OSS Sidekiq by installing `RoundhouseUi::Fetch` — so turning it off usually just hides a working feature. Only useful if you want the controls gone entirely. |
 
 Two that pair with a middleware rather than working alone: `collect_durations`
@@ -193,6 +197,43 @@ Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
 Redis key directly: Pro's fetchers read that set once at startup and afterwards
 only update on the `pro:config` pubsub message `pause!` publishes, so a raw write
 would leave running workers pulling the queue until they restarted.
+
+## Theming
+
+The UI's colours are CSS custom properties. Override any of them from an
+initializer — pure CSS, no build step, no stylesheet to fork:
+
+```ruby
+RoundhouseUi.theme = { accent: "#FF2BD1", accent_2: "#00E5FF" }
+```
+
+A colour that reads well on near-black rarely reads well on near-white, so you
+can speak to each mode separately:
+
+```ruby
+RoundhouseUi.theme = {
+  dark:  { bg: "#0A0511", panel: "#140A24", accent: "#FF2BD1" },
+  light: { bg: "#FFF7FB", panel: "#FFFFFF", accent: "#B3009E" }
+}
+```
+
+Anything you leave unset keeps its shipped value, so partial themes are fine.
+Keys are token names with underscores for dashes — `accent_2` sets `--accent-2`.
+
+Available tokens: `bg`, `panel`, `panel_2`, `panel_3`, `line`, `line_soft`,
+`text`, `muted`, `faint`, `accent`, `accent_2`, `good`, `warn`, `crit`, `mono`,
+`sans`.
+
+There's a preset in the box if you want to see how far it goes:
+
+```ruby
+RoundhouseUi.theme = RoundhouseUi::Theme::PRESETS[:cyberpunk]
+```
+
+> Values are interpolated into a `<style>` block, so unknown token names are
+> ignored and values are shape-checked rather than escaped — there is no
+> escaping that makes arbitrary input safe in a stylesheet. A rejected value is
+> dropped and its valid siblings still apply.
 
 ## Job tags
 
