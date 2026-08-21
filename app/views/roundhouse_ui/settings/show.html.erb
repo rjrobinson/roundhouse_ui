@@ -1,0 +1,91 @@
+<% content_for :title, "Settings" %>
+
+<h2 class="rh-h2">Settings <span class="hint">stored in this browser only</span></h2>
+
+<div class="rh-panel rh-settings">
+  <div class="rh-setting">
+    <div class="rh-setting-label">
+      <b>Appearance</b>
+      <span class="rh-sub">Roundhouse is dark unless you say otherwise — it does not follow the operating system.</span>
+    </div>
+    <div class="rh-setting-control">
+      <select id="rh-set-theme" class="rh-btn" aria-label="Appearance">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+      </select>
+    </div>
+  </div>
+
+  <% if @palettes.any? %>
+    <div class="rh-setting">
+      <div class="rh-setting-label">
+        <b>Palette</b>
+        <span class="rh-sub">
+          Colours only.
+          <% if @host_theme %>“Default” is whatever this app configured.<% end %>
+        </span>
+      </div>
+      <div class="rh-setting-control">
+        <select id="rh-set-palette" class="rh-btn" aria-label="Palette">
+          <option value="">Default</option>
+          <%# A palette covering only one mode is inert in the other, so say which. %>
+          <% @palettes.each do |name, tokens| %>
+            <% only = RoundhouseUi::Theme.only_mode(tokens) %>
+            <option value="<%= name %>"><%= name.to_s.titleize %><%= " — #{only} only" if only %></option>
+          <% end %>
+        </select>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="rh-setting">
+    <div class="rh-setting-label">
+      <b>Content width</b>
+      <span class="rh-sub">Full width helps on the wide tables; compact is easier to read.</span>
+    </div>
+    <div class="rh-setting-control">
+      <select id="rh-set-width" class="rh-btn" aria-label="Content width">
+        <option value="compact">Compact</option>
+        <option value="full">Full width</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="rh-setting">
+    <div class="rh-setting-label">
+      <b>Refresh every</b>
+      <span class="rh-sub">
+        Each refresh re-runs this app's own auth and routing, so faster is not free.
+        This app's default is <%= @host_poll %>s.
+      </span>
+    </div>
+    <div class="rh-setting-control">
+      <select id="rh-set-poll" class="rh-btn" aria-label="Refresh interval">
+        <option value="">App default (<%= @host_poll %>s)</option>
+        <option value="2">2 seconds</option>
+        <option value="5">5 seconds</option>
+        <option value="10">10 seconds</option>
+        <option value="30">30 seconds</option>
+        <option value="60">1 minute</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="rh-setting">
+    <div class="rh-setting-label">
+      <b>Reset</b>
+      <span class="rh-sub">Forget every preference stored for this browser.</span>
+    </div>
+    <div class="rh-setting-control">
+      <button type="button" id="rh-set-reset" class="rh-btn rh-btn-danger">Reset to defaults</button>
+    </div>
+  </div>
+</div>
+
+<p class="rh-note">
+  Preferences live in this browser's local storage — they are not shared with
+  other people, other devices, or the server. A private window starts fresh.
+  <% unless RoundhouseUi.allow_theme_selection %>
+    Palette selection is disabled for this install.
+  <% end %>
+</p>

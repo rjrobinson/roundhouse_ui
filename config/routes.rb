@@ -21,6 +21,9 @@ RoundhouseUi::Engine.routes.draw do
     get  "queues/:name"          => "queues#show",     as: :queue
   end
 
+  get "settings" => "settings#show", as: :settings
+
+
   get "snapshots" => "snapshots#index", as: :snapshots
   scope constraints: { id: /[^\/]+/ } do
     post "snapshots/:id/restore" => "snapshots#restore", as: :restore_snapshot

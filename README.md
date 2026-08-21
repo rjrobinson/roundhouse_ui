@@ -27,7 +27,8 @@ step, no frontend dependency** — and **no Sidekiq Pro required**.
 - **Job inspection & editing** — full args (with redaction), error, and collapsible backtrace; edit & re-enqueue, or enqueue a new job (opt-in).
 - **Per-class durations** (opt-in) — the slowest job classes, which Sidekiq doesn't track.
 - **Audit log** — every state-changing action recorded and attributable.
-- **⌘K command palette**, light/dark themes, compact/full-width toggle, read-only mode, and a strict self-contained CSP.
+- **⌘K command palette**, read-only mode, and a strict self-contained CSP.
+- **Per-person settings** — light/dark, palette, content width and refresh interval, stored in the browser; nothing server-side to share or migrate. Hosts can set the palette for everyone, or withdraw the choice.
 
 Sidekiq-specific extras: **Workers** (quiet/stop, threads, heartbeat), **Redis pressure** (eviction-policy check for silent job loss), and **Capsules**.
 
@@ -118,6 +119,8 @@ RoundhouseUi.configure do |c|
 
   # Recolour the UI — pure CSS custom properties, no build step. See "Theming".
   # c.theme = { accent: "#FF2BD1", accent_2: "#00E5FF" }
+  # c.themes = RoundhouseUi::Theme::PRESETS.slice(:catppuccin, :nord, :gruvbox)
+  # c.allow_theme_selection = false
 
   # Seconds between dashboard stat polls (default 5). Raise it if polling shows
   # up in your traces — each poll re-runs the host's auth/routing on the mount.
@@ -150,6 +153,8 @@ here is required to mount Roundhouse.
 | `job_tags_per_job` | `false` | **Only** when `job_tags` reads the payload (tagging by tenant, account, …). Costs one resolver call per row rather than one per class. | Tags derive from the job class, which is the common case. |
 | `tag_filters` | `nil` | You want stable filter dropdowns instead of ones that only list what happens to be on screen — and want filtering on an unknown key to match nothing. | The `?tag=` URL is enough. |
 | `theme` | `nil` | You want Roundhouse to match your own admin's palette, or you just want it to look different. Partial themes are fine — unset tokens keep their shipped values. See [Theming](#theming). | The shipped light/dark pair is fine. |
+| `themes` | shipped presets | You want people to pick their own palette on the Settings page. | Everyone should see the same thing — set `theme` instead, or `allow_theme_selection = false`. |
+| `allow_theme_selection` | `true` | Leave it on. | Recolouring a production console isn't something you want an operator doing. |
 | `pause_enabled` | `true` | Leave it on. | **Rarely set this to `false`.** Pause is enforced natively on Sidekiq Pro and Solid Queue, and on OSS Sidekiq by installing `RoundhouseUi::Fetch` — so turning it off usually just hides a working feature. Only useful if you want the controls gone entirely. |
 
 Two that pair with a middleware rather than working alone: `collect_durations`
@@ -224,16 +229,98 @@ Available tokens: `bg`, `panel`, `panel_2`, `panel_3`, `line`, `line_soft`,
 `text`, `muted`, `faint`, `accent`, `accent_2`, `good`, `warn`, `crit`, `mono`,
 `sans`.
 
-There's a preset in the box if you want to see how far it goes:
+### What's in the box
+
+Eleven presets. Ten of them ship the light **and** dark variant their own
+authors designed, so choosing a palette is never a choice to give up light mode:
+
+| Preset | Dark | Light |
+|---|---|---|
+| `catppuccin` | [Catppuccin](https://github.com/catppuccin/catppuccin) Mocha | Latte |
+| `catppuccin_macchiato` | Catppuccin Macchiato | Latte |
+| `catppuccin_frappe` | Catppuccin Frappé | Latte |
+| `rose_pine` | [Rosé Pine](https://github.com/rose-pine/rose-pine-theme) Main | Dawn |
+| `rose_pine_moon` | Rosé Pine Moon | Dawn |
+| `nord` | [Nord](https://github.com/nordtheme/nord) Polar Night | Snow Storm |
+| `gruvbox` | [Gruvbox](https://github.com/morhetz/gruvbox) Dark | Light |
+| `everforest` | [Everforest](https://github.com/sainnhe/everforest) Dark | Light |
+| `kanagawa` | [Kanagawa](https://github.com/rebelot/kanagawa.nvim) Wave | Lotus |
+| `solarized` | [Solarized](https://github.com/altercation/solarized) Dark | Light |
+
+The eleventh is `cyberpunk` — deliberately loud, and dark-only, which Settings
+labels so, because a dark-only palette is simply inert in light mode.
+
+Catppuccin and Rosé Pine each ship one light flavour and several dark ones, so
+their entries share a light half. That's upstream's own design rather than a
+shortcut here, which is why the preset name says which dark flavour you get.
 
 ```ruby
-RoundhouseUi.theme = RoundhouseUi::Theme::PRESETS[:cyberpunk]
+RoundhouseUi.theme = RoundhouseUi::Theme::PRESETS[:kanagawa]
 ```
 
-> Values are interpolated into a `<style>` block, so unknown token names are
-> ignored and values are shape-checked rather than escaped — there is no
-> escaping that makes arbitrary input safe in a stylesheet. A rejected value is
-> dropped and its valid siblings still apply.
+> **Role mapping is where the judgement is.** Every project names its swatches
+> differently and none of them has our token set, so the mapping is the part
+> that can be wrong while every colour is right. Two rules do most of the work:
+> `panel` must lift off `bg`, and `line` must be *soft* — the shipped theme
+> draws borders at 1.20:1 against their own panel. Reaching one surface step too
+> far is the easy mistake and it does not look like a colour bug, it looks like
+> the theme is broken: it put Nord's light border at 6.4:1 and Rosé Pine's dark
+> border at 3.2:1, a hard outline around every button and input. Tests hold each
+> palette to that band, so a new palette cannot regress it.
+>
+> Every one of the 280 values is lifted from the project's own palette file —
+> `palette.json`, `gruvbox.vim`, `nord.css`, `colors.lua` — not transcribed by
+> eye, and the test suite asserts each one still renders. Because every project
+> names its swatches differently, the role mapping is the part with judgement in
+> it: `panel` has to read as distinct from `bg`, `panel_2` has to be dark (or
+> light) enough for `muted` text to sit on, and `line_soft` has to differ from
+> `panel` or card borders vanish. Tests hold each palette to contrast floors as
+> well as to those structural rules — Nord's own comment grey lands at 1.36:1 on
+> its own panel, and that is exactly the kind of thing a list of hex values
+> cannot show you.
+
+### Letting people pick
+
+`theme` is what everyone sees. If you'd rather offer a menu, name the palettes
+and each person picks one on the Settings page:
+
+```ruby
+RoundhouseUi.themes = {
+  cyberpunk: RoundhouseUi::Theme::PRESETS[:cyberpunk],
+  midnight:  { dark: { bg: "#000000", panel: "#0A0A0A" } }
+}
+```
+
+All eleven shipped presets are on offer by default — trim the list if that's
+more choice than you want in a production console. A palette beats `theme`, and
+"Default" on that page means whatever `theme` you configured, so a host palette
+is the floor rather than something a viewer can be stranded away from.
+
+Every offered palette is emitted as CSS on every page: all eleven cost about
+1.5 KB gzipped, so this is a taste question, not a performance one.
+
+Withdraw the control entirely where recolouring a production console isn't
+something an operator should be doing:
+
+```ruby
+RoundhouseUi.allow_theme_selection = false
+```
+
+The browser stores which palette by name, never the colours, so a tampered
+`localStorage` value can only select a palette you already configured.
+
+## Settings
+
+`/settings` holds the per-person preferences: light or dark, palette, content
+width, and how often pages refresh. Everything there lives in that browser's
+local storage — nothing is written server-side, so one person's choices never
+change what anyone else sees, and there's no state to migrate or clean up. A
+private window starts fresh.
+
+The refresh interval is worth a word: every tick runs your app's own
+authentication and routing, so it isn't free. Whatever you set for
+`poll_interval` is the default and is named on the page; a viewer can go faster
+or slower within 2–300 seconds.
 
 ## Job tags
 

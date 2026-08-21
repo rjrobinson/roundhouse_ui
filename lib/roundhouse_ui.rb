@@ -128,6 +128,19 @@ module RoundhouseUi
     # input safe. Default: nil.
     attr_accessor :theme
 
+    # Named palettes a viewer can choose between on the Settings page:
+    #
+    #   RoundhouseUi.themes = { cyberpunk: RoundhouseUi::Theme::PRESETS[:cyberpunk] }
+    #
+    # `theme` sets the default for everyone; this is the menu each person picks
+    # from in their own browser. Default: the shipped presets.
+    attr_accessor :themes
+
+    # Set false where an operator should not be able to recolour a production
+    # console. Settings then hides palette selection and everyone keeps the
+    # host's `theme`. Default: true.
+    attr_accessor :allow_theme_selection
+
     # Configure in an initializer:
     #
     #   RoundhouseUi.configure do |c|
@@ -177,6 +190,29 @@ module RoundhouseUi
       nil
     end
 
+    # Durations, in one place. This lived in a view helper, which meant anything
+    # in lib/ that wanted to print a duration had to reinvent it — and did, five
+    # different ways, including the health signal that reported an hour-old queue
+    # as "3616s" (#31). Views reach this through the `duration` helper.
+    def duration(seconds)
+      return "—" if seconds.nil?
+
+      secs = seconds.to_f.abs
+      # Sub-minute keeps a decimal: 0.4s and 12s are a real distinction here.
+      return "#{secs.round(1)}s" if secs < 60
+      return "#{(secs / 60).floor}m #{(secs % 60).round}s" if secs < 3_600
+      return "#{(secs / 3_600).floor}h #{((secs % 3_600) / 60).round}m" if secs < 86_400
+
+      "#{(secs / 86_400).floor}d #{((secs % 86_400) / 3_600).round}h"
+    end
+
+    def duration_ms(ms)
+      return "—" if ms.nil?
+      return "#{ms.to_f.abs.round}ms" if ms.to_f.abs < 1_000
+
+      duration(ms.to_f / 1_000)
+    end
+
     # Cooperative cancellation check for long-running jobs:
     #   raise SomeStop if RoundhouseUi.cancelled?(jid)
     def cancelled?(jid)
@@ -192,4 +228,6 @@ module RoundhouseUi
   self.poll_interval = 5
   self.collect_durations = false
   self.job_tags_per_job = false
+  self.allow_theme_selection = true
+  self.themes = Theme::PRESETS
 end

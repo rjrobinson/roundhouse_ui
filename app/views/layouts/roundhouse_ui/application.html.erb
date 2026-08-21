@@ -114,6 +114,14 @@
     .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }
 
     /* Quick filters: counts by tag, from the scan that already ran. */
+    .rh-settings { padding:4px 0; }
+    .rh-setting { display:flex; align-items:center; gap:24px; padding:16px 18px; border-bottom:1px solid var(--line-soft); }
+    .rh-setting:last-child { border-bottom:none; }
+    .rh-setting-label { flex:1; display:flex; flex-direction:column; gap:3px; }
+    .rh-setting-label b { font-size:13px; font-weight:600; }
+    .rh-setting-control { flex:0 0 auto; }
+    .rh-setting-control select { min-width:190px; }
+
     .rh-quickfilters { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
     .rh-qf { display:inline-flex; align-items:center; gap:7px; font-size:12px; text-decoration:none;
              background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 10px; color:var(--muted); }
@@ -244,10 +252,11 @@
     <%# Host colour overrides, emitted last so they win without !important. Only
         known tokens, values shape-checked — see lib/roundhouse_ui/theme.rb %>
     <%= RoundhouseUi::Theme.css&.html_safe %>
+    <%= RoundhouseUi::Theme.selectable_css&.html_safe %>
   </style>
   <%# Apply the saved theme before first paint so it persists across navigations with no flash. %>
   <script nonce="<%= content_nonce %>">
-    (function () { try { var t = localStorage.getItem("rh-theme"); if (t) document.documentElement.setAttribute("data-theme", t); var w = localStorage.getItem("rh-width"); if (w) document.documentElement.setAttribute("data-width", w); } catch (e) {} })();
+    (function () { try { var t = localStorage.getItem("rh-theme"); if (t) document.documentElement.setAttribute("data-theme", t); var w = localStorage.getItem("rh-width"); if (w) document.documentElement.setAttribute("data-width", w); var p = localStorage.getItem("rh-palette"); if (p) document.documentElement.setAttribute("data-rh-palette", p); } catch (e) {} })();
   </script>
   <%# Turbo Drive: link navigation without full-page reloads (kills the flicker). %>
   <script src="<%= turbo_js_path %>"></script>
@@ -255,7 +264,16 @@
     (function () {
       var fmt = function (n) { return Number(n).toLocaleString(); };
       var started = false, lastProcessed = null, lastFailed = null, lastBacklog = null, lastT = null;
-      var POLL_MS = <%= (RoundhouseUi.poll_interval.to_f * 1000).round %>;
+      var HOST_POLL_MS = <%= (RoundhouseUi.poll_interval.to_f * 1000).round %>;
+      function storedPollMs() {
+        try {
+          var v = parseFloat(localStorage.getItem("rh-poll"));
+          // Clamped: this comes from the browser, and 0 would hammer the mount.
+          if (!isNaN(v) && v > 0) return Math.min(Math.max(v, 2), 300) * 1000;
+        } catch (_) {}
+        return HOST_POLL_MS;
+      }
+      var POLL_MS = storedPollMs();
       var samples = [], buckets = [], bucketStart = null; // samples = current bucket; buckets = finalized per-interval averages
       var lastPts = []; // points last drawn, for the hover tooltip to read
       function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; }
@@ -352,7 +370,15 @@
         if (el) el.classList.toggle("is-stale", !ok);
         if (lbl) lbl.textContent = ok ? "live" : "reconnecting…";
       }
-      function startOnce() { if (started) return; started = true; poll(); setInterval(poll, POLL_MS); }
+      // The timer handle is kept so a viewer changing the refresh interval in
+      // Settings takes effect immediately, rather than on the next full page load.
+      var pollHandle = null;
+      function startOnce() { if (started) return; started = true; poll(); restartPoll(); }
+      function restartPoll() {
+        if (pollHandle) clearInterval(pollHandle);
+        POLL_MS = storedPollMs();
+        pollHandle = setInterval(poll, POLL_MS);
+      }
       function wireChart() {
         var cv = document.getElementById("rh-chart"); if (!cv) return;
         cv.onmousemove = chartHover;
@@ -379,7 +405,7 @@
         var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
         document.documentElement.setAttribute("data-theme", next);
         try { localStorage.setItem("rh-theme", next); } catch (_) {}
-        syncTheme();
+        syncTheme(); syncSettingsForm();
       });
       // width toggle (compact 1180px ⟷ full) — same persistence pattern as theme
       document.addEventListener("click", function (e) {
@@ -387,7 +413,7 @@
         var next = document.documentElement.getAttribute("data-width") === "full" ? "compact" : "full";
         document.documentElement.setAttribute("data-width", next);
         try { localStorage.setItem("rh-width", next); } catch (_) {}
-        syncWidth();
+        syncWidth(); syncSettingsForm();
       });
       // command palette (⌘K). Two halves: static navigation, and search actions
       // built from whatever you type — paste a JID, a queue, or a squad and the
@@ -460,6 +486,7 @@
         <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "◈" },<% end %>
         { label: "Snapshots", path: "<%= snapshots_path %>", icon: "⛁" },
         { label: "Audit log", path: "<%= audit_log_path %>", icon: "☷" },
+        { label: "Settings", path: "<%= settings_path %>", icon: "⚙" },
         <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", icon: "＋" },<% end %>
         { label: "Toggle theme", action: "theme", icon: "◐" },
         { label: "Toggle full width", action: "width", icon: "⟷" }
@@ -507,6 +534,38 @@
         if (e.target && e.target.id === "rh-palette") { palClose(); return; }
         if (e.target.closest && e.target.closest("#rh-palette-open")) { e.preventDefault(); palOpen(); }
       });
+      // Settings page. Delegated from document so it survives Turbo body swaps,
+      // the same reason select-all is (#26). Every control writes local storage
+      // and applies immediately — there is no Save button because there is
+      // nothing to submit.
+      function prefRead(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
+      function prefWrite(key, value) {
+        try { value === "" ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch (_) {}
+      }
+      function syncSettingsForm() {
+        var t = document.getElementById("rh-set-theme"); if (t) t.value = prefRead("rh-theme") || "dark";
+        var p = document.getElementById("rh-set-palette"); if (p) p.value = prefRead("rh-palette");
+        var w = document.getElementById("rh-set-width"); if (w) w.value = prefRead("rh-width") || "compact";
+        var i = document.getElementById("rh-set-poll"); if (i) i.value = prefRead("rh-poll");
+      }
+      function applyAttr(name, value) {
+        value ? document.documentElement.setAttribute(name, value)
+              : document.documentElement.removeAttribute(name);
+      }
+      document.addEventListener("change", function (e) {
+        var el = e.target; if (!el || !el.id) return;
+        if (el.id === "rh-set-theme")   { prefWrite("rh-theme", el.value);   applyAttr("data-theme", el.value); syncTheme(); }
+        if (el.id === "rh-set-palette") { prefWrite("rh-palette", el.value); applyAttr("data-rh-palette", el.value); }
+        if (el.id === "rh-set-width")   { prefWrite("rh-width", el.value);   applyAttr("data-width", el.value); syncWidth(); }
+        if (el.id === "rh-set-poll")    { prefWrite("rh-poll", el.value);    restartPoll(); }
+      });
+      document.addEventListener("click", function (e) {
+        if (!e.target.closest || !e.target.closest("#rh-set-reset")) return;
+        [ "rh-theme", "rh-palette", "rh-width", "rh-poll" ].forEach(function (k) { prefWrite(k, ""); });
+        [ "data-theme", "data-rh-palette", "data-width" ].forEach(function (a) { applyAttr(a, null); });
+        syncTheme(); syncWidth(); restartPoll(); syncSettingsForm();
+      });
+
       // Throughput interval picker — persist the choice; changing it re-buckets
       // from here on, so reset the in-progress bucket and redraw.
       function restoreChartInterval() {
@@ -528,7 +587,7 @@
         else if (e.key === "Enter") { e.preventDefault(); if (palFiltered[palSel]) palRun(palFiltered[palSel]); }
       });
 
-      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
+      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); syncSettingsForm(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
 
       // Dead set "select all". Delegated from document rather than bound to the
       // checkbox, because a Turbo visit (searching, paging, arriving via the
@@ -583,6 +642,7 @@
         <% end %>
         <%= nav_link "Snapshots", snapshots_path, icon: "⛁" %>
         <%= nav_link "Audit log", audit_log_path, icon: "☷" %>
+          <%= nav_link "Settings", settings_path, icon: "⚙" %>
       </nav>
     </aside>
 
