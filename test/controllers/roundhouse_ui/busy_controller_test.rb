@@ -25,7 +25,7 @@ module RoundhouseUi
         assert_match "SlowImportJob", @response.body
         assert_match "low", @response.body
         assert_match "host:4821", @response.body
-        assert_match "minutes", @response.body # 120s elapsed → "2 minutes"
+        assert_match "2m 0s", @response.body # 120s elapsed, formatted not raw (#31)
         assert_match "⚠", @response.body        # long-running flag
       end
     end
@@ -74,7 +74,7 @@ module RoundhouseUi
         assert_match "LegacyJob", @response.body
         assert_match "j6", @response.body
         assert_match "low", @response.body
-        assert_match "minutes", @response.body # epoch run_at coerced to a Time
+        assert_match "2m 0s", @response.body # epoch run_at coerced to a Time, then formatted
       end
     end
   end

@@ -60,8 +60,8 @@
           <tr>
             <td class="rh-mono"><%= d[:klass] %></td>
             <td class="r rh-mono"><%= number_with_delimiter d[:count] %></td>
-            <td class="r rh-mono <%= "rh-lat-warn" if d[:avg_ms] >= 1000 %>"><%= d[:avg_ms] >= 1000 ? "#{(d[:avg_ms] / 1000).round(1)}s" : "#{d[:avg_ms].round}ms" %></td>
-            <td class="r rh-mono"><%= d[:total_ms] >= 1000 ? "#{(d[:total_ms] / 1000).round(1)}s" : "#{d[:total_ms].round}ms" %></td>
+            <td class="r rh-mono <%= "rh-lat-warn" if d[:avg_ms] >= 1000 %>"><%= duration_ms(d[:avg_ms]) %></td>
+            <td class="r rh-mono"><%= duration_ms(d[:total_ms]) %></td>
           </tr>
         <% end %>
       </tbody>

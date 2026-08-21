@@ -65,27 +65,9 @@ module RoundhouseUi
     # Compact duration. Raw seconds stop being readable somewhere around a minute
     # and are actively useless by four figures — "10058.0s" is nearly three hours
     # and nobody reads it as that. Two units is all anyone acts on. See #31.
-    def duration(seconds)
-      secs = seconds.to_f
-      return "—" if seconds.nil?
-      return "#{secs.round(1)}s" if secs < 60      # 0.4s vs 12s is a real distinction here
-
-      mins = (secs / 60).floor
-      return "#{mins}m #{(secs % 60).round}s" if mins < 60
-
-      hours = (secs / 3_600).floor
-      return "#{hours}h #{((secs % 3_600) / 60).round}m" if hours < 24
-
-      "#{(secs / 86_400).floor}d #{((secs % 86_400) / 3_600).round}h"
-    end
-
-    # Same rule for the millisecond-denominated Metrics table.
-    def duration_ms(ms)
-      return "—" if ms.nil?
-      return "#{ms.round}ms" if ms.to_f < 1_000
-
-      duration(ms.to_f / 1_000)
-    end
+    # Both delegate to RoundhouseUi so views and lib/ cannot drift apart again.
+    def duration(seconds) = RoundhouseUi.duration(seconds)
+    def duration_ms(ms) = RoundhouseUi.duration_ms(ms)
 
     # Queues carry meaning at a glance (critical vs low), so render them as a
     # pill rather than grey text lost between two columns. On the job sets the

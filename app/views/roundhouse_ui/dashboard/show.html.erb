@@ -73,7 +73,7 @@
         <% label, css = queue_state(q.latency) %>
         <div class="rh-insight-row">
           <div class="rh-insight-main"><%= link_to q.name, queues_path, class: "rh-joblink rh-mono" %><br><span class="rh-sub"><%= number_with_delimiter q.size %> waiting</span></div>
-          <span class="rh-st <%= css %>"><%= q.latency < 60 ? "#{q.latency.round(1)}s" : distance_of_time_in_words(0, q.latency) %></span>
+          <span class="rh-st <%= css %>"><%= duration(q.latency) %></span>
         </div>
       <% end %>
     <% end %>
@@ -93,7 +93,7 @@
           <td class="rh-mono"><%= q.name %></td>
           <td><span class="rh-st <%= css %>"><%= label %></span></td>
           <td class="r rh-mono"><%= number_with_delimiter q.size %></td>
-          <td class="r rh-mono <%= "rh-lat-warn" if q.latency > 60 %>"><%= q.latency < 60 ? "#{q.latency.round(1)}s" : "#{distance_of_time_in_words(0, q.latency)}" %></td>
+          <td class="r rh-mono <%= "rh-lat-warn" if q.latency > 60 %>"><%= duration(q.latency) %></td>
           <td class="r"><%= link_to "Manage →", queues_path, class: "rh-btn" %></td>
         </tr>
       <% end %>
