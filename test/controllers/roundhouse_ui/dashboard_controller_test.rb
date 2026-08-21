@@ -91,6 +91,7 @@ module RoundhouseUi
         assert_match "No active queues", @response.body
         assert_match 'data-stat="processed"', @response.body # live-update hook
         assert_match "/roundhouse/stats", @response.body     # poll endpoint wired
+        assert_match 'id="rh-tick"', @response.body           # refresh countdown present
         assert_match 'id="rh-palette"', @response.body       # ⌘K command palette present
         assert_match "/roundhouse/turbo.js", @response.body  # Turbo loaded
         assert_match "Healthy", @response.body               # composite health verdict

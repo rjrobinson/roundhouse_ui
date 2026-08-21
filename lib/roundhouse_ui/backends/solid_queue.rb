@@ -35,6 +35,13 @@ module RoundhouseUi
       # The jobs waiting on one queue, in the same JobSet shape the other sets
       # use — so the queue detail page reuses the shared browse/search path
       # rather than growing a second one.
+      # Solid Queue's processes table records threads per worker the same way.
+      def concurrency
+        sq(:Process).where(kind: "Worker").sum { |p| p.metadata&.dig("thread_pool_size").to_i }
+      rescue StandardError
+        nil
+      end
+
       def queue_jobs(name) = JobSet.new(sq(:ReadyExecution).queued_as(name))
 
       # Depth and latency for every queue in two queries, not two per queue.

@@ -24,6 +24,13 @@ module RoundhouseUi
       assert_equal body["queue_names"].sort, body["queue_depths"].keys.sort
     end
 
+    # Capacity needs total threads, not threads busy right now — workers_size
+    # goes to zero on an idle fleet and dividing by it claims infinite headroom.
+    def test_the_poll_carries_total_concurrency
+      get "/roundhouse/stats", headers: { "Accept" => "application/json" }
+      assert JSON.parse(@response.body).key?("concurrency")
+    end
+
     def test_every_queue_row_asks_for_a_forecast
       get "/roundhouse/queues"
       assert_response :success

@@ -35,6 +35,16 @@ module RoundhouseUi
       # page and breaks) never load a large queue into memory.
       def queue_jobs(name) = ::Sidekiq::Queue.new(name)
 
+      # Total worker threads across every reporting process, for the capacity
+      # figure (#36). Deliberately not Stats#workers_size, which counts threads
+      # *busy this instant* — that goes to zero on an idle fleet, and dividing a
+      # required rate by it would claim the fleet has infinite headroom.
+      def concurrency
+        ::Sidekiq::ProcessSet.new.sum { |p| p["concurrency"].to_i }
+      rescue StandardError
+        nil
+      end
+
       # Depth and latency for every queue in two Redis round-trips, regardless
       # of how many queues there are.
       #

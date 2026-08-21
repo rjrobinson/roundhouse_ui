@@ -36,7 +36,11 @@ module RoundhouseUi
         queue_names: qs.map(&:name).sort,
         # The drain forecast needs a second sample to compute a velocity, and
         # this is the read that already has the depths.
-        queue_depths: qs.to_h { |q| [ q.name, q.size ] }
+        queue_depths: qs.to_h { |q| [ q.name, q.size ] },
+        # Total worker threads, for the capacity figure (#36). workers_size is
+        # threads *busy right now*, which is a different number and goes to zero
+        # on an idle fleet — dividing by it would claim infinite capacity.
+        concurrency: backend.respond_to?(:concurrency) ? backend.concurrency : nil
       }
     end
   end

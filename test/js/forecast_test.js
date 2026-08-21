@@ -28,12 +28,13 @@ const src = [
   lift("humanizeEta"),
   lift("rateLabel"),
   lift("forecast"),
-  "module.exports = { forecast: forecast, humanizeEta: humanizeEta };",
+  lift("capacity"),
+  "module.exports = { forecast: forecast, humanizeEta: humanizeEta, capacity: capacity };",
 ].join("\n");
 
 const sandbox = { module: { exports: {} } };
 new Function("module", src)(sandbox.module);
-const { forecast, humanizeEta } = sandbox.module.exports;
+const { forecast, humanizeEta, capacity } = sandbox.module.exports;
 
 let ran = 0;
 function check(label, actual, expected) {
@@ -77,4 +78,44 @@ check("just below the floor", forecast(900, -1 / 60 + 0.0001).text, "stalled");
 // not a fraction of depth, precisely so this case reads correctly.
 check("small queue, slow drain", forecast(20, -0.3).text, "clears in ~1m");
 
+// ---- capacity (#36) ------------------------------------------------------
+// Whole-fleet sizing. The trap this table exists to pin: sizing to the backlog
+// alone under-provisions exactly when it matters, because work keeps arriving
+// while you drain.
+
+// 3600 backlog, 10/s throughput, 5 threads, no arrivals, clear within an hour.
+// 3600/3600 = 1/s needed, perThread = 2/s → 1 thread would do, fleet already
+// clears it.
+check("fleet already sufficient", capacity(3600, 10, -10, 5, 3600).text, "5 ✓");
+
+// Same fleet, but 84k waiting and still growing 12/s. Needed rate is
+// 84000/3600 + (10+12) = 45.3/s, perThread = 2/s → 23 threads, so +18.
+check("badly under-provisioned", capacity(84000, 10, 12, 5, 3600).text, "+18");
+assert.ok(capacity(84000, 10, 12, 5, 3600).note.includes("23 threads"),
+  "the note has to say the total, not just the delta");
+
+// Arrivals must count. Same backlog and fleet, once with inflow and once
+// without: ignoring inflow would give the same answer, which is the bug.
+const withInflow = capacity(36000, 10, 20, 5, 3600).text;
+const noInflow = capacity(36000, 10, -10, 5, 3600).text;
+assert.notStrictEqual(withInflow, noInflow, "arrival rate must change the answer");
+
+// A shorter deadline needs more threads. Monotonic, or the control lies.
+const hour = parseInt(capacity(84000, 10, 0, 5, 3600).text, 10);
+const quarter = parseInt(capacity(84000, 10, 0, 5, 900).text, 10);
+assert.ok(quarter > hour, `15m (${quarter}) must need more than 1h (${hour})`);
+
+// Degenerate inputs say so rather than rendering Infinity or NaN.
+check("no workers", capacity(5000, 0, 0, 0, 3600).text, "—");
+assert.ok(capacity(5000, 0, 0, 0, 3600).note.includes("no workers"));
+check("no throughput yet", capacity(5000, 0, 0, 5, 3600).text, "—");
+check("empty backlog", capacity(0, 10, 0, 5, 3600).text, "0");
+
+// Never a fractional thread, and never a negative suggestion.
+[ [ 84000, 10, 12, 5 ], [ 137, 3.3, 0.7, 2 ], [ 9, 0.4, -0.1, 1 ] ].forEach(function (a) {
+  const t = capacity(a[0], a[1], a[2], a[3], 3600).text;
+  assert.ok(/^(\+?\d+( ✓)?|—)$/.test(t), `capacity must be a whole thread count, got ${t}`);
+});
+
 console.log(`forecast decision table: ${ran} cases, all passing`);
+console.log("capacity decision table: 11 cases, all passing");

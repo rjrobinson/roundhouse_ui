@@ -46,6 +46,20 @@
     <div class="v num" id="rh-m-eta">—</div>
     <div class="d">backlog clears in, at current rate</div>
   </div>
+  <%# Capacity is deliberately whole-fleet rather than per queue: Sidekiq counts
+      processed jobs globally, so there is no honest way to say what share of
+      throughput belongs to one queue. See #36. %>
+  <div class="rh-card">
+    <div class="k">Capacity
+      <select id="rh-m-deadline" class="rh-btn rh-cap-pick" aria-label="Clear the backlog within">
+        <option value="900">15m</option>
+        <option value="3600" selected>1h</option>
+        <option value="14400">4h</option>
+      </select>
+    </div>
+    <div class="v num" id="rh-m-capacity">—</div>
+    <div class="d" id="rh-m-capacity-note">threads needed to clear in time</div>
+  </div>
 </div>
 
 <% if RoundhouseUi.collect_durations %>
