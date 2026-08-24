@@ -32,6 +32,44 @@ module RoundhouseUi
       def queues = ::SolidQueue::Queue.all
       def queue(name) = ::SolidQueue::Queue.new(name)
 
+      # The jobs waiting on one queue, in the same JobSet shape the other sets
+      # use — so the queue detail page reuses the shared browse/search path
+      # rather than growing a second one.
+      # Solid Queue's processes table records threads per worker the same way.
+      def concurrency
+        sq(:Process).where(kind: "Worker").sum { |p| p.metadata&.dig("thread_pool_size").to_i }
+      rescue StandardError
+        nil
+      end
+
+      def queue_jobs(name) = JobSet.new(sq(:ReadyExecution).queued_as(name))
+
+      # Depth and latency for every queue in two queries, not two per queue.
+      #
+      # SolidQueue::Queue#size and #latency each run their own COUNT and MIN, so
+      # rendering the Queues page over sixty queues meant well over a hundred
+      # round-trips to the queue database. One GROUP BY answers both for every
+      # queue at once.
+      #
+      # Queue.all is still consulted, because it lists queues by distinct job
+      # name — including ones with nothing ready right now — and an operator has
+      # to be able to pause or clear a queue that happens to be empty.
+      def queue_summaries
+        counts = sq(:ReadyExecution).group(:queue_name)
+                                    .pluck(Arel.sql("queue_name, COUNT(*), MIN(created_at)"))
+                                    .to_h { |name, size, oldest| [ name, [ size, oldest ] ] }
+
+        names = (::SolidQueue::Queue.all.map(&:name) | counts.keys).sort
+        now = Time.current
+        names.map do |name|
+          size, oldest = counts[name]
+          RoundhouseUi::QueueSummary.new(
+            name: name, size: size.to_i,
+            latency: oldest ? (now - oldest).to_i : 0
+          )
+        end
+      end
+
       # No retry set in Solid Queue — surfaced via supports?(:retries) => false.
       def retry_set = EMPTY_SET
 

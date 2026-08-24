@@ -7,9 +7,10 @@ module RoundhouseUi
   class TagFilteringTest < ActionDispatch::IntegrationTest
     class FakeEntry
       attr_reader :klass, :jid, :args, :item, :at, :queue, :actions
-      def initialize(klass:, jid:, queue: "default")
+      def initialize(klass:, jid:, queue: "default", wrapped: nil)
         @klass, @jid, @queue, @args, @at = klass, jid, queue, [], Time.now + 60
         @item = { "jid" => jid, "error_class" => "Boom", "error_message" => "boom", "retry_count" => 1, "args" => [] }
+        @item["wrapped"] = wrapped if wrapped
         @actions = []
       end
       define_method(:retry) { @actions << :retry }
@@ -243,10 +244,11 @@ module RoundhouseUi
       end
     end
 
+    # Seeds Redis rather than stubbing Sidekiq::Queue — the page reads every
+    # queue's depth and latency in one pipelined batch, which a stub would skip.
     def test_queues_index_can_be_filtered_by_name
-      queues = [ Struct.new(:name, :size, :latency).new("mailers", 3, 1.0),
-                 Struct.new(:name, :size, :latency).new("critical", 1, 0.5) ]
-      stub_method(Sidekiq::Queue, :all, queues) do
+      with_fake_redis do |fake|
+        %w[mailers critical].each { |n| fake.call("SADD", "queues", n) }
         get "/roundhouse/queues?q=mail"
         assert_response :success
         assert_match "mailers", @response.body
@@ -388,6 +390,70 @@ module RoundhouseUi
           assert_match "AlphaJob", @response.body
           assert_no_match "BetaJob", @response.body
         end
+      end
+    end
+
+
+    # --- ActiveJob unwrap in search (#30) ------------------------------------
+
+    WRAPPER = "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper".freeze
+
+    # args stays empty on purpose. A real ActiveJob payload carries
+    # [{"job_class" => "RealJob"}], and entry.args.to_s is already in the
+    # haystack — so a realistic fixture would pass this test before the fix.
+    def wrapped_set
+      FakeSet.new([ FakeEntry.new(klass: WRAPPER, jid: "w1", wrapped: "ReportJob") ])
+    end
+
+    def test_search_finds_a_wrapped_job_by_its_real_class
+      stub_method(Sidekiq::RetrySet, :new, wrapped_set) do
+        get "/roundhouse/retries?q=ReportJob"
+        assert_response :success
+        assert_match "w1", @response.body
+      end
+    end
+
+    # Appending rather than replacing: a saved or habitual wrapper query must
+    # keep selecting what it always did, because this predicate also decides
+    # what a bulk action destroys.
+    def test_search_still_finds_a_wrapped_job_by_the_wrapper_name
+      stub_method(Sidekiq::RetrySet, :new, wrapped_set) do
+        get "/roundhouse/retries?q=JobWrapper"
+        assert_response :success
+        assert_match "w1", @response.body
+      end
+    end
+
+    def test_bulk_selects_exactly_what_a_real_class_search_showed
+      entries = [
+        FakeEntry.new(klass: WRAPPER, jid: "w1", wrapped: "ReportJob"),
+        FakeEntry.new(klass: WRAPPER, jid: "w2", wrapped: "OtherJob")
+      ]
+      stub_method(Sidekiq::RetrySet, :new, FakeSet.new(entries)) do
+        post "/roundhouse/retries/bulk_all", params: { op: "delete", q: "ReportJob" }
+      end
+      assert_equal [ "w1" ], entries.select { |e| e.actions.any? }.map(&:jid)
+    end
+
+
+    def test_rows_show_the_real_class_not_the_wrapper
+      { "/roundhouse/retries" => Sidekiq::RetrySet,
+        "/roundhouse/dead" => Sidekiq::DeadSet,
+        "/roundhouse/scheduled" => Sidekiq::ScheduledSet }.each do |path, klass|
+        stub_method(klass, :new, wrapped_set) do
+          get path
+          assert_response :success
+          assert_match "ReportJob", @response.body, "#{path} should name the real class"
+          assert_no_match "JobWrapper", @response.body, "#{path} should not leak the adapter wrapper"
+        end
+      end
+    end
+
+    def test_the_job_page_shows_the_real_class
+      stub_method(Sidekiq::RetrySet, :new, wrapped_set) do
+        get "/roundhouse/jobs/retry/w1"
+        assert_response :success
+        assert_match "ReportJob", @response.body
       end
     end
 

@@ -2,7 +2,10 @@ require "test_helper"
 
 module RoundhouseUi
   class BusyControllerTest < ActionDispatch::IntegrationTest
-    FakeJobRecord = Struct.new(:klass, :jid)
+    # Real busy entries always expose item — Sidekiq 7+ via Work#job, 6.x via the
+    # backend's JobRecord, Solid Queue via its Entry. Keep the fake honest rather
+    # than making the helper defensive, which would hide a contract break.
+    FakeJobRecord = Struct.new(:klass, :jid, :item)
     FakeWork = Struct.new(:job, :queue, :run_at)
 
     class FakeWorkSet
@@ -12,7 +15,7 @@ module RoundhouseUi
     end
 
     def test_lists_running_jobs_and_flags_long_running
-      work = FakeWork.new(FakeJobRecord.new("SlowImportJob", "j1"), "low", Time.now - 120)
+      work = FakeWork.new(FakeJobRecord.new("SlowImportJob", "j1", {}), "low", Time.now - 120)
       set  = FakeWorkSet.new([ [ "host:4821", "tid-1", work ] ])
 
       stub_method(Sidekiq::WorkSet, :new, set) do
@@ -22,7 +25,7 @@ module RoundhouseUi
         assert_match "SlowImportJob", @response.body
         assert_match "low", @response.body
         assert_match "host:4821", @response.body
-        assert_match "minutes", @response.body # 120s elapsed → "2 minutes"
+        assert_match "2m 0s", @response.body # 120s elapsed, formatted not raw (#31)
         assert_match "⚠", @response.body        # long-running flag
       end
     end
@@ -71,7 +74,7 @@ module RoundhouseUi
         assert_match "LegacyJob", @response.body
         assert_match "j6", @response.body
         assert_match "low", @response.body
-        assert_match "minutes", @response.body # epoch run_at coerced to a Time
+        assert_match "2m 0s", @response.body # epoch run_at coerced to a Time, then formatted
       end
     end
   end

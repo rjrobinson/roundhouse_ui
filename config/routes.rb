@@ -17,7 +17,12 @@ RoundhouseUi::Engine.routes.draw do
     post "queues/:name/pause"    => "queues#pause",    as: :pause_queue
     post "queues/:name/resume"   => "queues#resume",   as: :resume_queue
     post "queues/:name/snapshot" => "queues#snapshot", as: :snapshot_queue
+    # Last in the scope so it cannot shadow the POST actions above.
+    get  "queues/:name"          => "queues#show",     as: :queue
   end
+
+  get "settings" => "settings#show", as: :settings
+
 
   get "snapshots" => "snapshots#index", as: :snapshots
   scope constraints: { id: /[^\/]+/ } do

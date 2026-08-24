@@ -19,7 +19,11 @@ module RoundhouseUi
       # queues was already loaded here for the count, so the names ride along
       # free — the command palette uses them to tell a queue name from a plain
       # search term without adding a Redis call to every page render.
-      qs = backend.queues
+      # queue_summaries, not queues: Sidekiq::Queue#size issues its own LLEN, so
+      # reading a depth per queue off `queues` would put one round-trip per queue
+      # on the endpoint every open tab hits every few seconds — the same N+1 that
+      # was removed from the Queues page. This is two round-trips at any queue count.
+      qs = backend.queue_summaries
       render json: {
         processed: s.processed,
         failed:    s.failed,
@@ -29,7 +33,14 @@ module RoundhouseUi
         retries:   s.retry_size,
         dead:      s.dead_size,
         queues:      qs.size,
-        queue_names: qs.map(&:name).sort
+        queue_names: qs.map(&:name).sort,
+        # The drain forecast needs a second sample to compute a velocity, and
+        # this is the read that already has the depths.
+        queue_depths: qs.to_h { |q| [ q.name, q.size ] },
+        # Total worker threads, for the capacity figure (#36). workers_size is
+        # threads *busy right now*, which is a different number and goes to zero
+        # on an idle fleet — dividing by it would claim infinite capacity.
+        concurrency: backend.respond_to?(:concurrency) ? backend.concurrency : nil
       }
     end
   end

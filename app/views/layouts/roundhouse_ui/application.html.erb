@@ -114,6 +114,24 @@
     .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }
 
     /* Quick filters: counts by tag, from the scan that already ran. */
+    /* Drain forecast (#35). "Growing" is the state that matters during an
+       incident, so it is the only one that gets a colour that demands attention. */
+    .rh-cap-pick { font-size:10px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
+
+    .rh-fc { font-size:12px; font-family:var(--mono); white-space:nowrap; }
+    .rh-fc-wait { color:var(--faint); }
+    .rh-fc-draining { color:var(--good); }
+    .rh-fc-stalled { color:var(--warn); }
+    .rh-fc-growing { color:var(--crit); font-weight:600; }
+
+    .rh-settings { padding:4px 0; }
+    .rh-setting { display:flex; align-items:center; gap:24px; padding:16px 18px; border-bottom:1px solid var(--line-soft); }
+    .rh-setting:last-child { border-bottom:none; }
+    .rh-setting-label { flex:1; display:flex; flex-direction:column; gap:3px; }
+    .rh-setting-label b { font-size:13px; font-weight:600; }
+    .rh-setting-control { flex:0 0 auto; }
+    .rh-setting-control select { min-width:190px; }
+
     .rh-quickfilters { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
     .rh-qf { display:inline-flex; align-items:center; gap:7px; font-size:12px; text-decoration:none;
              background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 10px; color:var(--muted); }
@@ -197,6 +215,27 @@
     .rh-disclose summary::before { content:"▸ "; }
     .rh-disclose[open] summary::before { content:"▾ "; }
 
+    /* Time until the next refresh. The numbers on every page are a few seconds
+       old at best, and with the interval configurable (2–300s) there was no way
+       to tell a fresh number from a stale one. A depleting arc reads as time
+       remaining rather than progress toward something. */
+    .rh-tick { position:relative; width:12px; height:12px; border-radius:50%; flex:0 0 auto;
+               background:var(--panel-2); display:inline-block; }
+    .rh-tick-fill { position:absolute; inset:0; border-radius:50%;
+                    background:conic-gradient(var(--good) var(--rh-tick-turn, 1turn), transparent 0);
+                    transition:none; }
+    /* The arc is driven by one linear transition per poll rather than a rAF loop
+       or an animation whose duration has to be kept in sync with the timer. */
+    .rh-tick-fill.is-running { transition:--rh-tick-turn linear; }
+    .rh-live.is-stale .rh-tick { background:var(--crit); }
+    .rh-live.is-stale .rh-tick-fill { background:none; }
+    @property --rh-tick-turn { syntax: "<angle>"; inherits: false; initial-value: 1turn; }
+    /* No smoothly sweeping arc for anyone who asked for less motion — it snaps
+       full on each refresh instead, which still says "just updated". */
+    @media (prefers-reduced-motion: reduce) {
+      .rh-tick-fill, .rh-tick-fill.is-running { transition:none !important; }
+    }
+
     /* connection state — poll failures surface here instead of silently going stale */
     .rh-live.is-stale .rh-dot { background:var(--crit); }
     .rh-live.is-stale .rh-dot::after { animation:none; }
@@ -241,10 +280,14 @@
     .rh-palette-item { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:9px; cursor:pointer; font-size:13px; }
     .rh-palette-item.sel { background:var(--panel-2); }
     .rh-palette-ico { width:20px; text-align:center; color:var(--muted); }
+    <%# Host colour overrides, emitted last so they win without !important. Only
+        known tokens, values shape-checked — see lib/roundhouse_ui/theme.rb %>
+    <%= RoundhouseUi::Theme.css&.html_safe %>
+    <%= RoundhouseUi::Theme.selectable_css&.html_safe %>
   </style>
   <%# Apply the saved theme before first paint so it persists across navigations with no flash. %>
   <script nonce="<%= content_nonce %>">
-    (function () { try { var t = localStorage.getItem("rh-theme"); if (t) document.documentElement.setAttribute("data-theme", t); var w = localStorage.getItem("rh-width"); if (w) document.documentElement.setAttribute("data-width", w); } catch (e) {} })();
+    (function () { try { var t = localStorage.getItem("rh-theme"); if (t) document.documentElement.setAttribute("data-theme", t); var w = localStorage.getItem("rh-width"); if (w) document.documentElement.setAttribute("data-width", w); var p = localStorage.getItem("rh-palette"); if (p) document.documentElement.setAttribute("data-rh-palette", p); } catch (e) {} })();
   </script>
   <%# Turbo Drive: link navigation without full-page reloads (kills the flicker). %>
   <script src="<%= turbo_js_path %>"></script>
@@ -252,10 +295,55 @@
     (function () {
       var fmt = function (n) { return Number(n).toLocaleString(); };
       var started = false, lastProcessed = null, lastFailed = null, lastBacklog = null, lastT = null;
-      var POLL_MS = <%= (RoundhouseUi.poll_interval.to_f * 1000).round %>;
+      var HOST_POLL_MS = <%= (RoundhouseUi.poll_interval.to_f * 1000).round %>;
+      function storedPollMs() {
+        try {
+          var v = parseFloat(localStorage.getItem("rh-poll"));
+          // Clamped: this comes from the browser, and 0 would hammer the mount.
+          if (!isNaN(v) && v > 0) return Math.min(Math.max(v, 2), 300) * 1000;
+        } catch (_) {}
+        return HOST_POLL_MS;
+      }
+      var POLL_MS = storedPollMs();
       var samples = [], buckets = [], bucketStart = null; // samples = current bucket; buckets = finalized per-interval averages
       var lastPts = []; // points last drawn, for the hover tooltip to read
       function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; }
+      // Drain forecast (#35). The question during a backlog is not "how long if
+      // arrivals stopped" — it is "will this clear at all", and that needs *net*
+      // velocity, not throughput. Three answers, because a signed number is the
+      // whole point: draining, stalled, or growing.
+      //
+      // Depth is an integer and dt is a few seconds, so a single sample's
+      // velocity is quantised and noisy — one unlucky poll would flip the label.
+      // Smoothed with an EWMA so the label reflects a trend rather than a tick.
+      var lastDepths = null, smoothVel = {}, lastCapacity = null;
+      var STALLED_PER_MIN = 1; // below one job a minute either way, nothing is happening
+
+      function smooth(key, v) {
+        var prev = smoothVel[key];
+        return (smoothVel[key] = prev == null ? v : (prev * 0.7) + (v * 0.3));
+      }
+
+      // vel is jobs/second, signed: negative drains, positive grows.
+      function forecast(depth, vel) {
+        if (depth === 0) return { text: "clear", cls: "" };
+        if (vel == null) return { text: "measuring…", cls: "rh-fc-wait" };
+        if (Math.abs(vel) * 60 < STALLED_PER_MIN) return { text: "stalled", cls: "rh-fc-stalled" };
+        if (vel > 0) return { text: "growing " + rateLabel(vel) + " — will not drain", cls: "rh-fc-growing" };
+        return { text: "clears in " + humanizeEta(depth / -vel), cls: "rh-fc-draining" };
+      }
+
+      function rateLabel(vel) {
+        var v = Math.abs(vel);
+        return v >= 1 ? v.toFixed(0) + "/s" : Math.round(v * 60) + "/min";
+      }
+
+      function paintForecast(el, depth, vel) {
+        var f = forecast(depth, vel);
+        el.textContent = f.text;
+        el.className = "rh-fc " + f.cls;
+      }
+
       function humanizeEta(s) {
         if (s < 60) return "~" + Math.round(s) + "s";
         if (s < 3600) return "~" + Math.round(s / 60) + "m";
@@ -309,6 +397,7 @@
           .then(function (r) { return r.json(); })
           .then(function (d) {
             setConn(true);
+            restartTick();
             apply(d);
             if (d.queue_names) QUEUE_NAMES = d.queue_names; // feeds the ⌘K palette
             var now = Date.now();
@@ -337,19 +426,101 @@
                 var vel = (backlog - lastBacklog) / dt;
                 setText("rh-m-velocity", (vel >= 0 ? "+" : "") + vel.toFixed(1) + "/s");
               }
-              setText("rh-m-eta", backlog === 0 ? "clear" : (rate > 0 ? humanizeEta(backlog / rate) : "—"));
+              // Was backlog/throughput, which answers "how long if nothing else
+              // arrives" — a number that stays reassuring while the backlog grows.
+              var netVel = lastBacklog != null && dt > 0 ? smooth("__total", (backlog - lastBacklog) / dt) : null;
+              setText("rh-m-eta", forecast(backlog, netVel).text);
+
+              var pick = document.getElementById("rh-m-deadline");
+              if (pick) {
+                var c = capacity(backlog, rate, netVel, d.concurrency, parseInt(pick.value, 10));
+                setText("rh-m-capacity", c.text);
+                setText("rh-m-capacity-note", c.note);
+                // Remember the last inputs so changing the deadline answers
+                // immediately rather than waiting for the next poll.
+                lastCapacity = { backlog: backlog, rate: rate, vel: netVel, concurrency: d.concurrency };
+              }
+            }
+            // Per-queue forecast. Rendered wherever a cell asks for one, so the
+            // Queues table, a queue page and the dashboard all read the same
+            // number rather than three approximations of it.
+            if (d.queue_depths) {
+              var dtq = lastT ? (now - lastT) / 1000 : 0;
+              document.querySelectorAll("[data-rh-forecast]").forEach(function (el) {
+                var name = el.getAttribute("data-rh-forecast");
+                var depth = d.queue_depths[name];
+                if (depth == null) return;
+                var vel = null;
+                if (lastDepths && lastDepths[name] != null && dtq > 0) {
+                  vel = smooth(name, (depth - lastDepths[name]) / dtq);
+                }
+                paintForecast(el, depth, vel);
+              });
+              lastDepths = d.queue_depths;
             }
             lastProcessed = d.processed; lastFailed = d.failed; lastBacklog = backlog; lastT = now;
           })
           .catch(function () { setConn(false); });
       }
+      // Restart the countdown arc. One transition per poll, so there is no rAF
+      // loop and nothing to keep in sync with the timer — and because it is
+      // driven off the same POLL_MS the timer uses, changing the interval in
+      // Settings is reflected immediately rather than on the next page load.
+      function restartTick() {
+        var el = document.getElementById("rh-tick");
+        if (!el) return;
+        el.classList.remove("is-running");
+        el.style.transitionDuration = "0s";
+        el.style.setProperty("--rh-tick-turn", "1turn");
+        void el.offsetWidth; // flush, or the reset coalesces with the sweep below
+        el.classList.add("is-running");
+        el.style.transitionDuration = POLL_MS + "ms";
+        el.style.setProperty("--rh-tick-turn", "0turn");
+      }
+
+      // Capacity (#36). The forecast says whether a backlog clears; this says what
+      // to do about it. Whole-fleet only — Sidekiq counts processed jobs
+      // globally, so claiming a per-queue thread count would be inventing the
+      // split.
+      //
+      //   arrivals   = throughput + net velocity   (what is coming in)
+      //   need       = backlog / deadline + arrivals   (rate to clear in time)
+      //   perThread  = throughput / concurrency
+      //
+      // Arrivals are included on purpose: sizing to backlog alone under-provisions
+      // exactly when it matters, because work keeps arriving while you drain.
+      function capacity(backlog, rate, vel, concurrency, deadlineSecs) {
+        if (!concurrency) return { text: "—", note: "no workers reporting in" };
+        if (backlog === 0) return { text: "0", note: "nothing waiting" };
+        if (!rate) return { text: "—", note: "no throughput to measure from" };
+
+        var perThread = rate / concurrency;
+        var arrivals = Math.max(0, rate + (vel || 0));
+        var need = Math.ceil((backlog / deadlineSecs + arrivals) / perThread);
+        var extra = need - concurrency;
+        if (extra <= 0) {
+          return { text: concurrency + " ✓", note: "current fleet clears it in time" };
+        }
+        return { text: "+" + extra,
+                 note: "on top of " + concurrency + " — " + need + " threads to clear in time" };
+      }
+
       // Surface a failed poll instead of letting the numbers silently go stale.
       function setConn(ok) {
         var el = document.getElementById("rh-live"), lbl = document.getElementById("rh-live-label");
         if (el) el.classList.toggle("is-stale", !ok);
         if (lbl) lbl.textContent = ok ? "live" : "reconnecting…";
       }
-      function startOnce() { if (started) return; started = true; poll(); setInterval(poll, POLL_MS); }
+      // The timer handle is kept so a viewer changing the refresh interval in
+      // Settings takes effect immediately, rather than on the next full page load.
+      var pollHandle = null;
+      function startOnce() { if (started) return; started = true; poll(); restartPoll(); }
+      function restartPoll() {
+        if (pollHandle) clearInterval(pollHandle);
+        POLL_MS = storedPollMs();
+        pollHandle = setInterval(poll, POLL_MS);
+        restartTick();
+      }
       function wireChart() {
         var cv = document.getElementById("rh-chart"); if (!cv) return;
         cv.onmousemove = chartHover;
@@ -376,7 +547,7 @@
         var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
         document.documentElement.setAttribute("data-theme", next);
         try { localStorage.setItem("rh-theme", next); } catch (_) {}
-        syncTheme();
+        syncTheme(); syncSettingsForm();
       });
       // width toggle (compact 1180px ⟷ full) — same persistence pattern as theme
       document.addEventListener("click", function (e) {
@@ -384,7 +555,7 @@
         var next = document.documentElement.getAttribute("data-width") === "full" ? "compact" : "full";
         document.documentElement.setAttribute("data-width", next);
         try { localStorage.setItem("rh-width", next); } catch (_) {}
-        syncWidth();
+        syncWidth(); syncSettingsForm();
       });
       // command palette (⌘K). Two halves: static navigation, and search actions
       // built from whatever you type — paste a JID, a queue, or a squad and the
@@ -457,6 +628,7 @@
         <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "◈" },<% end %>
         { label: "Snapshots", path: "<%= snapshots_path %>", icon: "⛁" },
         { label: "Audit log", path: "<%= audit_log_path %>", icon: "☷" },
+        { label: "Settings", path: "<%= settings_path %>", icon: "⚙" },
         <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", icon: "＋" },<% end %>
         { label: "Toggle theme", action: "theme", icon: "◐" },
         { label: "Toggle full width", action: "width", icon: "⟷" }
@@ -504,6 +676,43 @@
         if (e.target && e.target.id === "rh-palette") { palClose(); return; }
         if (e.target.closest && e.target.closest("#rh-palette-open")) { e.preventDefault(); palOpen(); }
       });
+      // Settings page. Delegated from document so it survives Turbo body swaps,
+      // the same reason select-all is (#26). Every control writes local storage
+      // and applies immediately — there is no Save button because there is
+      // nothing to submit.
+      function prefRead(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
+      function prefWrite(key, value) {
+        try { value === "" ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch (_) {}
+      }
+      function syncSettingsForm() {
+        var t = document.getElementById("rh-set-theme"); if (t) t.value = prefRead("rh-theme") || "dark";
+        var p = document.getElementById("rh-set-palette"); if (p) p.value = prefRead("rh-palette");
+        var w = document.getElementById("rh-set-width"); if (w) w.value = prefRead("rh-width") || "compact";
+        var i = document.getElementById("rh-set-poll"); if (i) i.value = prefRead("rh-poll");
+      }
+      function applyAttr(name, value) {
+        value ? document.documentElement.setAttribute(name, value)
+              : document.documentElement.removeAttribute(name);
+      }
+      document.addEventListener("change", function (e) {
+        var el = e.target; if (!el || !el.id) return;
+        if (el.id === "rh-m-deadline" && lastCapacity) {
+          var c = capacity(lastCapacity.backlog, lastCapacity.rate, lastCapacity.vel,
+                           lastCapacity.concurrency, parseInt(el.value, 10));
+          setText("rh-m-capacity", c.text); setText("rh-m-capacity-note", c.note);
+        }
+        if (el.id === "rh-set-theme")   { prefWrite("rh-theme", el.value);   applyAttr("data-theme", el.value); syncTheme(); }
+        if (el.id === "rh-set-palette") { prefWrite("rh-palette", el.value); applyAttr("data-rh-palette", el.value); }
+        if (el.id === "rh-set-width")   { prefWrite("rh-width", el.value);   applyAttr("data-width", el.value); syncWidth(); }
+        if (el.id === "rh-set-poll")    { prefWrite("rh-poll", el.value);    restartPoll(); }
+      });
+      document.addEventListener("click", function (e) {
+        if (!e.target.closest || !e.target.closest("#rh-set-reset")) return;
+        [ "rh-theme", "rh-palette", "rh-width", "rh-poll" ].forEach(function (k) { prefWrite(k, ""); });
+        [ "data-theme", "data-rh-palette", "data-width" ].forEach(function (a) { applyAttr(a, null); });
+        syncTheme(); syncWidth(); restartPoll(); syncSettingsForm();
+      });
+
       // Throughput interval picker — persist the choice; changing it re-buckets
       // from here on, so reset the in-progress bucket and redraw.
       function restoreChartInterval() {
@@ -525,7 +734,7 @@
         else if (e.key === "Enter") { e.preventDefault(); if (palFiltered[palSel]) palRun(palFiltered[palSel]); }
       });
 
-      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
+      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); syncSettingsForm(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
 
       // Dead set "select all". Delegated from document rather than bound to the
       // checkbox, because a Turbo visit (searching, paging, arriving via the
@@ -551,20 +760,20 @@
         <div class="rh-grp-label">Overview</div>
         <%= nav_link "Dashboard", root_path, icon: "▦" %>
         <%= nav_link "Metrics", metrics_path, icon: "▤" %>
-        <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy" %>
+        <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy", badge_title: "Jobs running right now" %>
         <% if RoundhouseUi.backend.supports?(:workers) %>
           <%= nav_link "Workers", workers_path, icon: "◷" %>
         <% end %>
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Work</div>
-        <%= nav_link "Queues", queues_path, icon: "≡", badge: "queues" %>
-        <%= nav_link "Scheduled", scheduled_path, icon: "◔", badge: "scheduled" %>
+        <%= nav_link "Queues", queues_path, icon: "≡", badge: "enqueued", badge_title: "Jobs enqueued across all queues" %>
+        <%= nav_link "Scheduled", scheduled_path, icon: "◔", badge: "scheduled", badge_title: "Jobs scheduled for later" %>
         <% if RoundhouseUi.backend.supports?(:retries) %>
-          <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn" %>
+          <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn", badge_title: "Jobs waiting to retry" %>
         <% end %>
         <%= nav_link "Errors", errors_path, icon: "⚠" %>
-        <%= nav_link "Dead", dead_set_path, icon: "✕", badge: "dead", badge_class: "crit" %>
+        <%= nav_link "Dead", dead_set_path, icon: "✕", badge: "dead", badge_class: "crit", badge_title: "Jobs that exhausted their retries" %>
         <% if RoundhouseUi.allow_job_editing %>
           <%= nav_link "Enqueue job", new_job_path, icon: "＋" %>
         <% end %>
@@ -580,6 +789,7 @@
         <% end %>
         <%= nav_link "Snapshots", snapshots_path, icon: "⛁" %>
         <%= nav_link "Audit log", audit_log_path, icon: "☷" %>
+          <%= nav_link "Settings", settings_path, icon: "⚙" %>
       </nav>
     </aside>
 
@@ -588,7 +798,9 @@
         <h1><%= yield :title %></h1>
         <span class="rh-crumb"><%= yield :crumb %></span>
         <span class="rh-spacer"></span>
-        <span class="rh-live" id="rh-live"><span class="rh-dot"></span> <span id="rh-live-label">live</span> · <span class="num" data-stat="rate">—</span>/min</span>
+        <span class="rh-live" id="rh-live" title="Refreshes automatically — change the interval in Settings">
+          <span class="rh-tick"><span class="rh-tick-fill" id="rh-tick"></span></span>
+          <span id="rh-live-label">live</span> · <span class="num" data-stat="rate">—</span>/min</span>
         <% if RoundhouseUi.read_only %><span class="rh-ro">read-only</span><% end %>
         <button class="rh-kbd" id="rh-palette-open" type="button" title="Command palette (⌘K)">⌘K</button>
         <button class="rh-iconbtn" id="rh-width" type="button" title="Toggle full width" aria-label="Toggle full width">⟷</button>

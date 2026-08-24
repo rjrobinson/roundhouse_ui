@@ -75,10 +75,53 @@ class ActiveSupport::TestCase
       when "LTRIM"     then key, a, b = args; @lists[key] = (@lists[key][a..b] || []); "OK"
       when "LRANGE"    then key, a, b = args; (@lists[key][a..b] || [])
       when "LLEN"      then @lists[args[0]].size
+      # Sidekiq's fast-stats path reads the sorted sets it keeps for scheduled,
+      # retry and dead. Nothing here exercises their ordering, so cardinality of
+      # a plain list is enough — but it has to answer rather than raise, or the
+      # poll endpoint cannot be tested at all.
+      when "LINDEX"    then @lists[args[0]][args[1].to_i]
+      when "HGET"      then nil
+      when "HINCRBY", "HINCRBYFLOAT" then 1
+      when "ZCARD"     then @lists[args[0]].size
+      when "ZADD"      then key, _score, m = args; @lists[key] |= [ m ]; 1
+      when "SCARD"     then @sets[args[0]].size
+      when "HGETALL"   then {}
       when "INFO"      then INFO_FIXTURE
       when "EXPIRE"    then 1
       else raise "FakeRedis: unexpected command #{cmd}"
       end
+    end
+
+    # Real clients batch commands and return their replies in order; the batched
+    # queue read depends on that ordering, so the fake has to model it rather
+    # than being bypassed.
+    # Sidekiq::Queue.all scans the queue set. Which method it calls depends on the
+    # client: Sidekiq 7+ on redis-client uses `sscan`, 6.5 on redis-rb uses
+    # `sscan_each` — the same split that makes `conn.call` the only safe
+    # signature in lib/. The fake has to answer both or the poll endpoint is
+    # only testable on one version.
+    def sscan(key, _cursor = "0", **_opts) = [ "0", @sets[key].dup ]
+    def sscan_each(key, **_opts, &blk) = @sets[key].dup.each(&blk)
+
+    def pipelined
+      collector = Pipeline.new(self)
+      yield collector
+      collector.replies
+    end
+
+    class Pipeline
+      attr_reader :replies
+      def initialize(conn)
+        @conn = conn
+        @replies = []
+      end
+      def call(cmd, *args) = @replies << @conn.call(cmd, *args)
+
+      # redis-client exposes both styles — `pipe.get(k)` is `pipe.call("GET", k)`
+      # — and Sidekiq's fast-stats path uses the method style. Forwarding keeps
+      # the fake honest about that rather than only modelling half the client.
+      def method_missing(name, *args) = call(name.to_s.upcase, *args)
+      def respond_to_missing?(*) = true
     end
   end
 

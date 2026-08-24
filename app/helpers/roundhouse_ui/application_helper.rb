@@ -1,5 +1,13 @@
 module RoundhouseUi
   module ApplicationHelper
+    # The class name a row should show: the real job class, not the ActiveJob
+    # adapter's wrapper. Resolved here rather than in each template so every
+    # surface prints the string the Errors page groups on and the APM link
+    # searches for.
+    def job_display_class(entry)
+      RoundhouseUi.unwrapped_class(entry.klass, entry.item)
+    end
+
     # A job row's identity cell. Class on the first line where the eye lands,
     # jid on a second, dimmer line — one long line of class + hex + link is
     # unreadable once the row also carries squad, queue and error.
@@ -35,6 +43,31 @@ module RoundhouseUi
         ].compact, " ")
       end
     end
+
+
+    # A one-line, redacted preview of a job's arguments. Sidekiq Web shows args
+    # in its queue listing and we did not, which made a queue of one class
+    # indistinguishable row to row — the whole question being "which of these is
+    # the one I care about".
+    #
+    # Truncated on purpose: the job page is where the full payload belongs, and a
+    # queue listing left open on a second monitor is the wrong place for a long
+    # arguments dump. Redaction still applies, but it is key-based, so a bare
+    # positional secret is not masked — same caveat as everywhere else args show.
+    def job_args_preview(entry, length: 70)
+      args = entry.args
+      return content_tag(:span, "—", class: "rh-sub") if args.blank?
+
+      full = RoundhouseUi::Redaction.apply(args).map { |a| a.is_a?(String) ? a : a.inspect }.join(", ")
+      content_tag(:span, truncate(full, length: length), class: "rh-sub rh-mono", title: full)
+    end
+
+    # Compact duration. Raw seconds stop being readable somewhere around a minute
+    # and are actively useless by four figures — "10058.0s" is nearly three hours
+    # and nobody reads it as that. Two units is all anyone acts on. See #31.
+    # Both delegate to RoundhouseUi so views and lib/ cannot drift apart again.
+    def duration(seconds) = RoundhouseUi.duration(seconds)
+    def duration_ms(ms) = RoundhouseUi.duration_ms(ms)
 
     # Queues carry meaning at a glance (critical vs low), so render them as a
     # pill rather than grey text lost between two columns. On the job sets the

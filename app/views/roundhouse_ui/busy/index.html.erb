@@ -11,10 +11,10 @@
         <% elapsed = (Time.now - w[:run_at]).to_i %>
         <% long = elapsed >= @threshold %>
         <tr>
-          <td><%= w[:job].klass %><br><span class="rh-sub"><%= w[:job].jid %></span></td>
+          <td><%= job_display_class(w[:job]) %><br><span class="rh-sub"><%= w[:job].jid %></span></td>
           <td><span class="rh-sub"><%= w[:queue] %></span></td>
           <td><span class="rh-sub"><%= w[:process] %></span></td>
-          <td class="r rh-mono <%= "rh-lat-warn" if long %>"><%= elapsed < 60 ? "#{elapsed}s" : distance_of_time_in_words(0, elapsed) %><%= " ⚠" if long %></td>
+          <td class="r rh-mono <%= "rh-lat-warn" if long %>"><%= duration(elapsed) %><%= " ⚠" if long %></td>
           <td class="r"><%= button_to "Cancel", cancel_job_path(w[:job].jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Request cancellation of #{w[:job].jid}? Cooperative jobs abort; others are skipped on their next attempt." } %></td>
         </tr>
       <% end %>

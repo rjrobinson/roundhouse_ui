@@ -49,7 +49,7 @@ module RoundhouseUi
 
       lat = worst.latency
       status = if lat > 600 then :crit elsif lat > 60 then :warn else :ok end
-      detail = status == :ok ? "all queues fresh (< 60s)" : "#{worst.name}: oldest job #{lat.round}s"
+      detail = status == :ok ? "all queues fresh (< 60s)" : "#{worst.name}: oldest job #{RoundhouseUi.duration(lat)}"
       Signal.new(key: "latency", label: "Queue latency", status: status, detail: detail)
     end
 

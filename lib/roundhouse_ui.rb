@@ -7,6 +7,8 @@ require "roundhouse_ui/snapshots"
 require "roundhouse_ui/observability"
 require "roundhouse_ui/audit"
 require "roundhouse_ui/redaction"
+require "roundhouse_ui/queue_summary"
+require "roundhouse_ui/theme"
 require "roundhouse_ui/tags"
 require "roundhouse_ui/cancellation"
 require "roundhouse_ui/cancel_middleware"
@@ -114,6 +116,31 @@ module RoundhouseUi
     # "not enforced" warning entirely. Default: true.
     attr_accessor :pause_enabled
 
+    # Override any of the UI's colour tokens, as pure CSS custom properties:
+    #
+    #   RoundhouseUi.theme = { accent: "#FF2BD1", accent_2: "#00E5FF" }
+    #   RoundhouseUi.theme = { dark: { bg: "#0A0511" }, light: { bg: "#FFF7FB" } }
+    #   RoundhouseUi.theme = RoundhouseUi::Theme::PRESETS[:cyberpunk]
+    #
+    # Unset tokens keep their shipped values, so a partial theme is fine. Only
+    # known tokens are emitted and values are shape-checked — this is
+    # interpolated into a stylesheet, where escaping does not make arbitrary
+    # input safe. Default: nil.
+    attr_accessor :theme
+
+    # Named palettes a viewer can choose between on the Settings page:
+    #
+    #   RoundhouseUi.themes = { cyberpunk: RoundhouseUi::Theme::PRESETS[:cyberpunk] }
+    #
+    # `theme` sets the default for everyone; this is the menu each person picks
+    # from in their own browser. Default: the shipped presets.
+    attr_accessor :themes
+
+    # Set false where an operator should not be able to recolour a production
+    # console. Settings then hides palette selection and everyone keeps the
+    # host's `theme`. Default: true.
+    attr_accessor :allow_theme_selection
+
     # Configure in an initializer:
     #
     #   RoundhouseUi.configure do |c|
@@ -132,6 +159,60 @@ module RoundhouseUi
       @backend ||= Backends::Sidekiq.new
     end
 
+    # ActiveJob-on-Sidekiq stores the adapter's JobWrapper in item["class"] and
+    # the real job class in item["wrapped"]. Solid Queue and raw Sidekiq workers
+    # put the real class in klass, and Solid Queue's synthetic item never carries
+    # a "wrapped" key — so this is a no-op there and safe to call unconditionally.
+    #
+    # Reading item["wrapped"] rather than matching on the wrapper's name also
+    # covers Sidekiq 7+/8's native Sidekiq::ActiveJob::Wrapper for free.
+    #
+    # Use for display, search, grouping and APM links, so all four agree on one
+    # string. NOT for re-enqueue: a payload pushed back to Redis must keep
+    # item["class"] exactly as Sidekiq stored it, or the job is re-created as a
+    # raw worker and fails on every attempt.
+    def unwrapped_class(klass, item)
+      wrapped = item["wrapped"] if item.is_a?(Hash)
+      (wrapped || klass)&.to_s
+    end
+
+    # When a job was enqueued, as a Time, or nil if the payload does not say.
+    #
+    # Two formats exist three orders of magnitude apart: Sidekiq 8 writes integer
+    # epoch milliseconds, 6.5 and 7 write float epoch seconds. Reading one as the
+    # other does not give a slightly wrong time, it gives 1970 or the year 58000.
+    def enqueued_at(item)
+      raw = item["enqueued_at"] || item["created_at"] if item.is_a?(Hash)
+      return nil unless raw
+
+      raw.is_a?(Float) ? Time.at(raw) : Time.at(raw / 1000.0)
+    rescue StandardError
+      nil
+    end
+
+    # Durations, in one place. This lived in a view helper, which meant anything
+    # in lib/ that wanted to print a duration had to reinvent it — and did, five
+    # different ways, including the health signal that reported an hour-old queue
+    # as "3616s" (#31). Views reach this through the `duration` helper.
+    def duration(seconds)
+      return "—" if seconds.nil?
+
+      secs = seconds.to_f.abs
+      # Sub-minute keeps a decimal: 0.4s and 12s are a real distinction here.
+      return "#{secs.round(1)}s" if secs < 60
+      return "#{(secs / 60).floor}m #{(secs % 60).round}s" if secs < 3_600
+      return "#{(secs / 3_600).floor}h #{((secs % 3_600) / 60).round}m" if secs < 86_400
+
+      "#{(secs / 86_400).floor}d #{((secs % 86_400) / 3_600).round}h"
+    end
+
+    def duration_ms(ms)
+      return "—" if ms.nil?
+      return "#{ms.to_f.abs.round}ms" if ms.to_f.abs < 1_000
+
+      duration(ms.to_f / 1_000)
+    end
+
     # Cooperative cancellation check for long-running jobs:
     #   raise SomeStop if RoundhouseUi.cancelled?(jid)
     def cancelled?(jid)
@@ -147,4 +228,6 @@ module RoundhouseUi
   self.poll_interval = 5
   self.collect_durations = false
   self.job_tags_per_job = false
+  self.allow_theme_selection = true
+  self.themes = Theme::PRESETS
 end
