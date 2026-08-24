@@ -33,7 +33,11 @@
     <% else %>
       <% @groups.each do |g| %>
         <tr>
-          <td><%= g[:klass] %> <%= error_trace_icon(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></td>
+          <td><%= g[:klass] %> <%= error_trace_icon(klass: g[:klass], error: g[:error]) %>
+            <%# The grouped rows are where someone lands during an incident, so the
+                runbook belongs here as much as on the individual job. %>
+            <%= runbook_link(g[:klass], label: "runbook") %>
+            <br><span class="rh-err"><%= g[:error] %></span></td>
           <% if tag_column? %><td><%= tag_cell(@group_tags[g[:klass]]) %></td><% end %>
           <td class="r"><%= number_with_delimiter g[:count] %></td>
           <td><span class="rh-sub"><%= g[:sources].join(", ") %></span></td>
