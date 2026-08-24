@@ -17,6 +17,18 @@ module RoundhouseUi
         @inner.call(cmd, *args)
       end
 
+      # Sidekiq's API uses both `conn.call("SET", …)` and `conn.set(…)`. Forward
+      # the method style to the inner client rather than rewriting it into
+      # `call` — rewriting changes the return shape (sscan yields members, not a
+      # reply array), and a command that raises here is swallowed by a rescue in
+      # the code under test, leaving the assertion having observed nothing.
+      def method_missing(name, *args, &blk)
+        @calls += 1
+        @inner.public_send(name, *args, &blk)
+      end
+
+      def respond_to_missing?(name, _priv = false) = @inner.respond_to?(name)
+
       # One pipeline is one round-trip however many commands ride in it.
       def pipelined
         @calls += 1
@@ -75,6 +87,46 @@ module RoundhouseUi
         assert_equal 2, conn.calls,
           "twelve queues must still cost two round-trips, not two plus twelve"
       end
+    end
+
+    # The poll endpoint reads worker concurrency for the capacity figure. Two
+    # things must hold, because it runs on every page every few seconds:
+    # it must not write, and it must not re-read what has not changed.
+    def test_reading_concurrency_never_writes_to_redis
+      Backends::Sidekiq.concurrency_cache = nil
+      with_counting_redis({}) do |conn|
+        writes = []
+        seen = writes
+        conn.define_singleton_method(:call) do |cmd, *args|
+          seen << cmd.to_s.upcase
+          @calls += 1
+          @inner.call(cmd, *args)
+        end
+        conn.define_singleton_method(:method_missing) do |name, *args, &blk|
+          seen << name.to_s.upcase
+          @calls += 1
+          @inner.public_send(name, *args, &blk)
+        end
+        Backends::Sidekiq.new.concurrency
+        mutating = writes & %w[SET SETEX SREM DEL SADD LPUSH RPUSH ZADD ZREM HSET INCR EXPIRE]
+        assert_empty mutating, "a read endpoint must not write to Redis: #{mutating.join(", ")}"
+      end
+    ensure
+      Backends::Sidekiq.concurrency_cache = nil
+    end
+
+    def test_concurrency_is_not_re_read_on_every_poll
+      Backends::Sidekiq.concurrency_cache = nil
+      with_counting_redis({}) do |conn|
+        backend = Backends::Sidekiq.new
+        backend.concurrency
+        after_first = conn.calls
+        5.times { backend.concurrency }
+        assert_equal after_first, conn.calls,
+          "concurrency changes on deploy, not between polls — it must come from the cache"
+      end
+    ensure
+      Backends::Sidekiq.concurrency_cache = nil
     end
 
     def test_reports_size_and_latency_per_queue

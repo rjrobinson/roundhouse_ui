@@ -29,12 +29,13 @@ const src = [
   lift("rateLabel"),
   lift("forecast"),
   lift("capacity"),
-  "module.exports = { forecast: forecast, humanizeEta: humanizeEta, capacity: capacity };",
+  lift("forecastSort"),
+  "module.exports = { forecast: forecast, humanizeEta: humanizeEta, capacity: capacity, forecastSort: forecastSort };",
 ].join("\n");
 
 const sandbox = { module: { exports: {} } };
 new Function("module", src)(sandbox.module);
-const { forecast, humanizeEta, capacity } = sandbox.module.exports;
+const { forecast, humanizeEta, capacity, forecastSort } = sandbox.module.exports;
 
 let ran = 0;
 function check(label, actual, expected) {
@@ -117,5 +118,67 @@ check("empty backlog", capacity(0, 10, 0, 5, 3600).text, "0");
   assert.ok(/^(\+?\d+( ✓)?|—)$/.test(t), `capacity must be a whole thread count, got ${t}`);
 });
 
+// ---- forecast sort ordering ---------------------------------------------
+// The scale has to read as urgency, or sorting the column is worse than not
+// offering it. The first version got this backwards twice: an empty queue
+// sorted as the single worst row on the page, and a queue growing at 12/s
+// sorted as LESS urgent than one growing at 1/s.
+{
+  const clear    = forecastSort(0, 0);
+  const fast     = forecastSort(84000, -40);   // clears in ~35m
+  const slow     = forecastSort(84000, -1);    // clears in ~23h
+  const stalled  = forecastSort(900, 0);
+  const growSlow = forecastSort(400, 1);
+  const growFast = forecastSort(84000, 12);
+
+  assert.ok(clear < fast,    "an empty queue must be the healthiest row");
+  assert.ok(fast < slow,     "draining sooner must sort ahead of draining later");
+  assert.ok(slow < stalled,  "any drain, however slow, beats no movement");
+  assert.ok(stalled < growSlow, "growing must be worse than stalled");
+  assert.ok(growSlow < growFast, "faster growth must be more urgent, not less");
+  assert.strictEqual(forecastSort(500, null), "", "unmeasured has no position");
+  ran += 6;
+}
+
 console.log(`forecast decision table: ${ran} cases, all passing`);
 console.log("capacity decision table: 11 cases, all passing");
+
+// ---- table sorting (queues page) ------------------------------------------
+const sortSrc = [ lift("sortRows"), lift("cellValue"),
+                  "module.exports.sortRows = sortRows;" ].join("\n");
+new Function("module", sortSrc)(sandbox.module);
+const { sortRows } = sandbox.module.exports;
+
+// Minimal DOM stand-in: enough shape for the sorter, no jsdom dependency.
+function fakeTable(type, values) {
+  const rows = values.map((v) => ({
+    cells: [ { getAttribute: () => (v === null ? "" : String(v)), textContent: String(v) } ],
+    _v: v,
+    querySelector: () => null,
+  }));
+  const order = [];
+  return {
+    tHead: { rows: [ { cells: [ { getAttribute: () => type } ] } ] },
+    tBodies: [ { rows, appendChild: (r) => order.push(r._v) } ],
+    order,
+  };
+}
+
+function sorted(type, values, dir) {
+  const t = fakeTable(type, values);
+  sortRows(t, 0, dir);
+  return t.order;
+}
+
+assert.deepStrictEqual(sorted("num", [ 5, 100, 20 ], "desc"), [ 100, 20, 5 ],
+  "numeric sort must compare numbers, not strings — 100 beats 20");
+assert.deepStrictEqual(sorted("num", [ 5, 100, 20 ], "asc"), [ 5, 20, 100 ]);
+assert.deepStrictEqual(sorted("text", [ "beta", "alpha" ], "asc"), [ "alpha", "beta" ]);
+
+// A queue whose forecast has not been measured yet has no value. It must sort
+// last in BOTH directions — clustering it with zero would put unmeasured queues
+// at the top of an ascending sort, which reads as "these are fine".
+assert.deepStrictEqual(sorted("num", [ 5, null, 20 ], "asc"), [ 5, 20, null ]);
+assert.deepStrictEqual(sorted("num", [ 5, null, 20 ], "desc"), [ 20, 5, null ]);
+
+console.log("table sort: 5 cases, all passing");
