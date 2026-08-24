@@ -17,6 +17,16 @@ module RoundhouseUi
       # behind however many rows of zeros.
       @queues = @queues.sort_by { |q| [ -q.latency.to_f, -q.size.to_i, q.name.to_s ] }
       @paused = backend.paused_queues
+      # State filter. Counts come from the unfiltered set so the chips still say
+      # how many are on the other side of the filter — a chip that reads "0" once
+      # you have selected it is useless for getting back.
+      @state = params[:state].to_s
+      @state_counts = { "paused" => @queues.count { |q| @paused.include?(q.name) } }
+      @state_counts["active"] = @queues.size - @state_counts["paused"]
+      case @state
+      when "paused" then @queues = @queues.select { |q| @paused.include?(q.name) }
+      when "active" then @queues = @queues.reject { |q| @paused.include?(q.name) }
+      end
       # Native-pause backends (Solid Queue) enforce pauses without a fetcher, so
       # they never trigger the "not enforced" warning.
       @fetch_installed = backend.supports?(:native_pause) ||

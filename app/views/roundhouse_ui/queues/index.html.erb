@@ -15,9 +15,33 @@
   </div>
 <% end %>
 
-<h2 class="rh-h2">Queues · <%= number_with_delimiter @total_size %> waiting<% if @query.present? %> <span class="hint">filtered to “<%= @query %>”</span><% end %></h2>
+<%# State chips. A paused queue is the single most common thing an operator is
+    hunting for on this page — it is why work is not moving. Hidden where pausing
+    is turned off: filtering by a state you cannot set is a dead end. %>
+<% if RoundhouseUi.pause_enabled %>
+<div class="rh-quickfilters">
+  <%= link_to queues_path(q: @query.presence), class: "rh-qf#{' is-on' if @state.blank?}" do %>
+    All <span class="rh-qf-n"><%= @state_counts.values.sum %></span>
+  <% end %>
+  <%= link_to queues_path(q: @query.presence, state: "active"), class: "rh-qf#{' is-on' if @state == 'active'}" do %>
+    Active <span class="rh-qf-n"><%= @state_counts["active"] %></span>
+  <% end %>
+  <%= link_to queues_path(q: @query.presence, state: "paused"), class: "rh-qf#{' is-on' if @state == 'paused'}" do %>
+    Paused <span class="rh-qf-n"><%= @state_counts["paused"] %></span>
+  <% end %>
+</div>
+<% end %>
+
+<h2 class="rh-h2">Queues · <%= number_with_delimiter @total_size %> waiting<% if @query.present? %> <span class="hint">filtered to “<%= @query %>”</span><% end %><% if @state.present? %> <span class="hint"><%= @state %> only</span><% end %></h2>
 <table class="rh-table">
-  <thead><tr><th>Queue</th><th>State</th><th class="r">Size</th><th class="r">Latency</th><th>Forecast</th><th class="r">Actions</th></tr></thead>
+  <thead><tr>
+    <th class="rh-sort" data-sort-col="0" data-sort-type="text">Queue</th>
+    <th class="rh-sort" data-sort-col="1" data-sort-type="text">State</th>
+    <th class="rh-sort r" data-sort-col="2" data-sort-type="num">Size</th>
+    <th class="rh-sort r" data-sort-col="3" data-sort-type="num">Latency</th>
+    <th class="rh-sort" data-sort-col="4" data-sort-type="num">Forecast</th>
+    <th class="r">Actions</th>
+  </tr></thead>
   <tbody>
     <% if @queues.empty? %>
       <tr><td colspan="6" class="rh-empty"><%= @query.present? ? "No queues match “#{@query}”." : "No active queues" %></td></tr>
@@ -26,13 +50,15 @@
         <% paused = @paused.include?(q.name) %>
         <% latency = q.latency %>
         <tr>
-          <td><%= link_to queue_pill(q.name), queue_path(q.name), class: "rh-pill-link" %></td>
-          <td><% if paused %><span class="rh-pill rh-pill-warn">paused</span><% else %><span class="rh-sub">active</span><% end %></td>
-          <td class="r"><%= number_with_delimiter q.size %></td>
-          <td class="r <%= "rh-lat-warn" if latency > 60 %>"><%= duration(latency) %></td>
+          <td data-sort-value="<%= q.name %>"><%= link_to queue_pill(q.name), queue_path(q.name), class: "rh-pill-link" %></td>
+          <td data-sort-value="<%= paused ? "paused" : "active" %>"><% if paused %><span class="rh-pill rh-pill-warn">paused</span><% else %><span class="rh-sub">active</span><% end %></td>
+          <td class="r" data-sort-value="<%= q.size %>"><%= number_with_delimiter q.size %></td>
+          <td class="r <%= "rh-lat-warn" if latency > 60 %>" data-sort-value="<%= latency.to_f %>"><%= duration(latency) %></td>
           <%# Filled by the stats poll — it needs two samples for a velocity, so
               the first paint honestly says it is still measuring. %>
-          <td><span class="rh-fc rh-fc-wait" data-rh-forecast="<%= q.name %>"><%= q.size.zero? ? "clear" : "measuring…" %></span></td>
+          <%# sort-value starts unknown and is written by the poll, so an unmeasured
+              queue sorts last rather than pretending to be zero. %>
+          <td data-sort-value=""><span class="rh-fc rh-fc-wait" data-rh-forecast="<%= q.name %>"><%= q.size.zero? ? "clear" : "measuring…" %></span></td>
           <td class="r">
             <% if RoundhouseUi.pause_enabled %>
               <% if paused %>
