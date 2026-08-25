@@ -30,6 +30,48 @@ All notable changes to this project are documented here. The format is based on
   being settled against #17 and #41, and pinning it now would freeze it before it is
   right.
 
+### Changed
+- **The Busy page's Cancel button is now off by default**, behind
+  `cancel_enabled`. Cancellation only does anything once you install
+  `CancelMiddleware` or have long-running jobs poll
+  `RoundhouseUi.cancelled?(jid)`; with neither, `cancel!` wrote a JID nothing
+  ever read, so the button was inert and said so nowhere. The route is gated
+  too, not just the column. Set `cancel_enabled = true` to get it back
+  ([#24](https://github.com/rjrobinson/roundhouse_ui/issues/24)).
+- **Destructive buttons now read as destructive at rest**, not only on hover —
+  `.rh-btn-danger` differed from `.rh-btn` by a single `:hover` rule, so Retry
+  and Delete were the same button until the cursor was already on one
+  ([#32](https://github.com/rjrobinson/roundhouse_ui/issues/32)).
+- **Read-only mode is enforced fail-closed.** Every `POST` is treated as a write
+  unless its controller explicitly says otherwise, so a destructive action added
+  tomorrow is guarded the moment it exists. It was previously seven near-identical
+  `require_writable!` methods, each wired to a hand-maintained `only:` list — all
+  seven correct, and each one omission away from silently not being. Taking a queue
+  snapshot remains the single deliberate exemption, now declared with
+  `allow_in_read_only :snapshot` rather than expressed by absence from a list.
+
+  The refusal message is now the same everywhere ("Roundhouse is in read-only mode
+  — this action is disabled."); each section still redirects back to itself.
+
+- **Every control is one box on one scale** ([#65](https://github.com/rjrobinson/roundhouse_ui/issues/65)).
+  Eight controls had four font sizes, seven paddings and four radii between them,
+  sharing nothing — so `.rh-trace-btn` rendered 2px taller than the `.rh-runbook`
+  pill beside it, and `⌘K` sat 9px shorter than the icon buttons next to it. There
+  are now `--ctl-*` dimension tokens and a single rule every control draws from.
+
+  Controls are sized by **height**, never by line-height plus padding. That is what
+  makes an icon-only control and a text control the same height by construction
+  instead of by coincidence; matching paddings cannot do it across different
+  content, which is why fixing pairs by hand kept not holding.
+
+  Icons are also sized on the glyph rather than on a wrapper. Every shipped mark
+  carries its own `width` attribute and nothing overrode it, so a 15px SVG sat in a
+  12px slot and read as oversized — no padding change could have fixed that.
+
+  `control_scale_test.rb` fails on a hand-typed length in any control rule, and
+  fails again if a control stops getting a height from the scale. The tokens are
+  not the fix; that test is.
+
 ### Fixed
 - **The Errors page said "1 issues".** The only hardcoded plural left in the app;
   every other count already went through `pluralize`.
@@ -54,30 +96,6 @@ All notable changes to this project are documented here. The format is based on
   message varies cannot grow it without limit. Both copies (Tags and Runbooks) now
   call one implementation on `RoundhouseUi`, alongside `duration`.
 
-### Changed
-- **The Busy page's Cancel button is now off by default**, behind
-  `cancel_enabled`. Cancellation only does anything once you install
-  `CancelMiddleware` or have long-running jobs poll
-  `RoundhouseUi.cancelled?(jid)`; with neither, `cancel!` wrote a JID nothing
-  ever read, so the button was inert and said so nowhere. The route is gated
-  too, not just the column. Set `cancel_enabled = true` to get it back
-  ([#24](https://github.com/rjrobinson/roundhouse_ui/issues/24)).
-- **Destructive buttons now read as destructive at rest**, not only on hover —
-  `.rh-btn-danger` differed from `.rh-btn` by a single `:hover` rule, so Retry
-  and Delete were the same button until the cursor was already on one
-  ([#32](https://github.com/rjrobinson/roundhouse_ui/issues/32)).
-- **Read-only mode is enforced fail-closed.** Every `POST` is treated as a write
-  unless its controller explicitly says otherwise, so a destructive action added
-  tomorrow is guarded the moment it exists. It was previously seven near-identical
-  `require_writable!` methods, each wired to a hand-maintained `only:` list — all
-  seven correct, and each one omission away from silently not being. Taking a queue
-  snapshot remains the single deliberate exemption, now declared with
-  `allow_in_read_only :snapshot` rather than expressed by absence from a list.
-
-  The refusal message is now the same everywhere ("Roundhouse is in read-only mode
-  — this action is disabled."); each section still redirects back to itself.
-
-### Fixed
 - **Deleting a Solid Queue entry no longer orphans its job row.** The adapter
   called `destroy` on the execution, which left the `solid_queue_jobs` row
   behind — invisible to every page and unreachable by every worker. It now

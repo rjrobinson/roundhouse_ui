@@ -105,10 +105,12 @@ module RoundhouseUi
     # Never carries the vendor mark either way: boxing a logo is against most
     # brand guidelines, Datadog's included.
     def trace_control(url, adapter, compact: false)
-      # .rh-btn itself, not a copy of its measurements. A second box definition
-      # drifted by 2px the moment .rh-btn's font-size and padding were the source
-      # of truth and .rh-trace-btn's hard-coded height was not.
-      base = compact ? "rh-runbook rh-trace-btn is-compact" : "rh-btn rh-trace-btn"
+      # One class. Borrowing .rh-btn's or .rh-runbook's box was the previous fix
+      # for a 2px drift, and it still left two definitions to keep in step — the
+      # compact variant came out 2px taller than the runbook pill it sat beside.
+      # The control scale (#65) gives every control the same box from the same
+      # tokens, so there is nothing to borrow and nothing to synchronise.
+      base = compact ? "rh-trace-btn rh-btn--sm" : "rh-trace-btn"
       link_to icon(:trace_out), url, **trace_attrs(adapter), class: base
     end
 

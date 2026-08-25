@@ -12,6 +12,19 @@
       --accent:#6E8BFF; --accent-2:#9B8CFC; --good:#44C58C; --warn:#E2A53F; --crit:#E66A60;
       --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
       --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+
+      /* Control scale (#65). Two heights and nothing between them: a row
+         affordance and a page action. Every dimension on every control comes
+         from here, and control_scale_test.rb fails on a raw pixel in a control
+         rule — three hand-matched button pairs in one day is how we got here.
+         Deliberately not in Theme::TOKENS: colour is the host's to override,
+         structure is not. */
+      --ctl-h-sm:20px; --ctl-h-md:30px; --ctl-h-lg:34px;
+      --ctl-px-sm:7px; --ctl-px-md:11px;
+      --ctl-fs-sm:11px; --ctl-fs-md:12px;
+      --ctl-r:6px; --ctl-r-lg:8px; --ctl-r-pill:999px;
+      --ctl-icon-sm:12px; --ctl-icon-md:14px;
+      --ctl-gap:5px;
     }
     :root[data-theme="light"]{
       --bg:#F5F6F9; --panel:#FFFFFF; --panel-2:#EEF1F6; --panel-3:#E6EAF2;
@@ -40,7 +53,6 @@
     .rh-nav.is-active { background:var(--panel-2); color:var(--text); border-color:var(--line); }
     .rh-nav .rh-ico { width:18px; text-align:center; font-size:14px; opacity:.85; }
     .rh-nav .rh-lbl { flex:1; }
-    .rh-badge { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:11px; padding:1px 7px; border-radius:999px; background:var(--panel-2); color:var(--muted); min-width:8px; text-align:center; }
     .rh-badge:empty { display:none; }
     .rh-badge.warn { background:rgba(226,165,63,.16); color:var(--warn); }
     .rh-badge.crit { background:rgba(230,106,96,.16); color:var(--crit); }
@@ -57,9 +69,7 @@
     .rh-dot::after { content:""; position:absolute; inset:0; border-radius:50%; background:var(--good); animation:rh-ping 2.4s ease-out infinite; }
     @keyframes rh-ping { 0%{transform:scale(1);opacity:.7} 70%{transform:scale(3.4);opacity:0} 100%{opacity:0} }
     @media (prefers-reduced-motion:reduce){ .rh-dot::after{animation:none} }
-    .rh-iconbtn { width:34px; height:34px; border-radius:9px; cursor:pointer; background:var(--panel); border:1px solid var(--line); color:var(--muted); font-size:15px; }
     .rh-iconbtn:hover { color:var(--text); border-color:var(--accent); }
-    .rh-ro { font-size:11px; padding:3px 9px; border-radius:7px; background:rgba(226,165,63,.16); color:var(--warn); font-weight:600; }
 
     .rh-flash { padding:10px 14px; font-size:13px; border-radius:10px; margin-bottom:16px; }
     .rh-flash-ok { background:rgba(68,197,140,.12); color:var(--good); border:1px solid rgba(68,197,140,.3); }
@@ -88,7 +98,6 @@
     .rh-st-warn { background:rgba(226,165,63,.16); color:var(--warn); }
     .rh-st-crit { background:rgba(230,106,96,.16); color:var(--crit); }
     .rh-st-paused { background:var(--panel-3); color:var(--muted); }
-    .rh-pill { font-size:11px; padding:2px 8px; border-radius:999px; font-family:var(--mono); background:var(--panel-2); color:var(--muted); }
     .rh-pill-warn { background:rgba(226,165,63,.16); color:var(--warn); }
     .rh-pill-tag { background:var(--panel-2); color:var(--text); border:1px solid var(--line); max-width:22ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
     /* jid sits inline after the class now; dim it so it reads as a copy target
@@ -118,12 +127,7 @@
        is icon centring and the horizontal trim an icon needs that a word does
        not. Never holds a vendor mark: boxing a logo is against most brand
        guidelines, Datadog's included. */
-    .rh-trace-btn { display:inline-block; padding-left:9px; padding-right:9px; color:var(--accent);
-                    line-height:18px; }
     .rh-trace-btn:hover { border-color:var(--accent); text-decoration:none; }
-    .rh-trace-btn .rh-ico { width:14px; height:14px; display:inline-block; vertical-align:middle; }
-    .rh-trace-btn.is-compact { padding-left:6px; padding-right:6px; line-height:15px; }
-    .rh-trace-btn.is-compact .rh-ico { width:12px; height:12px; }
     /* Said once above a table instead of on every row. */
     .rh-trace-legend { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--faint);
                        margin:0 0 9px 1px; }
@@ -326,11 +330,8 @@
     .rh-sort.is-asc::after  { content:"↑"; opacity:1; color:var(--accent); }
     .rh-sort.is-desc::after { content:"↓"; opacity:1; color:var(--accent); }
 
-    .rh-runbook { font-size:11.5px; color:var(--accent); text-decoration:none;
-                  border:1px solid var(--line); border-radius:6px; padding:1px 7px; white-space:nowrap; }
     .rh-runbook:hover { border-color:var(--accent); background:var(--panel-2); }
 
-    .rh-cap-pick { font-size:10px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
 
     .rh-fc { font-size:12.5px; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .rh-fc-wait { color:var(--faint); }
@@ -354,7 +355,66 @@
     .rh-qf-n { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:11px; color:var(--faint); }
     .rh-qf.is-on .rh-qf-n { color:var(--accent); }
 
-    .rh-btn { font:inherit; font-size:12px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); padding:5px 11px; border-radius:7px; cursor:pointer; text-decoration:none; display:inline-block; }
+    /* ── Controls ────────────────────────────────────────────────────────────
+       One box, eight names. Every control is this rule plus a role, and the only
+       dimensions anywhere are the --ctl-* tokens — so two controls cannot
+       disagree by a pixel of padding, which is exactly how .rh-trace-btn ended
+       up 2px taller than .rh-runbook while sitting beside it.
+
+       Sized by HEIGHT, never by line-height plus padding. That is the whole
+       trick: it makes an icon-only control and a text control the same height by
+       construction rather than by coincidence, and the flexbox centres both, so
+       a 12px glyph and an 11px word share a line without either knowing about
+       the other. Matching paddings can never achieve that across different
+       content, which is why hand-fixing pairs kept not holding. */
+    .rh-btn, .rh-runbook, .rh-pill, .rh-badge, .rh-kbd, .rh-iconbtn, .rh-ro, .rh-trace-btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:var(--ctl-gap);
+      height:var(--ctl-h-md); padding:0 var(--ctl-px-md);
+      font-family:inherit; font-size:var(--ctl-fs-md); font-weight:500; line-height:1;
+      border:1px solid var(--line); border-radius:var(--ctl-r);
+      background:var(--panel-2); color:var(--text);
+      text-decoration:none; white-space:nowrap; vertical-align:middle;
+    }
+    /* Interactive ones only. A badge is not a button and should not claim to be. */
+    .rh-btn, .rh-kbd, .rh-iconbtn, .rh-runbook, .rh-trace-btn { cursor:pointer; }
+
+    /* The row scale: anything that lives inside a table cell. */
+    .rh-btn--sm, .rh-runbook, .rh-pill, .rh-badge, .rh-ro, .rh-cap-pick {
+      height:var(--ctl-h-sm); padding:0 var(--ctl-px-sm); font-size:var(--ctl-fs-sm);
+    }
+
+    /* Icon-only: square, so the width IS the height. */
+    .rh-btn--icon, .rh-trace-btn { padding:0; width:var(--ctl-h-md); }
+    .rh-btn--icon.rh-btn--sm, .rh-trace-btn.rh-btn--sm { width:var(--ctl-h-sm); }
+
+    /* Header controls at one size, so ⌘K and the two icon buttons read as
+       siblings. They were 25px and 34px before, which nobody had reported yet. */
+    .rh-kbd, .rh-iconbtn { height:var(--ctl-h-lg); border-radius:var(--ctl-r-lg);
+                           color:var(--muted); background:var(--panel); }
+    .rh-iconbtn { width:var(--ctl-h-lg); padding:0; }
+    .rh-kbd { font-family:var(--mono); }
+    .rh-cap-pick { margin-left:var(--ctl-gap); }
+
+    /* Roles. */
+    .rh-runbook, .rh-trace-btn { color:var(--accent); }
+    .rh-pill, .rh-badge { border-radius:var(--ctl-r-pill); border-color:transparent;
+                          font-family:var(--mono); font-variant-numeric:tabular-nums;
+                          color:var(--muted); }
+    .rh-ro { color:var(--warn); background:rgba(226,165,63,.16); border-color:transparent;
+             font-weight:600; }
+
+    /* Icons are sized on the glyph, not on a wrapper. Every shipped mark carries
+       its own width attribute, and nothing overrode it — so a 15px svg sat in a
+       12px slot and read as oversized, which no amount of padding could fix. */
+    .rh-btn > .rh-ico, .rh-iconbtn > .rh-ico, .rh-runbook > .rh-ico, .rh-trace-btn > .rh-ico {
+      width:var(--ctl-icon-md); height:var(--ctl-icon-md); flex:0 0 var(--ctl-icon-md);
+    }
+    .rh-btn--sm > .rh-ico, .rh-trace-btn.rh-btn--sm > .rh-ico {
+      width:var(--ctl-icon-sm); height:var(--ctl-icon-sm); flex-basis:var(--ctl-icon-sm);
+    }
+    .rh-btn > .rh-ico > svg, .rh-iconbtn > .rh-ico > svg,
+    .rh-runbook > .rh-ico > svg, .rh-trace-btn > .rh-ico > svg { width:100%; height:100%; display:block; }
+
     .rh-btn:hover { border-color:var(--accent); }
     .rh-btn-danger { color:var(--crit); border-color:color-mix(in srgb, var(--crit) 38%, var(--line)); }
     .rh-btn-danger:hover { border-color:var(--crit); background:color-mix(in srgb, var(--crit) 10%, var(--panel-2)); }
@@ -463,7 +523,6 @@
     .rh-sec { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:600; margin:22px 0 8px; }
     .rh-joblink { color:inherit; text-decoration:none; }
     .rh-joblink:hover { text-decoration:underline; }
-    .rh-kbd { font:11px var(--mono); color:var(--faint); background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:6px 9px; cursor:pointer; }
     .rh-kbd:hover { color:var(--text); border-color:var(--accent); }
     .rh-palette[hidden] { display:none; }
     .rh-palette { position:fixed; inset:0; background:rgba(5,7,11,.55); z-index:80; display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; backdrop-filter:blur(2px); }

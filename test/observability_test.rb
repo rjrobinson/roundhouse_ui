@@ -160,29 +160,30 @@ module RoundhouseUi
       refute_includes html, "<svg xmlns", "the vendor asset must not be boxed"
     end
 
-    # Grouped Errors put the control inline in a text cell next to a .rh-runbook
-    # pill. A 28px-tall button there gave that one cell three different heights.
+    # Grouped Errors put the control inline in a text cell beside a .rh-runbook
+    # pill, so it takes the row scale; an Actions-column control takes the page
+    # scale and matches the buttons next to it. Both come from the same tokens.
     def test_the_inline_control_is_sized_for_a_text_cell
-      assert_includes view.error_trace_icon(klass: "W", error: "B"), "is-compact"
-      refute_includes view.trace_icon(klass: "W", jid: "a"), "is-compact",
-        "an Actions-column control matches .rh-btn, not the inline pill"
+      assert_includes view.error_trace_icon(klass: "W", error: "B"), "rh-btn--sm"
+      refute_includes view.trace_icon(klass: "W", jid: "a"), "rh-btn--sm",
+        "an Actions-column control takes the page scale, not the row scale"
     end
 
-    # The control must not own its own box. It carries .rh-btn (or .rh-runbook
-    # when compact) precisely so padding, border, radius and font come from the
-    # sibling it has to match. A hard-coded height here drifted 2px the moment
-    # .rh-btn's own metrics were the source of truth.
-    def test_the_control_borrows_its_box_rather_than_redefining_it
-      assert_includes view.trace_icon(klass: "W", jid: "a"), "rh-btn rh-trace-btn"
-      assert_includes view.error_trace_icon(klass: "W", error: "B"), "rh-runbook rh-trace-btn"
+    # The control owns its own box now, and so does every other control: one rule
+    # on the --ctl-* tokens. Borrowing a sibling's class was the previous fix and
+    # it still left two definitions to keep in step.
+    def test_the_control_is_one_class_on_the_shared_scale
+      # It used to be emitted as "rh-btn rh-trace-btn" / "rh-runbook rh-trace-btn
+      # is-compact", borrowing another control's box because it had no box of its
+      # own. Under the control scale it has one, from the same tokens as the rest.
+      row = view.trace_icon(klass: "W", jid: "a")
+      compact = view.error_trace_icon(klass: "W", error: "B")
 
-      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
-      rule = css[/^\s*\.rh-trace-btn \{([^}]*)\}/, 1]
-      assert rule, "expected a .rh-trace-btn rule"
-      refute_match(/(?<!line-)height:/, rule,
-        "an own height drifts from .rh-btn; borrow the box instead of restating it")
-      refute_match(/padding:\s/, rule,
-        "shorthand padding overrides .rh-btn's vertical padding and changes the height")
+      assert_includes row, "rh-trace-btn"
+      refute_includes row, "rh-btn ", "still borrowing another control's box"
+      assert_includes compact, "rh-btn--sm", "the compact variant must ask for the row scale"
+      refute_includes compact, "rh-runbook", "still borrowing the runbook pill's box"
+      refute_includes compact, "is-compact", "is-compact was the hand-rolled size; use the scale"
     end
 
     # The row glyph says nothing on its own, so a table has to name the target
