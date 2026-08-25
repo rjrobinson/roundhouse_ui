@@ -2,8 +2,6 @@ module RoundhouseUi
   class ScheduledController < ApplicationController
     include JobSetBrowsing
 
-    before_action :require_writable!, only: %i[enqueue destroy]
-
     def index
       @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
@@ -28,9 +26,6 @@ module RoundhouseUi
 
     private
 
-    def require_writable!
-      return unless RoundhouseUi.read_only
-      redirect_to scheduled_path, alert: "Roundhouse is in read-only mode — enqueue and delete are disabled."
-    end
+    def read_only_redirect_path = scheduled_path
   end
 end

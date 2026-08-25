@@ -2,7 +2,10 @@ module RoundhouseUi
   class QueuesController < ApplicationController
     include JobSetBrowsing
 
-    before_action :require_writable!, only: %i[purge pause resume]
+    # Taking a backup writes nothing an operator can lose; restoring one does, and
+    # that stays guarded. This was previously expressed by omission from an `only:`
+    # list, which is indistinguishable from having forgotten.
+    allow_in_read_only :snapshot
 
     def index
       @query = params[:q].to_s.strip
@@ -73,9 +76,6 @@ module RoundhouseUi
 
     private
 
-    def require_writable!
-      return unless RoundhouseUi.read_only
-      redirect_to queues_path, alert: "Roundhouse is in read-only mode — queue actions are disabled."
-    end
+    def read_only_redirect_path = queues_path
   end
 end

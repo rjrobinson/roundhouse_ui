@@ -2,8 +2,6 @@ module RoundhouseUi
   # The running Sidekiq process fleet, straight from Sidekiq::ProcessSet.
   # "Quiet" stops a process from pulling new work; "Stop" begins shutdown.
   class WorkersController < ApplicationController
-    before_action :require_writable!, only: %i[quiet stop]
-
     def index
       @processes = backend.process_set.to_a
       @fetch_active = RoundhouseUi::Pause.fetch_installed?
@@ -21,13 +19,10 @@ module RoundhouseUi
 
     private
 
+    def read_only_redirect_path = workers_path
+
     def find_process(identity)
       backend.process_set.find { |process| process.identity == identity }
-    end
-
-    def require_writable!
-      return unless RoundhouseUi.read_only
-      redirect_to workers_path, alert: "Roundhouse is in read-only mode — quiet and stop are disabled."
     end
   end
 end
