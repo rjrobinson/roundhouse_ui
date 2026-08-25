@@ -10,6 +10,11 @@ module RoundhouseUi
       # Highest-signal slices for the overview, from data we already read.
       @top_errors = ErrorGroups.new(limit: 200).call.groups.first(5)
       @problem_queues = @queues.select { |q| q.latency > 5 }.sort_by { |q| -q.latency }.first(5)
+      # Daily counts Sidekiq already keeps (#61). One read on render, not on the
+      # poll — a six-month window is not something to re-fetch every few seconds.
+      @history_days = History.clamp(params[:history].presence || History::DEFAULT_DAYS)
+      @history = History.days(@history_days)
+      @typical_failure_rate = History.typical_failure_rate(@history)
     end
 
     # Polled by the dashboard for live counts (same approach Sidekiq Web uses —

@@ -238,6 +238,17 @@
        second number to read. */
     .rh-card canvas { display:block; width:100%; height:26px; margin-top:6px; }
 
+    /* Daily history (#61). Two series, two units — a count and a rate — so each
+       gets its own vertical scale and the rate is the one drawn on top. */
+    .rh-hist-ranges { margin-left:auto; display:flex; gap:5px; }
+    canvas#rh-history { display:block; width:100%; height:150px; }
+    .rh-hist-legend { display:flex; align-items:center; gap:14px; margin-top:8px; font-size:11.5px; color:var(--muted); }
+    .rh-hist-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .rh-swatch { width:9px; height:9px; border-radius:2px; display:inline-block; }
+    .rh-swatch.is-proc { background:var(--accent); }
+    .rh-swatch.is-rate { background:var(--crit); }
+    .rh-hist-hover { margin-left:auto; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
     /* Per-queue trend. A table of numbers tells you values; a column of shapes
        tells you what the system is doing. Fed from the depths the poll already
        reads, held in the browser for the session — no storage, no retention. */
@@ -840,6 +851,73 @@
         });
       }
 
+      // Daily history. Counts and a failure rate share one canvas but not one
+      // scale: plotted together on a single axis the rate would be a flat line
+      // at zero, because 0.4% and 900 jobs are not comparable numbers.
+      //
+      // Drawn once on load, not on the poll — a six-month window does not change
+      // between two five-second ticks.
+      function drawHistory() {
+        var cv = document.getElementById("rh-history");
+        if (!cv) return;
+        var raw = cv.getAttribute("data-rh-history");
+        if (!raw) return;
+        var days;
+        try { days = JSON.parse(raw); } catch (_) { return; }
+        if (!days.length) return;
+
+        var dpr = window.devicePixelRatio || 1;
+        var w = cv.clientWidth, h = 150;
+        if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+        var ctx = cv.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+
+        var pad = 8;
+        var maxP = Math.max.apply(null, days.map(function (d) { return d.p; })) || 1;
+        var maxR = Math.max.apply(null, days.map(function (d) { return d.r; })) || 0.01;
+        var x = function (i) { return days.length === 1 ? w / 2 : i / (days.length - 1) * (w - pad * 2) + pad; };
+        var yP = function (v) { return h - pad - v / (maxP * 1.15) * (h - pad * 2); };
+        var yR = function (v) { return h - pad - v / (maxR * 1.35) * (h - pad * 2); };
+
+        ctx.strokeStyle = "rgba(128,128,128,.13)"; ctx.lineWidth = 1;
+        for (var g = 1; g < 4; g++) { var gy = h / 4 * g; ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke(); }
+
+        // Processed as filled area: it is context, not the point.
+        var accent = token("--accent");
+        var grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, accent + "44"); grad.addColorStop(1, accent + "00");
+        ctx.beginPath(); ctx.moveTo(x(0), h);
+        days.forEach(function (d, i) { ctx.lineTo(x(i), yP(d.p)); });
+        ctx.lineTo(x(days.length - 1), h); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+        ctx.beginPath();
+        days.forEach(function (d, i) { i ? ctx.lineTo(x(i), yP(d.p)) : ctx.moveTo(x(i), yP(d.p)); });
+        ctx.strokeStyle = accent; ctx.lineWidth = 1.6; ctx.stroke();
+
+        // The typical rate as a dashed baseline, so today has something to be
+        // compared against rather than just a number.
+        var typical = parseFloat(cv.getAttribute("data-rh-typical"));
+        if (!isNaN(typical) && typical > 0) {
+          ctx.save(); ctx.setLineDash([ 3, 3 ]);
+          ctx.beginPath(); ctx.moveTo(pad, yR(typical)); ctx.lineTo(w - pad, yR(typical));
+          ctx.strokeStyle = token("--faint"); ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+        }
+
+        // Failure rate on top, because it is the line worth reading.
+        ctx.beginPath();
+        days.forEach(function (d, i) { i ? ctx.lineTo(x(i), yR(d.r)) : ctx.moveTo(x(i), yR(d.r)); });
+        ctx.strokeStyle = token("--crit"); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+
+        cv.onmousemove = function (e) {
+          var rect = cv.getBoundingClientRect();
+          var i = Math.round((e.clientX - rect.left - pad) / ((w - pad * 2) || 1) * (days.length - 1));
+          var d = days[Math.max(0, Math.min(days.length - 1, i))];
+          if (d) setText("rh-hist-read", d.d + " · " + Number(d.p).toLocaleString() + " processed · " +
+                                        (d.r * 100).toFixed(2) + "% failed");
+        };
+        cv.onmouseleave = function () { setText("rh-hist-read", ""); };
+      }
+
       // Surface a failed poll instead of letting the numbers silently go stale.
       function setConn(ok) {
         var el = document.getElementById("rh-live"), lbl = document.getElementById("rh-live-label");
@@ -961,6 +1039,7 @@
         { label: "Dead", path: "<%= dead_set_path %>", icon: "<%= RoundhouseUi::Icons.markup(:dead) %>" },
         <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "<%= RoundhouseUi::Icons.markup(:capsules) %>" },<% end %>
         <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "<%= RoundhouseUi::Icons.markup(:redis) %>" },<% end %>
+        <% if RoundhouseUi::Recurring.any? %>{ label: "Recurring", path: "<%= recurring_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },<% end %>
         { label: "Snapshots", path: "<%= snapshots_path %>", icon: "<%= RoundhouseUi::Icons.markup(:snapshots) %>" },
         { label: "Audit log", path: "<%= audit_log_path %>", icon: "<%= RoundhouseUi::Icons.markup(:audit) %>" },
         { label: "Settings", path: "<%= settings_path %>", icon: "<%= RoundhouseUi::Icons.markup(:settings) %>" },
@@ -1069,7 +1148,7 @@
         else if (e.key === "Enter") { e.preventDefault(); if (palFiltered[palSel]) palRun(palFiltered[palSel]); }
       });
 
-      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); syncSettingsForm(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); });
+      document.addEventListener("turbo:load", function () { startOnce(); syncTheme(); syncWidth(); syncSettingsForm(); setActiveNav(); restoreChartInterval(); wireChart(); draw(); drawHistory(); });
 
       // Dead set "select all". Delegated from document rather than bound to the
       // checkbox, because a Turbo visit (searching, paging, arriving via the
@@ -1123,6 +1202,7 @@
           <%= nav_link "Redis", redis_info_path, icon: :redis %>
         <% end %>
         <%= nav_link "Snapshots", snapshots_path, icon: :snapshots %>
+        <% if RoundhouseUi::Recurring.any? %><%= nav_link "Recurring", recurring_path, icon: :scheduled %><% end %>
         <%= nav_link "Audit log", audit_log_path, icon: :audit %>
           <%= nav_link "Settings", settings_path, icon: :settings %>
       </nav>
