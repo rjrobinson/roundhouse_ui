@@ -73,6 +73,20 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **Every bulk action on the Dead set was impossible.** Retry and Delete on the
+  selected rows failed with `ActionController::InvalidAuthenticityToken` while
+  submitting a token that looked entirely valid.
+
+  The bulk form wrapped the table, so each row's `button_to` form was nested inside
+  it. Nested forms are invalid HTML — the parser closes the outer form at the first
+  `</form>` — so the bulk form ended up carrying a row action's CSRF token as well
+  as its own. Rails keeps the last of a duplicated parameter, which meant verifying
+  a per-form token minted for `/dead/:jid/retry` against a POST to `/dead/bulk`.
+
+  The form is now empty and sits beside the table; the checkboxes join it with
+  `form="rh-bulk-dead"`, the same HTML association the toolbar buttons already
+  used. A new test asserts no index view nests a form at all.
+
 - **The Errors page said "1 issues".** The only hardcoded plural left in the app;
   every other count already went through `pluralize`.
 - **A capped occurrence count now reads as a floor.** Past the scan limit the count

@@ -32,8 +32,17 @@
   <% end %>
 </div>
 
-<%= form_with url: bulk_dead_path, method: :post, id: "rh-bulk-dead", data: { turbo: false } do %>
-  <%= trace_legend(@jobs) %>
+<%# The form is EMPTY and sits beside the table, not around it. Wrapping the table
+    nested every row's button_to form inside this one, which is invalid HTML: the
+    parser closes the outer form at the first </form>, so the bulk form swallowed
+    the first row's authenticity_token. Two tokens in one submission and Rails
+    takes the last — a per-form token scoped to a row action, not to /dead/bulk —
+    so every bulk action failed with InvalidAuthenticityToken while carrying a
+    token that looked perfectly valid. The checkboxes join it by id instead, the
+    same HTML form= association the toolbar buttons above already use. %>
+<%= form_with url: bulk_dead_path, method: :post, id: "rh-bulk-dead", data: { turbo: false } do %><% end %>
+
+<%= trace_legend(@jobs) %>
   <table class="rh-table">
     <thead><tr><th style="width:28px"><input type="checkbox" id="rh-all" aria-label="select all"></th><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th class="r">Died</th><th class="r">Actions</th></tr></thead>
     <tbody>
@@ -42,7 +51,7 @@
       <% else %>
         <% @jobs.each do |job| %>
           <tr>
-            <td><input type="checkbox" name="jids[]" value="<%= job.jid %>" class="rh-check" aria-label="select <%= job.jid %>"></td>
+            <td><input type="checkbox" form="rh-bulk-dead" name="jids[]" value="<%= job.jid %>" class="rh-check" aria-label="select <%= job.jid %>"></td>
             <td><%= job_identity(job_display_class(job), job.jid, job_path(set: "dead", jid: job.jid)) %></td>
             <% if tag_column? %><td><%= tag_cell(tags_for(job)) %></td><% end %>
             <td><%= queue_pill(job.queue, link: true) %></td>
@@ -62,7 +71,6 @@
       <% end %>
     </tbody>
   </table>
-<% end %>
 <%= render "roundhouse_ui/shared/pager" %>
 
 <%# The select-all handler lives in the layout head, delegated from document, so
