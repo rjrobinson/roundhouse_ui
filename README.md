@@ -51,7 +51,46 @@ RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
 The same UI drives **Sidekiq** or **Solid Queue** — see [Backends](#backends);
 running both at once is [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17).
 
+Roundhouse ships no authentication, so mount it behind yours. `read_only`
+disables every mutating action, `redact_args` masks sensitive arguments, and
+`job_class_namespaces` limits which classes the UI will touch —
+see [Security](#security).
+
 > Gem name is `roundhouse_ui`; the brand and mount path are **Roundhouse**.
+
+## Contents
+
+**Setting up** ·
+[Requirements](#requirements) ·
+[Installation](#installation) ·
+[Backends](#backends) ·
+[Mounting](#mounting) ·
+[Configuration](#configuration) ·
+[Security](#security)
+
+**Operating** ·
+[Pausing queues](#pausing-queues) ·
+[Snapshots](#snapshots) ·
+[Cancelling jobs](#cancelling-jobs) ·
+[Bulk actions on a filter](#bulk-actions-on-a-filter) ·
+[Slowest job classes](#slowest-job-classes)
+
+**Labelling and links** ·
+[Job tags](#job-tags) ·
+[Runbooks](#runbooks) ·
+[Observability deep-links](#observability-deep-links) ·
+[Surfacing sidekiq-failures](#surfacing-sidekiq-failures)
+
+**Appearance** ·
+[Theming](#theming) ·
+[Settings](#settings) ·
+[Keyboard](#keyboard)
+
+**Project** ·
+[Development](#development) ·
+[Roadmap](#roadmap) ·
+[Contributing](#contributing) ·
+[License](#license)
 
 ## Requirements
 
@@ -349,14 +388,14 @@ RoundhouseUi.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
 RoundhouseUi.job_runbooks = ->(klass:, item:) { "https://wiki/jobs/#{klass}" }
 ```
 
-A **Runbook** link then appears on the job page and on each grouped error row —
-the two places someone lands during an incident. Resolved at read time like
-tags, so it applies to jobs already in the sets, with no middleware and nothing
-stored. Inherited constants count, so one base class can carry a runbook for a
+A **Runbook** link appears on the job page and on each grouped error row — the
+two places someone lands during an incident. Resolution happens at read time
+like tags, so it covers jobs already in the sets, with no middleware and nothing
+stored. Inherited constants count, so one base class carries a runbook for a
 whole family, and ActiveJob-wrapped jobs resolve by their real class.
 
-> Only `http`/`https` URLs render. The value lands in an `href`, where no amount
-> of escaping makes `javascript:` safe, so the scheme is checked instead — a
+> Only `http`/`https` URLs render. The value lands in an `href`, where no
+> escaping makes `javascript:` safe, so the scheme is checked instead — a
 > misconfigured host gets no link rather than a link that runs. Links open in a
 > new tab with `rel="noopener noreferrer"`.
 
@@ -504,20 +543,18 @@ queues use a file or S3 store so the backup doesn't sit in the Redis you're tryi
 
 **Constant resolution from job payloads.** `Tags.from_constant` and
 `Runbooks.from_constant` read a constant off the job class, which means turning
-`item["class"]` — a string out of Redis — into a Class. Worth knowing precisely
-what that does and does not expose:
+`item["class"]` — a string out of Redis — into a Class:
 
 - Malformed names never reach a lookup. Ruby rejects `"../../etc/passwd"` as a
   constant path before attempting to resolve anything, so no autoload occurs.
 - A **well-formed name of a class that really exists** does resolve, and
-  resolving a class loads it. In production this is close to inert: Rails sets
-  `eager_load = true`, so every app constant is already loaded and no new file
-  is executed.
+  resolving a class loads it. Production Rails sets `eager_load = true`, so every
+  app constant is already loaded and no new file is executed.
 - Writing a crafted payload requires Redis write access — which, on a Sidekiq
   install, already permits enqueuing a real job, a more serious compromise than
   this.
 
-Two ways to tighten it if your payloads are not fully trusted:
+Two ways to tighten it if your payloads aren't fully trusted:
 
 ```ruby
 # Bound which constants may be resolved at all
@@ -532,7 +569,9 @@ c.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
 - All destructive actions are CSRF-protected `POST`s — never GET — and gated by `read_only`.
 - Roundhouse sets its own strict, self-contained Content-Security-Policy on its responses
   (nonce'd inline script, same-origin only), so it's safe even if the host sets no policy.
-- Configure `redact_args` to keep tokens/PII out of the UI; the audit log records who did what.
+- Configure `redact_args` to keep tokens and PII out of the UI, and set `actor_resolver` so
+  the audit log records who did what. Redaction is key-based, so a secret nested under an
+  unlisted key is not redacted — audit what your payloads actually carry.
 
 ## Keyboard
 
