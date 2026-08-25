@@ -43,7 +43,10 @@ module RoundhouseUi
       warn:      '<path d="M12 4.2 2.8 20h18.4L12 4.2Z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
       stalled:   '<circle cx="12" cy="12" r="8.4"/><path d="M8.5 12h7"/>',
       search:    '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4 21 21"/>',
-      runbook:   '<path d="M5 4h9l5 5v11H5Z"/><path d="M14 4v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>'
+      runbook:   '<path d="M5 4h9l5 5v11H5Z"/><path d="M14 4v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>',
+      # Default trace glyph: an external-link arrow. Roundhouse ships no vendor
+      # logo — see Observability adapters, which may supply their own mark.
+      trace_out: '<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>'
     }.freeze
 
     # For hosts that already load FontAwesome Free. Names chosen from the free
@@ -60,7 +63,8 @@ module RoundhouseUi
       theme:     "fa-solid fa-moon",           pause:     "fa-solid fa-pause",
       delete:    "fa-solid fa-trash-can",      ok:        "fa-solid fa-check",
       warn:      "fa-solid fa-triangle-exclamation", stalled: "fa-solid fa-minus",
-      search:    "fa-solid fa-magnifying-glass", runbook: "fa-regular fa-file-lines"
+      search:    "fa-solid fa-magnifying-glass", runbook: "fa-regular fa-file-lines",
+      trace_out: "fa-solid fa-arrow-up-right-from-square"
     }.freeze
 
     module_function

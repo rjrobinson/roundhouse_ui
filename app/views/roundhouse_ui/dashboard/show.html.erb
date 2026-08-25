@@ -2,44 +2,55 @@
 <% content_for :crumb, Rails.env %>
 
 <% verdict = { ok: "Healthy", warn: "Degraded", crit: "Critical" }[@health.status] %>
-<details class="rh-health rh-health-<%= @health.status %>"<%= " open".html_safe unless @health.healthy? %>>
-  <summary>
-    <span class="rh-health-dot"></span>
+<%# Verdict, then one tile per check. Failing checks lead — same worst-first
+    rule the Queues page uses, because the order is information. No disclosure:
+    three rows do not need collapsing, and hiding the signals hides the answer. %>
+<% ranked = @health.ranked_signals %>
+<% failing = @health.failing_count %>
+<section class="rh-health is-<%= @health.status %>" aria-label="System health">
+  <div class="rh-health-top">
     <span class="rh-health-verdict"><%= verdict %></span>
     <span class="rh-health-reason"><%= @health.reason %></span>
-    <span class="rh-health-cta">why ▾</span>
-  </summary>
-  <div class="rh-health-signals">
-    <% @health.signals.each do |s| %>
-      <div class="rh-sig">
-        <span class="rh-st rh-st-<%= s.status %>"><%= s.status %></span>
-        <b><%= s.label %></b>
-        <span class="rh-sub"><%= s.detail %></span>
-      </div>
-    <% end %>
+    <span class="rh-health-meta">
+      <%= pluralize(ranked.size, "check") %><%= " · #{failing} failing" if failing.positive? %>
+    </span>
   </div>
-</details>
+  <% if ranked.any? %>
+    <div class="rh-health-signals">
+      <% ranked.each do |s| %>
+        <div class="rh-sig" data-rh-sev="<%= s.status %>">
+          <span class="rh-sig-name"><%= icon(s.status == :ok ? :ok : :warn) %><%= s.label %></span>
+          <span class="rh-sig-detail"><%= s.detail %></span>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</section>
 
 <div class="rh-cards">
   <div class="rh-card">
     <div class="k">Processed</div>
     <div class="v num" data-stat="processed"><%= number_with_delimiter @stats.processed %></div>
     <div class="d"><span class="num" data-stat="rate">—</span> / min · <%= ((1 - @metrics.failure_ratio) * 100).round(1) %>% ok</div>
+    <canvas data-rh-card="processed" width="300" height="52" aria-hidden="true"></canvas>
   </div>
   <div class="rh-card">
     <div class="k">Failed · total</div>
     <div class="v num" data-stat="failed"><%= number_with_delimiter @stats.failed %></div>
     <div class="d bad"><span class="num" data-stat="dead"><%= number_with_delimiter @stats.dead_size %></span> dead · <%= (@metrics.failure_ratio * 100).round(1) %>% rate</div>
+    <canvas data-rh-card="failed" width="300" height="52" aria-hidden="true"></canvas>
   </div>
   <div class="rh-card">
     <div class="k">Busy threads</div>
     <div class="v num" data-stat="busy"><%= @stats.workers_size %></div>
     <div class="d"><%= @metrics.utilization ? "#{(@metrics.utilization * 100).round}% of #{@metrics.concurrency} busy" : "no workers reporting" %></div>
+    <canvas data-rh-card="busy" width="300" height="52" aria-hidden="true"></canvas>
   </div>
   <div class="rh-card">
     <div class="k">Backlog</div>
     <div class="v num"><%= number_with_delimiter @metrics.backlog %></div>
     <div class="d">enqueued <span class="num" data-stat="enqueued"><%= number_with_delimiter @stats.enqueued %></span> · scheduled <span class="num" data-stat="scheduled"><%= number_with_delimiter @stats.scheduled_size %></span></div>
+    <canvas data-rh-card="backlog" width="300" height="52" aria-hidden="true"></canvas>
   </div>
 </div>
 

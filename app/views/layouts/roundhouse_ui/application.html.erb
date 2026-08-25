@@ -78,7 +78,10 @@
     .rh-sub { color:var(--faint); font-size:12px; }
     .rh-err { color:var(--crit); font-family:var(--mono); font-size:12px; }
     .rh-empty { color:var(--faint); text-align:center; padding:30px 16px; }
-    .rh-trace { color:var(--accent); text-decoration:none; font-size:11px; }
+    .rh-trace { color:var(--accent); text-decoration:none; font-size:11.5px;
+                 display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }
+    .rh-trace .rh-ico { width:14px; height:14px; flex:0 0 14px; }
+    .rh-trace:hover { text-decoration:underline; }
     .rh-trace:hover { text-decoration:underline; }
 
     .rh-st { display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; }
@@ -149,17 +152,108 @@
       .rh-btn:active, .rh-iconbtn:active { transform:none; }
     }
 
+    /* Retry attempt as a ladder. A count tells you a number; a ladder tells you
+       how close this job is to giving up, without reading. */
+    .rh-ladder { display:inline-flex; gap:2px; vertical-align:middle; }
+    .rh-ladder i { width:4px; height:10px; border-radius:1px; background:var(--panel-3); }
+    .rh-ladder i.is-on { background:var(--warn); }
+    .rh-ladder i.is-hot { background:var(--crit); }
+    .rh-ladder-n { margin-left:6px; font-variant-numeric:tabular-nums; }
+
+    /* Next-attempt ring. The label is fixed-width so every ring lands on the
+       same x — right-aligning the pair leaves them ragged, because "in 6h" and
+       "in 40s" are different widths. */
+    .rh-next { display:inline-flex; align-items:center; gap:6px; }
+    .rh-next .rh-sub { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .rh-ring { width:15px; height:15px; border-radius:50%; flex:0 0 15px;
+               background:conic-gradient(var(--accent) var(--rh-turn,0turn), var(--panel-2) 0); }
+
+    /* A ranked table wants lengths, not a column of figures: the point of
+       "slowest classes" is proportion, and proportion is a length. */
+    .rh-dbar { display:flex; align-items:center; gap:8px; }
+    .rh-dbar .t { flex:1; min-width:70px; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden; }
+    .rh-dbar .t i { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+    .rh-dbar .n { min-width:3.6rem; text-align:right; font-family:var(--mono); font-size:11.5px;
+                  font-variant-numeric:tabular-nums; }
+
+    /* A count is also a magnitude. 340 and 2 should not look the same. */
+    .rh-count { position:relative; height:16px; min-width:52px; border-radius:3px;
+                background:var(--panel-2); overflow:hidden; display:inline-block; width:100%; }
+    .rh-count i { position:absolute; inset:0 auto 0 0; background:var(--accent); opacity:.34; }
+    .rh-count[data-rh-sev="crit"] i { background:var(--crit); opacity:.42; }
+    .rh-count[data-rh-sev="warn"] i { background:var(--warn); opacity:.38; }
+    .rh-count span { position:relative; display:block; text-align:right; padding:0 5px;
+                     font:500 11px var(--mono); line-height:16px; font-variant-numeric:tabular-nums; }
+
+    /* Elapsed against what is typical for that class. "4m 12s" means nothing on
+       its own — fine for a nightly rollup, a hang for a webhook. */
+    .rh-elapsed { display:flex; align-items:center; gap:7px; }
+    .rh-elapsed .t { flex:1; min-width:56px; height:4px; border-radius:2px; background:var(--panel-2); overflow:hidden; }
+    .rh-elapsed .t i { display:block; height:100%; background:var(--good); transition:width .6s linear; }
+    .rh-elapsed .t[data-rh-sev="warn"] i { background:var(--warn); }
+    .rh-elapsed .t[data-rh-sev="crit"] i { background:var(--crit); }
+    .rh-elapsed .n { min-width:3.4rem; text-align:right; }
+
+    /* Health verdict. The one thing someone opening this page needs in the first
+       second, so it gets the full width and a rank rather than a middle column
+       and a disclosure. */
+    /* One vertical, down the whole component. The rail used to stop at the top
+       row while each tile drew its own narrower stripe at the same x, so the
+       left edge stepped from 4px to 2px — two red lines competing to mean the
+       same thing. */
+    .rh-health { background:var(--panel); border:1px solid var(--line-soft);
+                 border-left:4px solid var(--faint); border-radius:12px;
+                 overflow:hidden; margin-bottom:18px; }
+    .rh-health.is-ok   { border-left-color:var(--good); }
+    .rh-health.is-warn { border-left-color:var(--warn); }
+    .rh-health.is-crit { border-left-color:var(--crit); }
+    .rh-health-top { display:flex; align-items:center; gap:14px; padding:13px 16px; }
+    .rh-health-verdict { font-weight:700; font-size:15px; letter-spacing:-.01em; }
+    .rh-health.is-ok   .rh-health-verdict { color:var(--good); }
+    .rh-health.is-warn .rh-health-verdict { color:var(--warn); }
+    .rh-health.is-crit .rh-health-verdict { color:var(--crit); }
+    .rh-health-reason { font-size:13.5px; color:var(--text); }
+    .rh-health-meta { margin-left:auto; font:500 11px var(--mono); color:var(--faint); white-space:nowrap; }
+
+    /* One tile per check, filling the width. Label above value, so pairing them
+       is a glance rather than a scan across a gap. */
+    .rh-health-signals { display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));
+                         gap:1px; background:var(--line-soft); border-top:1px solid var(--line-soft); }
+    /* Per-tile severity is carried by the icon and a wash, not a second stripe.
+       Both washes are present so warn is distinguishable from ok, which a stripe
+       was doing before. */
+    .rh-sig { background:var(--panel); padding:10px 14px; display:flex; flex-direction:column; gap:3px;
+              min-width:0; }
+    .rh-sig[data-rh-sev="warn"] { background:color-mix(in srgb, var(--warn) 6%, var(--panel)); }
+    .rh-sig[data-rh-sev="crit"] { background:color-mix(in srgb, var(--crit) 6%, var(--panel)); }
+    .rh-sig-name { display:flex; align-items:center; gap:7px; font:600 12px var(--sans); color:var(--text); }
+    .rh-sig-name .rh-ico { width:13px; height:13px; flex:0 0 13px; }
+    .rh-sig[data-rh-sev="ok"]   .rh-sig-name .rh-ico { color:var(--good); }
+    .rh-sig[data-rh-sev="warn"] .rh-sig-name .rh-ico { color:var(--warn); }
+    .rh-sig[data-rh-sev="crit"] .rh-sig-name .rh-ico { color:var(--crit); }
+    .rh-sig-detail { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+    .rh-sig[data-rh-sev="crit"] .rh-sig-detail { color:var(--text); }
+
+    /* Trend on a stat card: "8,420,118" becomes "8.4M and climbing" without a
+       second number to read. */
+    .rh-card canvas { display:block; width:100%; height:26px; margin-top:6px; }
+
     /* Per-queue trend. A table of numbers tells you values; a column of shapes
        tells you what the system is doing. Fed from the depths the poll already
        reads, held in the browser for the session — no storage, no retention. */
     .rh-trend, .rh-trend-h { width:100px; }
     .rh-trend canvas { display:block; width:88px; height:22px; }
-    .rh-trend-empty { display:inline-block; width:88px; height:11px; border-radius:3px;
-                      background:linear-gradient(90deg,var(--panel-2) 25%,var(--panel-3) 50%,var(--panel-2) 75%);
-                      background-size:200% 100%; animation:rh-shimmer 1.3s linear infinite; }
+    .rh-trend-empty { display:inline-block; width:88px; height:22px; border-radius:3px;
+                      background:linear-gradient(90deg,var(--panel-2) 30%,var(--panel-3) 50%,var(--panel-2) 70%);
+                      background-size:220% 100%; animation:rh-shimmer 2.6s linear infinite; }
+    /* Setting `display` on these beats the user-agent's `[hidden] { display:none }`,
+       so without this the placeholder and the drawn sparkline both render, stacked.
+       An attribute selector outranks the bare class, so no !important is needed. */
+    .rh-trend canvas[hidden], .rh-trend-empty[hidden] { display:none; }
     /* A placeholder that moves reads as "working"; the word "measuring" reads as
-       "broken". Same for the forecast cell before it has two samples. */
-    @keyframes rh-shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+       "broken". Slow, because this sits in a column of eight and anything quick
+       enough to notice individually is exhausting in aggregate. */
+    @keyframes rh-shimmer { from { background-position:220% 0; } to { background-position:-220% 0; } }
 
     /* Severity as form, not only colour: you find the bad row before reading it.
        Also the one cue that survives a red-green colour deficiency. */
@@ -242,28 +336,6 @@
     .rh-chart-wrap .now { margin-left:auto; font-family:var(--mono); font-size:13px; color:var(--accent); }
     canvas#rh-chart { display:block; width:100%; height:90px; }
     .rh-cb { width:15px; height:15px; }
-
-    /* composite health banner */
-    .rh-health { background:var(--panel); border:1px solid var(--line-soft); border-left:3px solid var(--faint); border-radius:12px; margin-bottom:18px; }
-    .rh-health-ok { border-left-color:var(--good); }
-    .rh-health-warn { border-left-color:var(--warn); }
-    .rh-health-crit { border-left-color:var(--crit); }
-    .rh-health summary { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; list-style:none; }
-    .rh-health summary::-webkit-details-marker { display:none; }
-    .rh-health-dot { width:9px; height:9px; border-radius:50%; flex:none; background:var(--faint); }
-    .rh-health-ok .rh-health-dot { background:var(--good); }
-    .rh-health-warn .rh-health-dot { background:var(--warn); }
-    .rh-health-crit .rh-health-dot { background:var(--crit); }
-    .rh-health-verdict { font-weight:650; font-size:15px; }
-    .rh-health-ok .rh-health-verdict { color:var(--good); }
-    .rh-health-warn .rh-health-verdict { color:var(--warn); }
-    .rh-health-crit .rh-health-verdict { color:var(--crit); }
-    .rh-health-reason { color:var(--muted); font-size:13px; }
-    .rh-health-cta { margin-left:auto; font:11.5px var(--sans); color:var(--faint); }
-    .rh-health[open] .rh-health-cta { color:var(--accent); }
-    .rh-health-signals { padding:2px 16px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line-soft); margin-top:2px; padding-top:12px; }
-    .rh-sig { display:flex; align-items:center; gap:10px; font-size:13px; }
-    .rh-sig b { min-width:170px; font-weight:600; }
 
     /* insight panels */
     .rh-insights { display:grid; gap:14px; margin-bottom:24px; }
@@ -495,6 +567,7 @@
             setConn(true);
             restartTick();
             apply(d);
+            paintCards(d);
             // Feeds the ⌘K palette. Derived from the depth keys rather than sent
             // twice — see the stats endpoint.
             if (d.queue_depths) QUEUE_NAMES = Object.keys(d.queue_depths).sort();
@@ -691,6 +764,11 @@
       // is the retention question in #34, not this.
       var SPARK_SAMPLES = 40;
       var depthHistory = {};
+      // Stat-card trends. Same idea as the queue trends and the same window:
+      // the poll already returns these numbers, so a card can show direction
+      // rather than only a value.
+      var CARD_SERIES = { processed: "processed", failed: "failed", busy: "busy", backlog: null };
+      var cardHistory = {};
       var SEV_COLOUR = { crit: "--crit", warn: "--warn", ok: "--good" };
 
       function token(name) {
@@ -714,7 +792,11 @@
         if (hist.length < 2) return;
 
         var lo = Math.min.apply(null, hist), hi = Math.max.apply(null, hist);
-        var span = (hi - lo) || 1;
+        // A queue that has not moved has span 0, and (v - lo) / 1 puts every
+        // point on the floor — a flat line at the bottom looks like an axis, or
+        // like zero. Pad the range so an unchanging series sits mid-height.
+        var span = hi - lo;
+        if (span <= 0) { lo -= 1; span = 2; }
         var x = function (i) { return pad + i / (hist.length - 1) * (w - pad * 2); };
         var y = function (v) { return h - pad - (v - lo) / span * (h - pad * 2); };
 
@@ -735,6 +817,27 @@
         ctx.beginPath();
         ctx.arc(x(hist.length - 1), y(hist[hist.length - 1]), 2.6, 0, Math.PI * 2);
         ctx.fillStyle = colour; ctx.fill();
+      }
+
+      // Backlog is derived rather than sent, so it is computed here to keep the
+      // card and the number above it from disagreeing.
+      function cardValue(key, d) {
+        if (key === "backlog") return d.enqueued + d.scheduled + d.retries;
+        return d[CARD_SERIES[key]];
+      }
+
+      var CARD_COLOUR = { processed: "--accent", failed: "--crit", busy: "--good", backlog: "--warn" };
+
+      function paintCards(d) {
+        document.querySelectorAll("[data-rh-card]").forEach(function (cv) {
+          var key = cv.getAttribute("data-rh-card");
+          var v = cardValue(key, d);
+          if (v == null) return;
+          var hist = cardHistory[key] || (cardHistory[key] = []);
+          hist.push(v);
+          if (hist.length > SPARK_SAMPLES) hist.shift();
+          if (hist.length >= 2) drawSpark(cv, hist, token(CARD_COLOUR[key] || "--accent"));
+        });
       }
 
       // Surface a failed poll instead of letting the numbers silently go stale.

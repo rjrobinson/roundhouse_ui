@@ -31,15 +31,26 @@
         <%= @query.present? || @tag ? "No issues match the current filter." : "No failing jobs 🎉" %>
       </td></tr>
     <% else %>
+      <%# Occurrences carry magnitude as well as a figure: 340 and 2 should not
+          look the same when you are scanning for the one that matters. Severity
+          is by share of the total, since "a lot" is relative to the page. %>
+      <% worst = @groups.map { |x| x[:count].to_i }.max || 0 %>
       <% @groups.each do |g| %>
-        <tr>
+        <% share = worst.positive? ? g[:count].to_f / worst : 0 %>
+        <tr data-rh-sev="<%= share >= 0.5 ? "crit" : share >= 0.15 ? "warn" : "ok" %>">
           <td><%= g[:klass] %> <%= error_trace_icon(klass: g[:klass], error: g[:error]) %>
             <%# The grouped rows are where someone lands during an incident, so the
                 runbook belongs here as much as on the individual job. %>
             <%= runbook_link(g[:klass], label: "runbook") %>
             <br><span class="rh-err"><%= g[:error] %></span></td>
           <% if tag_column? %><td><%= tag_cell(@group_tags[g[:klass]]) %></td><% end %>
-          <td class="r"><%= number_with_delimiter g[:count] %></td>
+          <td class="r">
+            <span class="rh-count" data-rh-sev="<%= share >= 0.5 ? "crit" : share >= 0.15 ? "warn" : "ok" %>"
+                  title="<%= number_with_delimiter g[:count] %> of <%= number_with_delimiter worst %> in the worst group">
+              <i style="width:<%= (share * 100).round(1) %>%"></i>
+              <span><%= number_with_delimiter g[:count] %></span>
+            </span>
+          </td>
           <td><span class="rh-sub"><%= g[:sources].join(", ") %></span></td>
           <td><%= safe_join(g[:queues].map { |q| queue_pill(q) }, " ") %></td>
           <td class="r"><%= job_time(g[:last_at], overdue: "#{time_ago_in_words(g[:last_at])} ago" ) if g[:last_at] %><%= content_tag(:span, "—", class: "rh-sub") unless g[:last_at] %></td>

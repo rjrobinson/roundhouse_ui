@@ -69,6 +69,46 @@ module RoundhouseUi
     def duration(seconds) = RoundhouseUi.duration(seconds)
     def duration_ms(ms) = RoundhouseUi.duration_ms(ms)
 
+    # Retry attempt as a ladder rather than a number. "retry 21" and "retry 3"
+    # are the same shape of text; twenty-one filled rungs going red is not. The
+    # count stays beside it, because a ladder answers "how bad" and not "how many".
+    def attempt_ladder(count, max = 25)
+      filled = count.to_i.clamp(0, max)
+      rungs = Array.new(max) do |i|
+        state = if i >= filled then nil
+        elsif filled > (max * 0.6) then "is-hot"
+        else "is-on"
+        end
+        content_tag(:i, "", class: state)
+      end
+      safe_join([
+        content_tag(:span, safe_join(rungs), class: "rh-ladder",
+                    title: "attempt #{filled} of #{max}", aria: { hidden: true }),
+        content_tag(:span, "#{filled}/#{max}", class: "rh-sub rh-ladder-n")
+      ])
+    end
+
+    # How far through the wait a scheduled or retrying job is, as a ring. A job
+    # about to fire should not look like one parked for six hours.
+    #
+    # `since` is when the wait started; without it the ring cannot know the
+    # fraction and renders empty rather than guessing.
+    def countdown(at, since: nil, label: nil)
+      return content_tag(:span, "—", class: "rh-sub") if at.nil?
+
+      remaining = at.to_f - Time.now.to_f
+      turn = if since && (total = at.to_f - since.to_f) > 0
+        (1.0 - (remaining / total)).clamp(0.0, 1.0)
+      else
+        remaining <= 0 ? 1.0 : 0.0
+      end
+      safe_join([
+        content_tag(:span, "", class: "rh-ring", style: "--rh-turn:#{turn.round(3)}turn",
+                    aria: { hidden: true }),
+        content_tag(:span, label || job_time(at, overdue: "now"), class: "rh-sub")
+      ])
+    end
+
     # An icon by name. Inline SVG by default; a class name when the host has its
     # own icon font. Only our own SVG constants are marked html_safe — a
     # host-supplied class name goes through content_tag and is escaped.
