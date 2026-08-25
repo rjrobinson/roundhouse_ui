@@ -82,7 +82,6 @@
                  display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }
     .rh-trace .rh-ico { width:14px; height:14px; flex:0 0 14px; }
     .rh-trace:hover { text-decoration:underline; }
-    .rh-trace:hover { text-decoration:underline; }
 
     .rh-st { display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; }
     .rh-st-ok { background:rgba(68,197,140,.14); color:var(--good); }
@@ -107,11 +106,55 @@
                       font-weight:600; margin-right:3px; max-width:34ch; overflow:hidden; text-overflow:ellipsis;
                       white-space:nowrap; }
     .rh-actiongroup form { display:inline; margin:0; }
-    /* Icon-only observability link for table rows. Sized like a button so it
-       sits on the Actions baseline without stretching the row. */
-    .rh-trace-ico { display:inline-block; width:24px; text-align:center; padding:5px 0; border-radius:7px;
-                    border:1px solid transparent; text-decoration:none; }
-    .rh-trace-ico:hover { border-color:var(--accent); background:var(--panel-2); }
+    /* A vendor's own mark, where the adapter supplies one. No border and no
+       background: a logo encased in a box breaks most brand guidelines,
+       Datadog's included, so this affordance is deliberately the one control in
+       an Actions column without a border. Opacity carries the hover instead.
+       Height is set here and width follows the artwork's own aspect ratio, so
+       nothing is ever stretched. */
+    /* The row affordance in a dense list. It carries .rh-btn (or .rh-runbook when
+       inline in a text cell), so the box, border, radius, padding and font come
+       from the control it sits beside and cannot drift from it. Everything here
+       is icon centring and the horizontal trim an icon needs that a word does
+       not. Never holds a vendor mark: boxing a logo is against most brand
+       guidelines, Datadog's included. */
+    .rh-trace-btn { display:inline-block; padding-left:9px; padding-right:9px; color:var(--accent);
+                    line-height:18px; }
+    .rh-trace-btn:hover { border-color:var(--accent); text-decoration:none; }
+    .rh-trace-btn .rh-ico { width:14px; height:14px; display:inline-block; vertical-align:middle; }
+    .rh-trace-btn.is-compact { padding-left:6px; padding-right:6px; line-height:15px; }
+    .rh-trace-btn.is-compact .rh-ico { width:12px; height:12px; }
+    /* Said once above a table instead of on every row. */
+    .rh-trace-legend { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--faint);
+                       margin:0 0 9px 1px; }
+    .rh-trace-mark { text-decoration:none; opacity:.9; transition:opacity .12s ease; }
+    .rh-trace-mark:hover { opacity:1; text-decoration:none; }
+    /* Scoped to the mark itself, not to a parent affordance class. These rules
+       once hung off .rh-trace-mark, so the legend — which renders the same mark
+       inside .rh-trace-legend — matched none of them and drew both variants at
+       full size. A vendor mark has to size and resolve wherever it is placed. */
+    .rh-mark-dd { height:13px; width:auto; }
+    .rh-trace-legend .rh-mark-dd { height:14px; }
+    /* Datadog's white lockup is different artwork, not the purple one recoloured
+       — different viewBox, different fill-rule mix — so both ship and CSS picks
+       one. Recolouring the purple paths white renders Bits as a solid tile with
+       the dog knocked out of him.
+
+       Light is the default: a viewer on the system setting has stamped no theme
+       at all, so there is nothing to branch on server-side. Dark is written
+       twice — once for prefers-color-scheme, once for the explicit stamp — so the
+       toggle wins in both directions. Every display rule is a bare class so a
+       container rule can change the size without silently unhiding a variant. */
+    .rh-mark-on-light { display:block; }
+    .rh-mark-on-dark { display:none; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .rh-mark-on-light { display:none; }
+      :root:not([data-theme="light"]) .rh-mark-on-dark { display:block; }
+    }
+    :root[data-theme="dark"] .rh-mark-on-light { display:none; }
+    :root[data-theme="dark"] .rh-mark-on-dark { display:block; }
+    :root[data-theme="light"] .rh-mark-on-light { display:block; }
+    :root[data-theme="light"] .rh-mark-on-dark { display:none; }
     .rh-pill-link { text-decoration:none; border:1px solid transparent; }
     .rh-pill-link:hover { border-color:var(--accent); color:var(--text); }
     .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }

@@ -32,6 +32,37 @@ module RoundhouseUi
 
       def label = "Datadog"
 
+      # Datadog's official horizontal lockup, from datadoghq.com/about/resources
+      # (Logo_Assets.zip). Their mark, their trademark, shipped unmodified in
+      # geometry and aspect ratio.
+      #
+      # Both variants ship, because Datadog's white lockup is different artwork
+      # rather than the purple one recoloured: a different viewBox (196.2 tall
+      # against 203.19) and a different fill-rule mix. Forcing white onto the
+      # purple paths renders Bits as a solid tile with the dog knocked out of
+      # him. The only edit is moving their <style> block's declarations onto the
+      # elements that carried each class — per element, since the white asset
+      # mixes nonzero and evenodd — because an inline <style> inside the SVG
+      # would need a CSP nonce an adapter cannot see.
+      #
+      # The lockup rather than the icon-only mark, because Bits is drawn for
+      # large use: at the 12-16px a table row allows he renders as a smudge,
+      # while the wordmark stays legible to about 11px.
+      MARKS_DIR = File.expand_path("marks", __dir__)
+      MARK_ON_LIGHT = File.read(File.join(MARKS_DIR, "datadog-lockup.svg")).freeze
+      MARK_ON_DARK  = File.read(File.join(MARKS_DIR, "datadog-lockup-white.svg")).freeze
+
+      # Both go in the markup and CSS picks one, rather than the UI guessing the
+      # ground it will be painted on. A viewer on the system default has stamped
+      # no theme at all, so there is nothing server-side to branch on.
+      def icon = MARK_ON_LIGHT + MARK_ON_DARK
+
+      # The mark already spells "Datadog", so the UI must not print the word
+      # again beside it. Datadog's usage rules also forbid encasing the logo in
+      # a box, which is why this affordance stays borderless where its sibling
+      # controls do not.
+      def wordmark? = true
+
       # Tag names come from dd-trace-rb's Sidekiq integration: sidekiq.job.id and
       # sidekiq.job.queue (Datadog::Tracing::Contrib::Sidekiq::Ext). There is no
       # `sidekiq.jid` or `sidekiq.queue` facet — querying those matches nothing.
