@@ -43,23 +43,20 @@ module RoundhouseUi
     # active, so it can't become "retry the entire dead set" by accident.
     def bulk_all
       @queue_filter = queue_filter
-      count, capped = bulk_apply(backend.dead_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
+      found = bulk_apply(backend.dead_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
-      note = "#{verb} #{count} matching job(s)."
-      note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if capped
+      note = "#{verb} #{found.entries.size} matching job(s)."
+      note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if found.capped
       redirect_to dead_set_path, notice: note
     end
 
-    # Dry run (#37). Bulk actions operate on a filter rather than a page, which is
-    # what makes them useful and what makes them dangerous — the count in the
-    # toolbar tells you how many, never which. This shows the actual set before
-    # anything is touched.
+    # A dry run: the count tells you how many match, this tells you which (#37).
     def preview
       @queue_filter = queue_filter
       @op = params[:op] == "delete" ? "delete" : "retry"
       @query = params[:q].to_s.strip
       @tag = tag_filter
-      @matches, @capped = bulk_matches(backend.dead_set, @query, JobSetBrowsing::BULK_CAP, tag: @tag)
+      @matched = bulk_matches(backend.dead_set, @query, JobSetBrowsing::BULK_CAP, tag: @tag)
       @confirm_path = bulk_all_dead_path
       @back_path = dead_set_path
       @set = "dead"

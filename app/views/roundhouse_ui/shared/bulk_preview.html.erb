@@ -1,30 +1,28 @@
 <% content_for :title, "Confirm bulk #{@op}" %>
 
-<%# The whole point of this page is that the count in a toolbar tells you how
-    many jobs match, never which ones. Nothing has been touched yet. %>
 <h2 class="rh-h2">
   <%= @op == "delete" ? "Delete" : "Retry" %>
-  <%= number_with_delimiter @matches.size %>
-  <%= @noun.pluralize(@matches.size) %>?
+  <%= number_with_delimiter @matched.entries.size %>
+  <%= @noun.pluralize(@matched.entries.size) %>?
   <span class="hint"><%= filter_description(@query, @tag) %></span>
 </h2>
 
-<% if @matches.empty? %>
+<% if @matched.entries.empty? %>
   <div class="rh-panel">
     <p class="rh-empty">Nothing matches <%= filter_description(@query, @tag) %>. Nothing to do.</p>
   </div>
   <p><%= link_to "← Back", @back_path, class: "rh-btn" %></p>
 <% else %>
-  <% if @capped %>
+  <% if @matched.capped %>
     <div class="rh-warn">
       Stopped at the <%= RoundhouseUi::JobSetBrowsing::BULK_CAP %>-job cap. More jobs match than
-      are listed here — this action will touch the <%= number_with_delimiter @matches.size %>
+      are listed here — this action will touch the <%= number_with_delimiter @matched.entries.size %>
       below, and you can run it again for the rest.
     </div>
   <% end %>
 
   <div class="rh-toolbar">
-    <%= button_to "#{@op == "delete" ? "✕ Delete" : "↻ Retry"} #{number_with_delimiter @matches.size} #{@noun.pluralize(@matches.size)}",
+    <%= button_to "#{@op == "delete" ? "✕ Delete" : "↻ Retry"} #{number_with_delimiter @matched.entries.size} #{@noun.pluralize(@matched.entries.size)}",
           @confirm_path,
           method: :post,
           params: { op: @op, q: @query, tag: params[:tag], queue: params[:queue] },
@@ -44,9 +42,8 @@
       </tr>
     </thead>
     <tbody>
-      <%# Capped at what a person can actually scan. The count above is the real
-          number this will touch. %>
-      <% @matches.first(100).each do |entry| %>
+      <%# Only the first 100 are listed; the count above is what will be touched. %>
+      <% @matched.entries.first(100).each do |entry| %>
         <tr>
           <td><%= job_identity(job_display_class(entry), entry.jid, job_path(set: @set, jid: entry.jid)) %></td>
           <% if tag_column? %><td><%= tag_cell(tags_for(entry)) %></td><% end %>
@@ -58,10 +55,10 @@
     </tbody>
   </table>
 
-  <% if @matches.size > 100 %>
+  <% if @matched.entries.size > 100 %>
     <p class="rh-note">
-      Showing the first 100 of <%= number_with_delimiter @matches.size %>.
-      All <%= number_with_delimiter @matches.size %> will be
+      Showing the first 100 of <%= number_with_delimiter @matched.entries.size %>.
+      All <%= number_with_delimiter @matched.entries.size %> will be
       <%= @op == "delete" ? "deleted" : "retried" %>.
     </p>
   <% end %>

@@ -6,6 +6,7 @@ module RoundhouseUi
 
     PER_PAGE = 25
     BULK_CAP = 1_000 # safety ceiling on a single match-set action
+    Matched = Struct.new(:entries, :capped, keyword_init: true)
 
     # Returns [entries_for_page, has_next?]. Scans only far enough to fill the
     # requested page plus one (to know if a next page exists) — never loads the
@@ -48,29 +49,28 @@ module RoundhouseUi
     # Apply an op ("retry"/"delete") to every entry matching the query, capped at
     # BULK_CAP. Entries are collected first, then acted on — mutating a Sidekiq set
     # mid-iteration skips entries. Returns [count_acted_on, capped?].
-    # The jobs a bulk action would touch, without touching them. Split out of
-    # bulk_apply so the dry run and the action itself cannot disagree about what
-    # "matching" means — the preview is the same scan, stopped one step early.
+    # The same scan the action runs, stopped one step early, so a dry run and the
+    # action it confirms cannot disagree about what "matching" means.
     def bulk_matches(set, query, cap = BULK_CAP, tag: nil)
-      matches = []
+      entries = []
       capped = false
       cache = tag_cache_for(tag)
       set.each do |entry|
         next unless entry_selected?(entry, query, tag, cache)
 
-        matches << entry
-        if matches.size >= cap
+        entries << entry
+        if entries.size >= cap
           capped = true
           break
         end
       end
-      [ matches, capped ]
+      Matched.new(entries: entries, capped: capped)
     end
 
     def bulk_apply(set, query, op, cap = BULK_CAP, tag: nil)
-      matches, capped = bulk_matches(set, query, cap, tag: tag)
-      matches.each { |entry| op == "delete" ? entry.delete : entry.retry }
-      [ matches.size, capped ]
+      found = bulk_matches(set, query, cap, tag: tag)
+      found.entries.each { |entry| op == "delete" ? entry.delete : entry.retry }
+      found
     end
 
     # Both the browse and bulk paths run every candidate through this, so the
