@@ -87,6 +87,7 @@ see [Security](#security).
 [Keyboard](#keyboard)
 
 **Project** ·
+[Stability](#stability) ·
 [Development](#development) ·
 [Roadmap](#roadmap) ·
 [Contributing](#contributing) ·
@@ -674,6 +675,43 @@ c.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
 ## Keyboard
 
 `⌘K` (or `Ctrl+K`) opens the command palette — jump to any view or action.
+
+## Stability
+
+Roundhouse follows [Semantic Versioning](https://semver.org). From 1.0 the surfaces
+below are the ones you can build against; a breaking change to any of them needs a
+major version, and anything scheduled for removal is deprecated for at least one
+minor release first.
+
+**Public — covered by semver:**
+
+| Surface | Why it's here |
+|---|---|
+| Everything set in `RoundhouseUi.configure` | The whole configuration surface, documented above |
+| `RoundhouseUi.cancelled?(jid)` | Your own jobs call it, so breaking it breaks your code |
+| `RoundhouseUi::Fetch` | Named in your Sidekiq server config |
+| `RoundhouseUi::CancelMiddleware`, `RoundhouseUi::DurationCollector` | Installed into your middleware chain |
+| `Tags.from_constant`, `Runbooks.from_constant` | Documented resolver shorthands |
+| The mounted paths (`/queues`, `/retries`, …) | People bookmark and link to them |
+| Theme token names | You override them by name |
+| The `roundhouse:*` Redis keys | Renaming one silently loses pause state or snapshots on upgrade |
+
+**Not public — may change in any release:**
+
+- **The backend port.** `RoundhouseUi::Backends::*`, `supports?`, and the shapes a
+  "set" and an "entry" must answer to. Writing your own backend is possible today
+  and genuinely useful, but the contract is still being worked out against
+  [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17) and
+  [#41](https://github.com/rjrobinson/roundhouse_ui/issues/41) — pinning it now
+  would freeze it before it is right. It will be promoted when those land.
+- Anything under `lib/` not listed above: `Health`, `Metrics`, `ErrorGroups`,
+  `History`, `QueueSummary`, and the internals of `Snapshots` and `Audit`.
+- The rendered HTML and its `rh-` class names. Theme tokens are the supported way
+  to change how Roundhouse looks; CSS written against our markup will break.
+- The JSON from `/stats`. It exists for our own poller and is shaped for it.
+
+If you depend on something in the second list, open an issue — that is how things
+move to the first.
 
 ## Development
 

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **A stability contract**, ahead of 1.0. The README now states which surfaces are
+  covered by semantic versioning — the configuration surface, `cancelled?`, the
+  fetcher and middlewares, the mounted paths, the theme token names, and the
+  `roundhouse:*` Redis keys — and which are not. The backend port is deliberately in
+  the second list: writing your own backend works today, but the contract is still
+  being settled against #17 and #41, and pinning it now would freeze it before it is
+  right.
+
 ### Changed
 - **The Busy page's Cancel button is now off by default**, behind
   `cancel_enabled`. Cancellation only does anything once you install
