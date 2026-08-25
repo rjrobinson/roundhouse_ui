@@ -9,7 +9,6 @@
 <% failing = @health.failing_count %>
 <section class="rh-health is-<%= @health.status %>" aria-label="System health">
   <div class="rh-health-top">
-    <span class="rh-health-rail" aria-hidden="true"></span>
     <span class="rh-health-verdict"><%= verdict %></span>
     <span class="rh-health-reason"><%= @health.reason %></span>
     <span class="rh-health-meta">
