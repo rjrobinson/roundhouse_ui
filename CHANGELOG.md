@@ -15,6 +15,15 @@ All notable changes to this project are documented here. The format is based on
   being settled against #17 and #41, and pinning it now would freeze it before it is
   right.
 
+### Fixed
+- **`warn_once` warns once.** It was named for what it was meant to do and logged
+  every time. A `job_tags` or `job_runbooks` resolver that raises raises for every
+  entry in a scan, so one broken lambda wrote a line per job — a thousand identical
+  lines for a single page render, which is how a warning stops being read. It now
+  deduplicates per message, per process, with a bounded memo so a resolver whose
+  message varies cannot grow it without limit. Both copies (Tags and Runbooks) now
+  call one implementation on `RoundhouseUi`, alongside `duration`.
+
 ### Changed
 - **The Busy page's Cancel button is now off by default**, behind
   `cancel_enabled`. Cancellation only does anything once you install

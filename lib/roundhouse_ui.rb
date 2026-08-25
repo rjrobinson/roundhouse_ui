@@ -31,6 +31,9 @@ module RoundhouseUi
   JOB_CLASS_NAME = /\A[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*\z/
   MAX_JOB_CLASS_NAME = 200
 
+  # How many distinct warning messages .warn_once remembers before resetting.
+  WARN_MEMO_CAP = 200
+
   class << self
     # When true, destructive actions (purge, retry, delete, …) are disabled.
     # Mount Roundhouse read-only where operators should only observe.
@@ -298,6 +301,27 @@ module RoundhouseUi
       return "#{ms.to_f.abs.round}ms" if ms.to_f.abs < 1_000
 
       duration(ms.to_f / 1_000)
+    end
+
+    # Log a resolver failure at most once per process per distinct message.
+    #
+    # It was named warn_once and warned every time. A resolver that raises raises
+    # for every entry in a scan, so one broken job_tags lambda wrote a line per
+    # job — a thousand identical lines in the log for a single page render, which
+    # is how a warning stops being read at all.
+    #
+    # Bounded by WARN_MEMO_CAP, because the message carries the class name and the
+    # exception's own text: a resolver whose message varies could otherwise grow
+    # this without limit. At the cap it resets rather than leaking or going silent.
+    def warn_once(message)
+      return unless defined?(Rails)
+
+      @warned ||= {}
+      return if @warned.key?(message)
+
+      @warned.clear if @warned.size >= WARN_MEMO_CAP
+      @warned[message] = true
+      Rails.logger&.warn("[roundhouse] #{message}")
     end
 
     # Cooperative cancellation check for long-running jobs:

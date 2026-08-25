@@ -70,8 +70,6 @@ module RoundhouseUi
       url if url.match?(%r{\Ahttps?://\S+\z}i)
     end
 
-    def warn_once(message)
-      Rails.logger&.warn("[roundhouse] #{message}") if defined?(Rails)
-    end
+    def warn_once(message) = RoundhouseUi.warn_once(message)
   end
 end
