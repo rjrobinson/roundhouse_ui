@@ -214,6 +214,7 @@ here is required to mount Roundhouse.
 | `job_runbooks` | `nil` | Your jobs have runbooks and you'd rather not make someone find them at 3am. | There's nothing to link to yet. |
 | `job_class_namespaces` | `nil` | You want to bound which constants a job payload can cause Roundhouse to resolve. See [Security](#security). | Your job payloads come only from your own app, which is the normal case. |
 | `theme` | `nil` | You want Roundhouse to match your own admin's palette, or you just want it to look different. Partial themes are fine — unset tokens keep their shipped values. See [Theming](#theming). | The shipped light/dark pair is fine. |
+| `icons` | `:svg` | You already ship FontAwesome and would rather Roundhouse used it — `:font_awesome`, or a Hash of `{ name => "class names" }`. Roundhouse never loads a font itself either way. | You want the shipped inline SVG, which needs nothing installed. |
 | `themes` | shipped presets | You want people to pick their own palette on the Settings page. | Everyone should see the same thing — set `theme` instead, or `allow_theme_selection = false`. |
 | `allow_theme_selection` | `true` | Leave it on. | Recolouring a production console isn't something you want an operator doing. |
 | `pause_enabled` | `true` | Leave it on. | **Rarely set this to `false`.** Pause is enforced natively on Sidekiq Pro and Solid Queue, and on OSS Sidekiq by installing `RoundhouseUi::Fetch` — so turning it off usually just hides a working feature. Only useful if you want the controls gone entirely. |
@@ -263,6 +264,25 @@ Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
 Redis key directly: Pro's fetchers read that set once at startup and afterwards
 only update on the `pro:config` pubsub message `pause!` publishes, so a raw write
 would leave running workers pulling the queue until they restarted.
+
+## Icons and motion
+
+Icons are inline SVG — no font, no request, no CSP change, and the same shape on
+every platform. If you already ship an icon font, use it instead:
+
+```ruby
+RoundhouseUi.icons = :font_awesome
+RoundhouseUi.icons = { dashboard: "fa-solid fa-gauge-high", queues: "my-icon" }
+```
+
+Roundhouse never loads a font itself in either mode — it emits class names and
+your pipeline supplies the glyphs, which is what keeps the self-contained CSP
+intact. An unknown name renders nothing rather than raising.
+
+Motion is limited to effects that carry information: a polled value flashes when
+it actually changes, a queue that will not drain pulses slowly, rows settle in on
+navigation, and the refresh arc depletes. All of it is dropped under
+`prefers-reduced-motion`.
 
 ## Theming
 
