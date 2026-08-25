@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **The per-row job actions are tested.** `find_job(jid)` opens `retries#destroy`,
+  `retries#requeue`, `dead#destroy`, `dead#requeue`, every scheduled action and
+  `jobs#show/edit/update`, and none of it had ever run: it issues `ZSCAN`, which the
+  in-memory stand-in cannot answer at all. Covered now against a real Redis,
+  including that a delete removes exactly one job and that the page says which.
+
 - **The destructive paths are tested against a real Redis.** Enforced pause,
   snapshot → restore, and bulk-on-a-filter are made of Redis semantics — sorted-set
   ordering, sets that vanish with their last member, real key expiry — and the whole
@@ -25,6 +31,11 @@ All notable changes to this project are documented here. The format is based on
   right.
 
 ### Fixed
+- **The Errors page said "1 issues".** The only hardcoded plural left in the app;
+  every other count already went through `pluralize`.
+- **A capped occurrence count now reads as a floor.** Past the scan limit the count
+  is a lower bound, not a total, and the note under the table could not fix a
+  number printed as though it were exact. Truncated counts render as `1,000+`.
 - **A restored snapshot is now a queue Sidekiq and Roundhouse can both see.**
   `Sidekiq::Queue#clear` removes the queue's name from the `queues` set as well as
   deleting the list, and that set is what `Sidekiq::Queue.all` reads. Restore pushed

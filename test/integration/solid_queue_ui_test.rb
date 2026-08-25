@@ -52,7 +52,7 @@ module RoundhouseUi
       get "/roundhouse/errors"
       assert_response :success
       assert_match "EmailJob", @response.body
-      assert_match "1 issues", @response.body # two identical failures collapse to one
+      assert_match "1 issue", @response.body # two identical failures collapse to one
     end
   end
 end

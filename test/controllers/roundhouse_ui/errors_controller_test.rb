@@ -135,5 +135,48 @@ module RoundhouseUi
         refute_match "EmailJob", @response.body
       end
     end
+
+    def test_a_single_issue_reads_as_one_issue
+      stub_sets(
+        retry_entries: [ FakeEntry.new(klass: "W", error_class: "Boom", at: Time.now) ],
+        dead_entries: []
+      ) do
+        get "/roundhouse/errors"
+
+        markup = @response.body.split("</style>").last.to_s
+        assert_match(/1 issue\b/, markup)
+        refute_match(/1 issues/, markup, "a count has to agree with its noun")
+      end
+    end
+
+    def test_a_truncated_scan_marks_its_counts_as_floors
+      # Past the scan limit the count is a lower bound, not a total. Printing an
+      # exact figure for a number we know is capped is the one thing the footnote
+      # below the table cannot fix.
+      now = Time.now
+      over = ErrorGroups::DEFAULT_SCAN_LIMIT + 1
+      stub_sets(
+        retry_entries: Array.new(over) { FakeEntry.new(klass: "W", error_class: "Boom", at: now) },
+        dead_entries: []
+      ) do
+        get "/roundhouse/errors"
+
+        markup = @response.body.split("</style>").last.to_s
+        assert_match "older entries not yet scanned", markup, "expected a truncated scan"
+        assert_match(/>1,000\+</, markup, "a capped count is printed as though it were exact")
+      end
+    end
+
+    def test_an_untruncated_count_carries_no_plus
+      stub_sets(
+        retry_entries: [ FakeEntry.new(klass: "W", error_class: "Boom", at: Time.now) ],
+        dead_entries: []
+      ) do
+        get "/roundhouse/errors"
+
+        markup = @response.body.split("</style>").last.to_s
+        refute_match(/>1\+</, markup, "nothing was capped, so nothing should claim to be")
+      end
+    end
   end
 end

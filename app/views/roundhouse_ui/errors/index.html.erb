@@ -10,7 +10,7 @@
 <%= render "roundhouse_ui/shared/tag_filter", counts: @tag_counts %>
 
 <h2 class="rh-h2">
-  Errors · <%= @groups.size %> issues
+  Errors · <%= pluralize(@groups.size, "issue") %>
   <% if @tag %><span class="hint">filtered to <%= @tag[0] %>: <%= @tag[1] %></span><% end %>
 </h2>
 
@@ -47,9 +47,12 @@
           <% if tag_column? %><td><%= tag_cell(@group_tags[g[:klass]]) %></td><% end %>
           <td class="r">
             <span class="rh-count" data-rh-sev="<%= share >= 0.5 ? "crit" : share >= 0.15 ? "warn" : "ok" %>"
-                  title="<%= number_with_delimiter g[:count] %> of <%= number_with_delimiter worst %> in the worst group">
+                  title="<%= number_with_delimiter g[:count] %><%= "+" if @truncated %> of <%= number_with_delimiter worst %><%= "+" if @truncated %> in the worst group<%= " — counts are floors, the scan stopped at #{number_with_delimiter @scan_limit}" if @truncated %>">
               <i style="width:<%= (share * 100).round(1) %>%"></i>
-              <span><%= number_with_delimiter g[:count] %></span>
+              <%# A truncated scan yields floors, not totals: the group holds at least
+                  this many. Printing an exact figure for a number we know is capped
+                  is the one thing the note below the table cannot fix. %>
+              <span><%= number_with_delimiter g[:count] %><%= "+" if @truncated %></span>
             </span>
           </td>
           <td><span class="rh-sub"><%= g[:sources].join(", ") %></span></td>
