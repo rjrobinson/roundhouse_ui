@@ -4,6 +4,104 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0.rc1] - 2026-08-25
+
+First release candidate. No API changes are planned before 1.0.0 — this is here
+so the surface can be used in anger before it is frozen.
+
+### Added
+- **Drain forecast.** Every queue answers the question a backlog actually
+  raises: `clears in ~35m`, `stalled`, or `growing 12/s — will not drain`. Net
+  velocity rather than throughput, because "how long if arrivals stopped" is a
+  different and less useful question. Smoothed across polls, so the label
+  reflects a trend rather than one noisy sample. (#35)
+- **Capacity.** On Metrics, with a 15m/1h/4h deadline: how many worker threads it
+  takes to clear the backlog in time. Arrivals are part of the arithmetic —
+  sizing to the backlog alone under-provisions exactly when it matters. Reads
+  total configured threads, not threads busy this instant, which would go to
+  zero on an idle fleet and claim infinite headroom. Whole-fleet only: Sidekiq
+  counts processed jobs globally, so a per-queue figure would be inventing the
+  split. (#36)
+- **Dry run on bulk actions.** Retry and delete on a filter now list the matched
+  jobs, with arguments and errors, before touching anything. The toolbar count
+  says how many match; only this says which. (#37)
+- **Runbooks.** Point Roundhouse at a constant, a Hash or a callable and a
+  Runbook link appears on the job page and each grouped error row. Resolved at
+  read time, so it covers jobs already in the queues. Only `http(s)` URLs render
+  — the value lands in an `href`, where no escaping makes `javascript:` safe.
+  (#39)
+- **Settings**, per person and stored in their own browser: light or dark,
+  palette, content width, refresh interval. Nothing server-side, so one
+  operator's choices never change what anyone else sees.
+- **Ten palettes**, each carrying the light *and* dark variant its own authors
+  designed — Catppuccin (three flavours), Rosé Pine (two), Nord, Gruvbox,
+  Everforest, Kanagawa, Solarized — plus the existing `cyberpunk`, which is
+  dark-only and labelled as such. Every value comes from the project's own
+  palette file, and tests hold each one to contrast floors and to structural
+  rules, so a palette cannot ship with invisible card borders.
+- **Queue detail page**: the jobs waiting on one queue, with arguments, paged
+  and searchable through the shared browse path.
+- **Filter queues by state** — All / Active / Paused — and **sort any column**,
+  including Forecast, which has no server-side value at all.
+- **A refresh countdown** in the header, since the poll interval is now
+  configurable from 2 to 300 seconds and a stale number looked identical to a
+  fresh one.
+- `job_class_namespaces`, bounding which namespaces a job payload can cause the
+  UI to resolve. Off by default. See the README's Security section for what this
+  does and does not protect against.
+- `RoundhouseUi::Runbooks`, `RoundhouseUi.duration`, `RoundhouseUi.duration_ms`,
+  `RoundhouseUi.job_class`, and `concurrency` on both backends.
+
+### Fixed
+- **Datadog deep-links matched nothing.** The span tags were invented —
+  dd-trace records `sidekiq.job.id` and `sidekiq.job.queue`, and there is no
+  `sidekiq.jid` facet anywhere in its Sidekiq integration. Values are quoted
+  now, which is the difference between an empty result and a parse error, since
+  `:` is a query operator and practically every worker is namespaced. (#29)
+- **ActiveJob-wrapped jobs were invisible by their real name.** Every ActiveJob
+  failure shared one error-group fingerprint, searching for the real class found
+  nothing, and job rows displayed the adapter's wrapper. One shared unwrap now
+  serves display, search, grouping and APM links. Re-enqueue deliberately does
+  *not* unwrap — pushing the inner class with the ActiveJob envelope re-creates
+  the job as a raw worker that fails every attempt. (#30)
+- **Durations rendered as raw seconds** in five places, five different ways —
+  the health signal reported an hour-old queue as `3616s`. One formatter now
+  serves views and `lib/`, which is why it moved out of the view helper. (#31)
+- **The Queues page cost a Redis round-trip per queue per column.** Sixty queues
+  meant roughly 180 round-trips to render one page. Now two, at any queue count,
+  and ordered worst-first rather than alphabetically.
+- **A read endpoint was writing to Redis.** `Sidekiq::ProcessSet.new` runs
+  dead-process cleanup by default — a `SET`, and an `SREM` when it finds
+  anything — on the poll every open tab makes every few seconds, including on
+  `read_only` installs.
+- **Runbook resolution could return another job's runbook**, because the payload
+  reached the resolver while the result was cached per class.
+- **Sidekiq 8 compatibility**: `enqueued_at` is integer milliseconds there and
+  float seconds on 6.5 and 7. Read as seconds, a Sidekiq 8 timestamp yields a
+  negative latency in the billions.
+- Queue names were sent twice in every poll response — 40KB became 21KB on a
+  500-queue app.
+- Pause is enforced natively on Sidekiq Pro/Enterprise, so `RoundhouseUi::Fetch`
+  is no longer needed there and `pause_enabled = false` is no longer advice.
+
+### Changed
+- The **Queues badge counts enqueued jobs**, not the number of queues.
+- **Bulk actions go through the dry run**, so the buttons open a preview instead
+  of acting immediately.
+- The **Metrics burn-down ETA** uses net velocity. It was backlog divided by
+  throughput, a number that stays reassuring while the backlog grows.
+- README rewritten as a landing page; the reference manual below it is unchanged
+  apart from a pass for redundancy. Gemspec now mentions Solid Queue and no
+  longer claims to replace `Sidekiq::Web` — it mounts alongside or instead of it.
+
+### Notes
+- Snapshots ship only a Redis store. The README previously suggested a file or
+  S3 store as though one existed; the four-method contract for writing your own
+  is now documented instead.
+- The audit log is a capped Redis list of 1,000 entries with no TTL, evictable
+  under `allkeys-lru`. It answers "who did that"; it is not evidence. (#51)
+- There is still no RBAC — the model is read-only or not. (#44)
+
 ## [0.10.0] - 2026-08-17
 
 ### Added
