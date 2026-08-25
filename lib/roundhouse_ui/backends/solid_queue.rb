@@ -144,7 +144,10 @@ module RoundhouseUi
         end
 
         def retry = @execution.retry if @execution.respond_to?(:retry)
-        def delete = @execution.destroy
+        # discard removes the job row along with the execution and takes the
+        # row lock while it does; destroy drops only the execution, leaving an
+        # orphaned solid_queue_jobs row that nothing will ever pick up again.
+        def delete = @execution.respond_to?(:discard) ? @execution.discard : @execution.destroy
 
         private
 
