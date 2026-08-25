@@ -14,6 +14,17 @@ module RoundhouseUi
       @metrics = metrics
     end
 
+    # Signals worst-first, the same rule the Queues page sorts by: the order is
+    # information, so a failing check should never sit below a healthy one.
+    # Ties break on label, so the order is stable between polls.
+    def ranked_signals
+      signals.sort_by { |s| [ -RANK.fetch(s.status, 0), s.label.to_s ] }
+    end
+
+    def failing_count
+      signals.count { |s| s.status != :ok }
+    end
+
     def signals
       @signals ||= [ error_rate_signal, latency_signal, utilization_signal ].compact
     end

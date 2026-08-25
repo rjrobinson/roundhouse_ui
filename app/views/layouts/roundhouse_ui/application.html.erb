@@ -194,13 +194,40 @@
     .rh-elapsed .t[data-rh-sev="crit"] i { background:var(--crit); }
     .rh-elapsed .n { min-width:3.4rem; text-align:right; }
 
-    /* Health verdict: a rail carries severity where colour alone relies on
-       someone distinguishing red text from grey. */
-    .rh-health { display:flex; gap:11px; }
-    .rh-health-rail { width:3px; border-radius:2px; flex:0 0 3px; background:var(--faint); }
+    /* Health verdict. The one thing someone opening this page needs in the first
+       second, so it gets the full width and a rank rather than a middle column
+       and a disclosure. */
+    .rh-health { background:var(--panel); border:1px solid var(--line-soft); border-radius:12px;
+                 overflow:hidden; margin-bottom:18px; }
+    .rh-health-top { display:flex; align-items:center; gap:14px; padding:13px 16px; position:relative; }
+    .rh-health-rail { position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--faint); }
     .rh-health.is-ok   .rh-health-rail { background:var(--good); }
     .rh-health.is-warn .rh-health-rail { background:var(--warn); }
     .rh-health.is-crit .rh-health-rail { background:var(--crit); }
+    .rh-health-verdict { font-weight:700; font-size:15px; letter-spacing:-.01em; }
+    .rh-health.is-ok   .rh-health-verdict { color:var(--good); }
+    .rh-health.is-warn .rh-health-verdict { color:var(--warn); }
+    .rh-health.is-crit .rh-health-verdict { color:var(--crit); }
+    .rh-health-reason { font-size:13.5px; color:var(--text); }
+    .rh-health-meta { margin-left:auto; font:500 11px var(--mono); color:var(--faint); white-space:nowrap; }
+
+    /* One tile per check, filling the width. Label above value, so pairing them
+       is a glance rather than a scan across a gap. */
+    .rh-health-signals { display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));
+                         gap:1px; background:var(--line-soft); border-top:1px solid var(--line-soft); }
+    .rh-sig { background:var(--panel); padding:10px 14px; display:flex; flex-direction:column; gap:3px;
+              border-left:2px solid transparent; min-width:0; }
+    .rh-sig[data-rh-sev="ok"]   { border-left-color:var(--good); }
+    .rh-sig[data-rh-sev="warn"] { border-left-color:var(--warn); }
+    .rh-sig[data-rh-sev="crit"] { border-left-color:var(--crit);
+                                  background:color-mix(in srgb, var(--crit) 5%, var(--panel)); }
+    .rh-sig-name { display:flex; align-items:center; gap:7px; font:600 12px var(--sans); color:var(--text); }
+    .rh-sig-name .rh-ico { width:13px; height:13px; flex:0 0 13px; }
+    .rh-sig[data-rh-sev="ok"]   .rh-sig-name .rh-ico { color:var(--good); }
+    .rh-sig[data-rh-sev="warn"] .rh-sig-name .rh-ico { color:var(--warn); }
+    .rh-sig[data-rh-sev="crit"] .rh-sig-name .rh-ico { color:var(--crit); }
+    .rh-sig-detail { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+    .rh-sig[data-rh-sev="crit"] .rh-sig-detail { color:var(--text); }
 
     /* Trend on a stat card: "8,420,118" becomes "8.4M and climbing" without a
        second number to read. */
