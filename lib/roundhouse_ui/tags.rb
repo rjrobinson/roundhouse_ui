@@ -107,8 +107,6 @@ module RoundhouseUi
       EMPTY
     end
 
-    def warn_once(message)
-      Rails.logger&.warn("[roundhouse] #{message}") if defined?(Rails)
-    end
+    def warn_once(message) = RoundhouseUi.warn_once(message)
   end
 end
