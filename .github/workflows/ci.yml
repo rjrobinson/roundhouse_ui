@@ -40,12 +40,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Lowest supported, current major, and latest. Tests use an in-memory
-        # FakeRedis, so no Redis service is needed — this matrix exists to prove
-        # each Sidekiq version resolves and loads against our API usage.
+        # Lowest supported, current major, and latest. Most tests use an
+        # in-memory FakeRedis, so this matrix mainly proves each Sidekiq version
+        # resolves and loads against our API usage — but the destructive paths
+        # (pause, snapshot -> restore, bulk-on-a-filter) run against the real
+        # Redis below, on every version, because the fake cannot tell us whether
+        # Redis behaves the way the code assumes.
         sidekiq: [ "~> 6.5", "~> 7.0", "~> 8.0" ]
 
     name: test (sidekiq ${{ matrix.sidekiq }})
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -70,6 +84,13 @@ jobs:
         env:
           RAILS_ENV: test
           SIDEKIQ_VERSION: ${{ matrix.sidekiq }}
+          # Database 1: the service container is ours alone, and the real-Redis
+          # tests FLUSHDB whatever they are pointed at. They refuse database 0.
+          ROUNDHOUSE_TEST_REDIS_URL: redis://localhost:6379/1
+          # Without this a missing or unreachable Redis would skip them silently
+          # and the coverage would be imaginary — which is the exact failure this
+          # lane exists to prevent.
+          ROUNDHOUSE_REQUIRE_REAL_REDIS: "1"
         run: bin/rails test
 
       # The layout carries real JavaScript and had no coverage at all. The drain
@@ -101,7 +122,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        solid_queue: [ "~> 1.0", "~> 1.5" ]
+        # Pinned to the patch series, not the minor. `~> 1.0` means ">= 1.0,
+        # < 2.0", so it resolved to the same latest 1.x as `~> 1.5` and this
+        # lane tested one version twice while reporting two.
+        solid_queue: [ "~> 1.0.0", "~> 1.7.0" ]
 
     name: test (solid_queue ${{ matrix.solid_queue }})
 

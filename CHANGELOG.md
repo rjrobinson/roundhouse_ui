@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **The destructive paths are tested against a real Redis.** Enforced pause,
+  snapshot → restore, and bulk-on-a-filter are made of Redis semantics — sorted-set
+  ordering, sets that vanish with their last member, real key expiry — and the whole
+  suite ran against an in-memory stand-in where `HGET` returns nil, `ZADD` discards
+  the score and `SSCAN` returns everything in one pass. That is fine for exercising
+  our logic and cannot tell you whether Redis does what the code assumes. CI now runs
+  these on every Sidekiq version in the matrix, and fails rather than skips if Redis
+  is missing. They found a real bug immediately (see Fixed).
+
 - **A stability contract**, ahead of 1.0. The README now states which surfaces are
   covered by semantic versioning — the configuration surface, `cancelled?`, the
   fetcher and middlewares, the mounted paths, the theme token names, and the
@@ -16,6 +25,16 @@ All notable changes to this project are documented here. The format is based on
   right.
 
 ### Fixed
+- **A restored snapshot is now a queue Sidekiq and Roundhouse can both see.**
+  `Sidekiq::Queue#clear` removes the queue's name from the `queues` set as well as
+  deleting the list, and that set is what `Sidekiq::Queue.all` reads. Restore pushed
+  the payloads back but never re-registered the name — so purge → restore returned
+  the jobs to a queue the Queues page did not list and no summary counted. The
+  operator purged production, restored, and every page said nothing came back.
+
+  Found by the new real-Redis tests, on their first run. Nothing in the existing
+  suite could have caught it.
+
 - **`warn_once` warns once.** It was named for what it was meant to do and logged
   every time. A `job_tags` or `job_runbooks` resolver that raises raises for every
   entry in a scan, so one broken lambda wrote a line per job — a thousand identical

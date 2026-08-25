@@ -151,8 +151,15 @@ class ActiveSupport::TestCase
   # Install a default fake Redis around every test so nothing (e.g. the audit
   # after_action on POSTs) ever touches a real Redis. before_setup/after_teardown
   # always run, even when a subclass defines its own #setup without super.
+  #
+  # RealRedisTest turns this off: those tests exist precisely because the fake
+  # cannot tell you whether Redis does what we assume it does.
+  class_attribute :fake_redis, default: true, instance_writer: false
+
   def before_setup
     super
+    return unless self.class.fake_redis
+
     @__rh_real_redis = Sidekiq.method(:redis)
     fake = FakeRedis.new
     Sidekiq.define_singleton_method(:redis) { |&blk| blk.call(fake) }

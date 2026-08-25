@@ -47,8 +47,19 @@ module RoundhouseUi
       return 0 unless raw
 
       data = JSON.parse(raw)
-      key = "queue:#{data["queue"]}"
-      data["jobs"].each { |payload| Sidekiq.redis { |conn| conn.call("RPUSH", key, payload) } }
+      queue = data["queue"]
+
+      Sidekiq.redis do |conn|
+        # Re-register the queue, not just its jobs. Sidekiq::Queue#clear removes
+        # the name from the `queues` set as well as deleting the list, and that
+        # set is what Sidekiq::Queue.all reads — so a restore that only pushes the
+        # payloads back leaves a queue Roundhouse cannot see. The operator purges
+        # production, restores, and every page says nothing came back. Sidekiq's
+        # own client does this SADD on every push.
+        conn.call("SADD", "queues", queue)
+        data["jobs"].each { |payload| conn.call("RPUSH", "queue:#{queue}", payload) }
+      end
+
       data["jobs"].size
     end
 
