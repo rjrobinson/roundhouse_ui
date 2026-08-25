@@ -77,3 +77,85 @@ module RoundhouseUi
     end
   end
 end
+
+module RoundhouseUi
+  # An adapter can supply its own mark. Roundhouse ships no vendor logo: a
+  # trademark in this gem's files is the host's problem to opt into, not ours to
+  # bundle.
+  class ObservabilityIconTest < ActionDispatch::IntegrationTest
+    def teardown = RoundhouseUi.observability = RoundhouseUi::Observability::NullAdapter.new
+
+    class WithSvg
+      def label = "Acme"
+      def icon = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>'
+      def job_url(**) = "https://acme.test/t"
+      def queue_url(*) = nil
+      def error_url(**) = nil
+    end
+
+    class WithNamed
+      def label = "Named"
+      def icon = :redis
+      def job_url(**) = "https://named.test/t"
+      def queue_url(*) = nil
+      def error_url(**) = nil
+    end
+
+    class WithJunk
+      def label = "Junk"
+      def icon = "not markup and not a name"
+      def job_url(**) = "https://junk.test/t"
+      def queue_url(*) = nil
+      def error_url(**) = nil
+    end
+
+    # An adapter predating this feature has no #icon at all and must still work.
+    class Legacy
+      def label = "Legacy"
+      def job_url(**) = "https://legacy.test/t"
+      def queue_url(*) = nil
+      def error_url(**) = nil
+    end
+
+    def glyph_for(adapter)
+      RoundhouseUi.observability = adapter
+      view = ActionController::Base.new.view_context
+      view.extend(RoundhouseUi::ObservabilityHelper)
+      view.extend(RoundhouseUi::ApplicationHelper)
+      view.trace_glyph(adapter)
+    end
+
+    def test_supplied_markup_is_rendered_rather_than_escaped
+      html = glyph_for(WithSvg.new)
+      assert_includes html, "<circle"
+      refute_includes html, "&lt;svg"
+    end
+
+    def test_a_symbol_resolves_to_a_shipped_icon
+      assert_includes glyph_for(WithNamed.new), "<svg"
+    end
+
+    # A string that is neither markup nor a name would otherwise render as stray
+    # text in the middle of a table.
+    def test_junk_falls_back_to_the_default_glyph
+      html = glyph_for(WithJunk.new)
+      assert_includes html, "<svg"
+      refute_includes html, "not markup"
+    end
+
+    def test_an_adapter_without_an_icon_method_still_renders
+      assert_includes glyph_for(Legacy.new), "<svg"
+    end
+
+    # The shipped Datadog adapter must not carry Datadog's logo.
+    def test_no_vendor_mark_ships
+      assert_nil RoundhouseUi::Observability::DatadogAdapter.new.icon
+      assert_includes glyph_for(RoundhouseUi::Observability::DatadogAdapter.new(site: "x")), "<svg"
+    end
+
+    def test_a_host_can_pass_one_in
+      adapter = RoundhouseUi::Observability::DatadogAdapter.new(icon: "<svg><rect/></svg>")
+      assert_includes glyph_for(adapter), "<rect"
+    end
+  end
+end

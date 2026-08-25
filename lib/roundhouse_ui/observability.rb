@@ -18,19 +18,33 @@ module RoundhouseUi
     # Default: no links anywhere.
     class NullAdapter
       def label = "trace"
+      # An adapter may supply its own mark: either an icon name Roundhouse ships,
+      # or an SVG string. Returning nil uses the default trace glyph.
+      def icon = nil
       def job_url(**) = nil
       def queue_url(_name) = nil
       def error_url(**) = nil
     end
 
     class DatadogAdapter
-      def initialize(site: "datadoghq.com", service: nil, extra_query: nil)
+      def initialize(site: "datadoghq.com", service: nil, extra_query: nil, icon: nil)
+        @icon = icon
         @site = site
         @service = service
         @extra_query = extra_query
       end
 
       def label = "Datadog"
+
+      # Roundhouse ships no vendor logo — Datadog's mark is their trademark, and
+      # bundling it would put someone else's brand in this gem's licence. Pass
+      # your own if you want it, from an asset your app already serves:
+      #
+      #   DatadogAdapter.new(site: "...", icon: helpers.image_tag("datadog.svg"))
+      #
+      # Any string is rendered as-is when it looks like markup, so it is your
+      # markup and your responsibility — see ObservabilityHelper.
+      attr_reader :icon
 
       # Tag names come from dd-trace-rb's Sidekiq integration: sidekiq.job.id and
       # sidekiq.job.queue (Datadog::Tracing::Contrib::Sidekiq::Ext). There is no

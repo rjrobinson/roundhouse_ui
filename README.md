@@ -279,6 +279,21 @@ Roundhouse never loads a font itself in either mode — it emits class names and
 your pipeline supplies the glyphs, which is what keeps the self-contained CSP
 intact. An unknown name renders nothing rather than raising.
 
+An observability adapter can supply its own mark for the trace link — either one
+of Roundhouse's icon names or an SVG string:
+
+```ruby
+RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(
+  site: "datadoghq.com", service: "sidekiq",
+  icon: helpers.image_tag("datadog.svg", width: 15)
+)
+```
+
+**Roundhouse ships no vendor logo.** Datadog's mark is their trademark, and
+bundling it would put someone else's brand under this gem's licence — so the
+default is a neutral trace glyph and the real one is yours to pass in, from an
+asset your app already serves.
+
 Motion is limited to effects that carry information: a polled value flashes when
 it actually changes, a queue that will not drain pulses slowly, rows settle in on
 navigation, and the refresh arc depletes. All of it is dropped under

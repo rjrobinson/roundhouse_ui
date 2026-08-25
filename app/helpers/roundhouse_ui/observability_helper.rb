@@ -13,12 +13,33 @@ module RoundhouseUi
     # Icon-only variant for table rows. The adapter's name is worth reading once
     # in a header or a detail page, not once per row — there it is width spent
     # repeating a word the operator already knows.
+    # An adapter's own mark, when it has one. Three shapes are accepted, in
+    # descending order of how much we trust them:
+    #
+    #   :name      → one of Roundhouse's own shipped icons
+    #   "<svg …>"  → the adapter's markup, rendered as-is
+    #   nil        → the default trace glyph
+    #
+    # The markup case is deliberately not escaped, because escaping it would
+    # render the tags as text and the feature would not work at all. That makes
+    # it the adapter author's responsibility, which is the same trust level as
+    # any other object a host assigns to RoundhouseUi.observability — it can
+    # already run arbitrary code.
+    def trace_glyph(adapter)
+      supplied = adapter.respond_to?(:icon) ? adapter.icon : nil
+      return icon(:trace_out) if supplied.blank?
+      return icon(supplied) if supplied.is_a?(Symbol)
+
+      supplied.to_s.strip.start_with?("<") ? supplied.to_s.html_safe : icon(:trace_out)
+    end
+
     def trace_icon(klass:, jid:, queue: nil)
       adapter = RoundhouseUi.observability
       url = adapter.job_url(klass: klass, jid: jid, queue: queue)
       return unless url
 
-      link_to "↗", url, target: "_blank", rel: "noopener", class: "rh-trace rh-trace-ico",
+      link_to trace_glyph(adapter), url, target: "_blank", rel: "noopener",
+        class: "rh-trace rh-trace-ico",
         title: "Open in #{adapter.label}", "aria-label": "Open in #{adapter.label}"
     end
 
