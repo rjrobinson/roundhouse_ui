@@ -30,30 +30,6 @@ All notable changes to this project are documented here. The format is based on
   being settled against #17 and #41, and pinning it now would freeze it before it is
   right.
 
-### Fixed
-- **The Errors page said "1 issues".** The only hardcoded plural left in the app;
-  every other count already went through `pluralize`.
-- **A capped occurrence count now reads as a floor.** Past the scan limit the count
-  is a lower bound, not a total, and the note under the table could not fix a
-  number printed as though it were exact. Truncated counts render as `1,000+`.
-- **A restored snapshot is now a queue Sidekiq and Roundhouse can both see.**
-  `Sidekiq::Queue#clear` removes the queue's name from the `queues` set as well as
-  deleting the list, and that set is what `Sidekiq::Queue.all` reads. Restore pushed
-  the payloads back but never re-registered the name — so purge → restore returned
-  the jobs to a queue the Queues page did not list and no summary counted. The
-  operator purged production, restored, and every page said nothing came back.
-
-  Found by the new real-Redis tests, on their first run. Nothing in the existing
-  suite could have caught it.
-
-- **`warn_once` warns once.** It was named for what it was meant to do and logged
-  every time. A `job_tags` or `job_runbooks` resolver that raises raises for every
-  entry in a scan, so one broken lambda wrote a line per job — a thousand identical
-  lines for a single page render, which is how a warning stops being read. It now
-  deduplicates per message, per process, with a bounded memo so a resolver whose
-  message varies cannot grow it without limit. Both copies (Tags and Runbooks) now
-  call one implementation on `RoundhouseUi`, alongside `duration`.
-
 ### Changed
 - **The Busy page's Cancel button is now off by default**, behind
   `cancel_enabled`. Cancellation only does anything once you install
@@ -77,7 +53,63 @@ All notable changes to this project are documented here. The format is based on
   The refusal message is now the same everywhere ("Roundhouse is in read-only mode
   — this action is disabled."); each section still redirects back to itself.
 
+- **Every control is one box on one scale** ([#65](https://github.com/rjrobinson/roundhouse_ui/issues/65)).
+  Eight controls had four font sizes, seven paddings and four radii between them,
+  sharing nothing — so `.rh-trace-btn` rendered 2px taller than the `.rh-runbook`
+  pill beside it, and `⌘K` sat 9px shorter than the icon buttons next to it. There
+  are now `--ctl-*` dimension tokens and a single rule every control draws from.
+
+  Controls are sized by **height**, never by line-height plus padding. That is what
+  makes an icon-only control and a text control the same height by construction
+  instead of by coincidence; matching paddings cannot do it across different
+  content, which is why fixing pairs by hand kept not holding.
+
+  Icons are also sized on the glyph rather than on a wrapper. Every shipped mark
+  carries its own `width` attribute and nothing overrode it, so a 15px SVG sat in a
+  12px slot and read as oversized — no padding change could have fixed that.
+
+  `control_scale_test.rb` fails on a hand-typed length in any control rule, and
+  fails again if a control stops getting a height from the scale. The tokens are
+  not the fix; that test is.
+
 ### Fixed
+- **Every bulk action on the Dead set was impossible.** Retry and Delete on the
+  selected rows failed with `ActionController::InvalidAuthenticityToken` while
+  submitting a token that looked entirely valid.
+
+  The bulk form wrapped the table, so each row's `button_to` form was nested inside
+  it. Nested forms are invalid HTML — the parser closes the outer form at the first
+  `</form>` — so the bulk form ended up carrying a row action's CSRF token as well
+  as its own. Rails keeps the last of a duplicated parameter, which meant verifying
+  a per-form token minted for `/dead/:jid/retry` against a POST to `/dead/bulk`.
+
+  The form is now empty and sits beside the table; the checkboxes join it with
+  `form="rh-bulk-dead"`, the same HTML association the toolbar buttons already
+  used. A new test asserts no index view nests a form at all.
+
+- **The Errors page said "1 issues".** The only hardcoded plural left in the app;
+  every other count already went through `pluralize`.
+- **A capped occurrence count now reads as a floor.** Past the scan limit the count
+  is a lower bound, not a total, and the note under the table could not fix a
+  number printed as though it were exact. Truncated counts render as `1,000+`.
+- **A restored snapshot is now a queue Sidekiq and Roundhouse can both see.**
+  `Sidekiq::Queue#clear` removes the queue's name from the `queues` set as well as
+  deleting the list, and that set is what `Sidekiq::Queue.all` reads. Restore pushed
+  the payloads back but never re-registered the name — so purge → restore returned
+  the jobs to a queue the Queues page did not list and no summary counted. The
+  operator purged production, restored, and every page said nothing came back.
+
+  Found by the new real-Redis tests, on their first run. Nothing in the existing
+  suite could have caught it.
+
+- **`warn_once` warns once.** It was named for what it was meant to do and logged
+  every time. A `job_tags` or `job_runbooks` resolver that raises raises for every
+  entry in a scan, so one broken lambda wrote a line per job — a thousand identical
+  lines for a single page render, which is how a warning stops being read. It now
+  deduplicates per message, per process, with a bounded memo so a resolver whose
+  message varies cannot grow it without limit. Both copies (Tags and Runbooks) now
+  call one implementation on `RoundhouseUi`, alongside `duration`.
+
 - **Deleting a Solid Queue entry no longer orphans its job row.** The adapter
   called `destroy` on the execution, which left the `solid_queue_jobs` row
   behind — invisible to every page and unreachable by every worker. It now
