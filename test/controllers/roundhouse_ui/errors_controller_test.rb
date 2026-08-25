@@ -105,7 +105,7 @@ module RoundhouseUi
 
     def test_rows_link_to_datadog_when_an_adapter_is_configured
       original = RoundhouseUi.observability
-      RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "trainual")
+      RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "sidekiq")
       stub_sets(
         retry_entries: [ FakeEntry.new(klass: "BulkImportJob", error_class: "PG::Error", at: Time.now) ],
         dead_entries: []

@@ -1,6 +1,7 @@
 # Roundhouse
 <img width="4460" height="3152" alt="CleanShot 2026-07-01 at 09 42 17@2x" src="https://github.com/user-attachments/assets/3484709b-9c4f-449e-8776-53ad2de4781f" />
-**A modern, real-time web UI for Sidekiq and Solid Queue.**
+
+<!-- TODO: demo GIF -->
 
 [![CI](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml)
 [![Gem Version](https://img.shields.io/gem/v/roundhouse_ui)](https://rubygems.org/gems/roundhouse_ui)
@@ -8,31 +9,88 @@
 [![Rails](https://img.shields.io/badge/rails-%3E%3D%207.0-D30001?logo=rubyonrails&logoColor=white)](https://rubyonrails.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](MIT-LICENSE)
 
-Roundhouse is a mountable Rails engine — a control plane built for the way you
-actually operate background jobs: a high-signal dashboard, searchable sets, grouped
-errors, smart bulk actions, safe queue management, and job inspection/editing. It
-reads through a **backend port**, so the same UI drives **Sidekiq** or **Solid
-Queue** (see [Backends](#backends)). All server-rendered with Turbo — **no build
-step, no frontend dependency** — and **no Sidekiq Pro required**.
+Roundhouse is a real-time ops UI for Sidekiq and Solid Queue — grouped errors,
+argument search, bulk actions on a filter, enforced pause, snapshots, and an
+audit log — in one mountable engine with no build step and no Sidekiq Pro
+required.
+
+## Why
+
+I wrote this during an incident where I needed to know which jobs for one
+customer had failed, and whether I could retry only those. Sidekiq::Web gave me
+a retry set of forty thousand rows, twenty-five at a time, with no search. So I
+opened a Rails console at 2am and started writing `Sidekiq::RetrySet.new.select`
+against production — which is not where anyone should be deciding what to retry.
+
+Roundhouse answers that question in the browser, and records who answered it.
+
+## Install
+
+```ruby
+# Gemfile
+gem "roundhouse_ui"
+
+# config/routes.rb — mount behind your own auth; Roundhouse ships none
+authenticate :user, ->(u) { u.admin? } do
+  mount RoundhouseUi::Engine => "/roundhouse"
+end
+
+# config/initializers/roundhouse.rb — only if you're on Solid Queue
+RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
+```
+
+## What you get
+
+- **Grouped errors** — failures fingerprinted by class + error, so one bad deploy is one row with a count, not thousands.
+- **Search across the retry, dead and scheduled sets** — by class, JID, error, or argument value.
+- **Bulk retry or delete scoped to a filter** — every job matching your search, not just the page you can see.
+- **Enforced pause** — a paused queue actually stops being worked, on OSS Sidekiq too.
+- **Snapshot → restore** — back a queue up before you purge it, and put it back if you were wrong.
+- **Audit log** — every state-changing action, with who did it.
+
+The same UI drives **Sidekiq** or **Solid Queue** — see [Backends](#backends);
+running both at once is [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17).
+
+Roundhouse ships no authentication, so mount it behind yours. `read_only`
+disables every mutating action, `redact_args` masks sensitive arguments, and
+`job_class_namespaces` limits which classes the UI will touch —
+see [Security](#security).
 
 > Gem name is `roundhouse_ui`; the brand and mount path are **Roundhouse**.
 
-## Features
+## Contents
 
-- **High-signal dashboard** — a composite health verdict (error rate + queue latency + utilization, with a "why"), *top failing job classes* and *problem queues* panels, and a live throughput chart with a configurable interval — all refreshing in place (polling pauses when the tab is hidden).
-- **Grouped errors** — failures fingerprinted by `class + error`, so one bad deploy is a single issue with a count, not thousands of rows.
-- **Smart bulk actions** — retry/delete every job matching a filter (not just the visible page), plus select-and-act on Dead.
-- **Search** — across the dead/retry/scheduled sets by class, JID, error, or argument value.
-- **Queue management** — pause/resume, purge with an impact count, and **snapshot → restore**.
-- **Job inspection & editing** — full args (with redaction), error, and collapsible backtrace; edit & re-enqueue, or enqueue a new job (opt-in).
-- **Per-class durations** (opt-in) — the slowest job classes, which Sidekiq doesn't track.
-- **Audit log** — every state-changing action recorded and attributable.
-- **⌘K command palette**, read-only mode, and a strict self-contained CSP.
-- **Per-person settings** — light/dark, palette, content width and refresh interval, stored in the browser; nothing server-side to share or migrate. Hosts can set the palette for everyone, or withdraw the choice.
+**Setting up** ·
+[Requirements](#requirements) ·
+[Installation](#installation) ·
+[Backends](#backends) ·
+[Mounting](#mounting) ·
+[Configuration](#configuration) ·
+[Security](#security)
 
-Sidekiq-specific extras: **Workers** (quiet/stop, threads, heartbeat), **Redis pressure** (eviction-policy check for silent job loss), and **Capsules**.
+**Operating** ·
+[Pausing queues](#pausing-queues) ·
+[Snapshots](#snapshots) ·
+[Cancelling jobs](#cancelling-jobs) ·
+[Bulk actions on a filter](#bulk-actions-on-a-filter) ·
+[Slowest job classes](#slowest-job-classes)
 
-There's **no database of its own** — Roundhouse reads your job backend directly (Sidekiq via its API, Solid Queue via its tables).
+**Labelling and links** ·
+[Job tags](#job-tags) ·
+[Runbooks](#runbooks) ·
+[Observability deep-links](#observability-deep-links) ·
+[Surfacing sidekiq-failures](#surfacing-sidekiq-failures)
+
+**Appearance** ·
+[Theming](#theming) ·
+[Settings](#settings) ·
+[Keyboard](#keyboard)
+
+**Project** ·
+[Development](#development) ·
+[Roadmap](#roadmap) ·
+[Contributing](#contributing) ·
+[License](#license)
 
 ## Requirements
 
@@ -198,8 +256,8 @@ reads paused state from Pro's registry, advertises `native_pause`, and drops the
 
 - **Don't** install `RoundhouseUi::Fetch` — it isn't needed, and on `super_fetch`
   installs it would displace reliable fetch and lose its crash-recovery guarantees.
-- **Don't** set `pause_enabled = false` — pause genuinely works; disabling it only
-  hides a feature you already have.
+- **Don't** set `pause_enabled = false` — pause works; disabling it only hides a
+  feature you already have.
 
 Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
 Redis key directly: Pro's fetchers read that set once at startup and afterwards
@@ -250,8 +308,8 @@ authors designed, so choosing a palette is never a choice to give up light mode:
 | `kanagawa` | [Kanagawa](https://github.com/rebelot/kanagawa.nvim) Wave | Lotus |
 | `solarized` | [Solarized](https://github.com/altercation/solarized) Dark | Light |
 
-The eleventh is `cyberpunk` — deliberately loud, and dark-only, which Settings
-labels so, because a dark-only palette is simply inert in light mode.
+The eleventh is `cyberpunk` — loud, and dark-only, which Settings labels, since
+a dark-only palette is inert in light mode.
 
 Catppuccin and Rosé Pine each ship one light flavour and several dark ones, so
 their entries share a light half. That's upstream's own design rather than a
@@ -261,26 +319,15 @@ shortcut here, which is why the preset name says which dark flavour you get.
 RoundhouseUi.theme = RoundhouseUi::Theme::PRESETS[:kanagawa]
 ```
 
-> **Role mapping is where the judgement is.** Every project names its swatches
-> differently and none of them has our token set, so the mapping is the part
-> that can be wrong while every colour is right. Two rules do most of the work:
-> `panel` must lift off `bg`, and `line` must be *soft* — the shipped theme
-> draws borders at 1.20:1 against their own panel. Reaching one surface step too
-> far is the easy mistake and it does not look like a colour bug, it looks like
-> the theme is broken: it put Nord's light border at 6.4:1 and Rosé Pine's dark
-> border at 3.2:1, a hard outline around every button and input. Tests hold each
-> palette to that band, so a new palette cannot regress it.
->
-> Every one of the 280 values is lifted from the project's own palette file —
-> `palette.json`, `gruvbox.vim`, `nord.css`, `colors.lua` — not transcribed by
-> eye, and the test suite asserts each one still renders. Because every project
-> names its swatches differently, the role mapping is the part with judgement in
-> it: `panel` has to read as distinct from `bg`, `panel_2` has to be dark (or
-> light) enough for `muted` text to sit on, and `line_soft` has to differ from
-> `panel` or card borders vanish. Tests hold each palette to contrast floors as
-> well as to those structural rules — Nord's own comment grey lands at 1.36:1 on
-> its own panel, and that is exactly the kind of thing a list of hex values
-> cannot show you.
+> All 280 values come from each project's own palette file — `palette.json`,
+> `gruvbox.vim`, `nord.css`, `colors.lua` — rather than transcribed by eye. The
+> mapping onto our tokens is what can be wrong while every colour is right:
+> `panel` must lift off `bg`, `panel_2` must carry `muted` text, and `line` must
+> be soft — the shipped theme draws borders at 1.20:1 against their own panel.
+> One surface step too far doesn't read as a colour bug, it reads as a broken
+> theme: it put Nord's light border at 6.4:1 and Rosé Pine's dark at 3.2:1, a
+> hard outline around every button and input. Tests hold every palette to
+> contrast floors and to those structural rules, so a new one can't regress it.
 
 ### Letting people pick
 
@@ -300,7 +347,7 @@ more choice than you want in a production console. A palette beats `theme`, and
 is the floor rather than something a viewer can be stranded away from.
 
 Every offered palette is emitted as CSS on every page: all eleven cost about
-1.5 KB gzipped, so this is a taste question, not a performance one.
+1.5 KB gzipped.
 
 Withdraw the control entirely where recolouring a production console isn't
 something an operator should be doing:
@@ -320,8 +367,8 @@ local storage — nothing is written server-side, so one person's choices never
 change what anyone else sees, and there's no state to migrate or clean up. A
 private window starts fresh.
 
-The refresh interval is worth a word: every tick runs your app's own
-authentication and routing, so it isn't free. Whatever you set for
+Every refresh tick runs your app's own authentication and routing, so a faster
+interval isn't free. Whatever you set for
 `poll_interval` is the default and is named on the page; a viewer can go faster
 or slower within 2–300 seconds.
 
@@ -341,14 +388,14 @@ RoundhouseUi.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
 RoundhouseUi.job_runbooks = ->(klass:, item:) { "https://wiki/jobs/#{klass}" }
 ```
 
-A **Runbook** link then appears on the job page and on each grouped error row —
-the two places someone lands during an incident. Resolved at read time like
-tags, so it applies to jobs already in the sets, with no middleware and nothing
-stored. Inherited constants count, so one base class can carry a runbook for a
+A **Runbook** link appears on the job page and on each grouped error row — the
+two places someone lands during an incident. Resolution happens at read time
+like tags, so it covers jobs already in the sets, with no middleware and nothing
+stored. Inherited constants count, so one base class carries a runbook for a
 whole family, and ActiveJob-wrapped jobs resolve by their real class.
 
-> Only `http`/`https` URLs render. The value lands in an `href`, where no amount
-> of escaping makes `javascript:` safe, so the scheme is checked instead — a
+> Only `http`/`https` URLs render. The value lands in an `href`, where no
+> escaping makes `javascript:` safe, so the scheme is checked instead — a
 > misconfigured host gets no link rather than a link that runs. Links open in a
 > new tab with `rel="noopener noreferrer"`.
 
@@ -492,28 +539,44 @@ the term is left out of the query entirely when nil.
 
 ## Snapshots
 
-Back up a queue before purging it (the safety net for clearing a stuck queue), then restore.
-Storage is pluggable via `RoundhouseUi.snapshot_store` (default: Redis). For large/stuck
-queues use a file or S3 store so the backup doesn't sit in the Redis you're trying to relieve.
+Back up a queue before purging it, then restore if you were wrong. Both actions are
+audit-logged.
+
+Only a Redis store ships, and it is the default. A snapshot of a stuck queue then lives in
+the Redis you are trying to relieve — and under `allkeys-lru` it is itself evictable, so a
+large backup can disappear. Point `RoundhouseUi.snapshot_store` at your own store to put it
+somewhere else; the contract is four methods:
+
+```ruby
+class S3SnapshotStore
+  def write(id, blob) = # persist it
+  def read(id)        = # → the blob, or nil
+  def delete(id)      = # remove it
+  def ids             = # → array of snapshot ids
+end
+
+RoundhouseUi.snapshot_store = S3SnapshotStore.new
+```
+
+Restore is not idempotent — restoring twice enqueues everything twice — and it issues one
+push per job, so a very large snapshot is slow to put back.
 
 ## Security
 
 **Constant resolution from job payloads.** `Tags.from_constant` and
 `Runbooks.from_constant` read a constant off the job class, which means turning
-`item["class"]` — a string out of Redis — into a Class. Worth knowing precisely
-what that does and does not expose:
+`item["class"]` — a string out of Redis — into a Class:
 
 - Malformed names never reach a lookup. Ruby rejects `"../../etc/passwd"` as a
   constant path before attempting to resolve anything, so no autoload occurs.
 - A **well-formed name of a class that really exists** does resolve, and
-  resolving a class loads it. In production this is close to inert: Rails sets
-  `eager_load = true`, so every app constant is already loaded and no new file
-  is executed.
+  resolving a class loads it. Production Rails sets `eager_load = true`, so every
+  app constant is already loaded and no new file is executed.
 - Writing a crafted payload requires Redis write access — which, on a Sidekiq
   install, already permits enqueuing a real job, a more serious compromise than
   this.
 
-Two ways to tighten it if your payloads are not fully trusted:
+Two ways to tighten it if your payloads aren't fully trusted:
 
 ```ruby
 # Bound which constants may be resolved at all
@@ -528,7 +591,9 @@ c.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
 - All destructive actions are CSRF-protected `POST`s — never GET — and gated by `read_only`.
 - Roundhouse sets its own strict, self-contained Content-Security-Policy on its responses
   (nonce'd inline script, same-origin only), so it's safe even if the host sets no policy.
-- Configure `redact_args` to keep tokens/PII out of the UI; the audit log records who did what.
+- Configure `redact_args` to keep tokens and PII out of the UI, and set `actor_resolver` so
+  the audit log records who did what. Redaction is key-based, so a secret nested under an
+  unlisted key is not redacted — audit what your payloads actually carry.
 
 ## Keyboard
 
