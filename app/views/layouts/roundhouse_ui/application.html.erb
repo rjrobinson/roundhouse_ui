@@ -114,6 +114,41 @@
     .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }
 
     /* Quick filters: counts by tag, from the scan that already ran. */
+    /* Motion. Every effect here is meant to carry information rather than
+       decorate: a value that changed, a queue that will not drain, time until
+       the next refresh. All of it is dropped for prefers-reduced-motion. */
+    .rh-ico { display:inline-grid; place-items:center; width:16px; height:16px; flex:0 0 16px; }
+    .rh-ico svg { display:block; }
+
+    /* A polled number that actually changed. The only effect on this page that
+       tells you something you could not otherwise see. */
+    @keyframes rh-flash { from { background:color-mix(in srgb, var(--accent) 32%, transparent); } to { background:transparent; } }
+    .rh-changed { animation:rh-flash 1.4s ease-out; border-radius:4px; }
+
+    /* No entrance animation on rows, deliberately. Navigation is the frequent
+       action in an ops console — Queues to Errors to Dead and back, all day —
+       so choreographing it turns every click into a small wait. Motion here
+       signals that the DATA changed, never that the page did. */
+
+    /* The one row that will not fix itself. Slow on purpose — faster reads as an
+       alarm, and an alarm you see all day is one you stop seeing. */
+    @keyframes rh-pulse { 0%, 100% { opacity:1; } 50% { opacity:.58; } }
+    .rh-fc-growing { animation:rh-pulse 2.6s ease-in-out infinite; }
+
+    .rh-btn, .rh-iconbtn { transition:transform .09s ease, border-color .12s ease, background .12s ease; }
+    .rh-btn:active, .rh-iconbtn:active { transform:scale(.95); }
+
+    @keyframes rh-toastin { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .rh-flash { animation:rh-toastin .3s cubic-bezier(.2,.8,.3,1); }
+
+    .rh-nav { transition:background .16s ease, color .16s ease, border-color .16s ease; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rh-fc-growing, .rh-flash, .rh-changed { animation:none !important; }
+      .rh-btn, .rh-iconbtn, .rh-nav { transition:none !important; }
+      .rh-btn:active, .rh-iconbtn:active { transform:none; }
+    }
+
     /* Drain forecast (#35). "Growing" is the state that matters during an
        incident, so it is the only one that gets a colour that demands attention. */
     .rh-sort { cursor:pointer; user-select:none; white-space:nowrap; }
@@ -122,13 +157,13 @@
     .rh-sort.is-asc::after  { content:"↑"; opacity:1; color:var(--accent); }
     .rh-sort.is-desc::after { content:"↓"; opacity:1; color:var(--accent); }
 
-    .rh-runbook { font-size:11px; font-family:var(--mono); color:var(--accent); text-decoration:none;
+    .rh-runbook { font-size:11.5px; color:var(--accent); text-decoration:none;
                   border:1px solid var(--line); border-radius:6px; padding:1px 7px; white-space:nowrap; }
     .rh-runbook:hover { border-color:var(--accent); background:var(--panel-2); }
 
     .rh-cap-pick { font-size:10px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
 
-    .rh-fc { font-size:12px; font-family:var(--mono); white-space:nowrap; }
+    .rh-fc { font-size:12.5px; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .rh-fc-wait { color:var(--faint); }
     .rh-fc-draining { color:var(--good); }
     .rh-fc-stalled { color:var(--warn); }
@@ -203,7 +238,7 @@
     .rh-health-warn .rh-health-verdict { color:var(--warn); }
     .rh-health-crit .rh-health-verdict { color:var(--crit); }
     .rh-health-reason { color:var(--muted); font-size:13px; }
-    .rh-health-cta { margin-left:auto; font:11px var(--mono); color:var(--faint); }
+    .rh-health-cta { margin-left:auto; font:11.5px var(--sans); color:var(--faint); }
     .rh-health[open] .rh-health-cta { color:var(--accent); }
     .rh-health-signals { padding:2px 16px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line-soft); margin-top:2px; padding-top:12px; }
     .rh-sig { display:flex; align-items:center; gap:10px; font-size:13px; }
@@ -220,7 +255,7 @@
     .rh-insight .rh-empty { padding:18px 16px; }
 
     /* collapsible disclosure (large args, full backtrace) */
-    .rh-disclose summary { cursor:pointer; font:12px var(--mono); color:var(--accent); padding:6px 0; list-style:none; }
+    .rh-disclose summary { cursor:pointer; font:12.5px var(--sans); color:var(--accent); padding:6px 0; list-style:none; }
     .rh-disclose summary::-webkit-details-marker { display:none; }
     .rh-disclose summary::before { content:"▸ "; }
     .rh-disclose[open] summary::before { content:"▾ "; }
@@ -414,10 +449,18 @@
         tip.style.left = (e.clientX - rect.left) + "px";
         tip.hidden = false;
       }
+      function setValue(el, text) {
+        if (el.textContent === text) return; // unchanged: no flash, or the page blinks constantly
+        el.textContent = text;
+        el.classList.remove("rh-changed");
+        void el.offsetWidth;
+        el.classList.add("rh-changed");
+      }
       function apply(d) {
         Object.keys(d).forEach(function (k) {
-          document.querySelectorAll('[data-stat="' + k + '"]').forEach(function (el) { el.textContent = fmt(d[k]); });
-          document.querySelectorAll('[data-nav="' + k + '"]').forEach(function (el) { el.textContent = fmt(d[k]); });
+          var text = fmt(d[k]);
+          document.querySelectorAll('[data-stat="' + k + '"]').forEach(function (el) { setValue(el, text); });
+          document.querySelectorAll('[data-nav="' + k + '"]').forEach(function (el) { setValue(el, text); });
         });
       }
       function poll() {
@@ -655,10 +698,10 @@
       // Capability-gated exactly like the sidebar: a backend without a retry
       // set must not be offered a search into one.
       var SETS = [
-        { label: "Dead",      path: "<%= dead_set_path %>",  icon: "✕" },
-        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "↻" },<% end %>
-        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "◔" },
-        { label: "Errors",    path: "<%= errors_path %>",    icon: "⚠" }
+        { label: "Dead",      path: "<%= dead_set_path %>",  icon: "<%= RoundhouseUi::Icons.markup(:dead) %>" },
+        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "<%= RoundhouseUi::Icons.markup(:retries) %>" },<% end %>
+        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },
+        { label: "Errors",    path: "<%= errors_path %>",    icon: "<%= RoundhouseUi::Icons.markup(:errors) %>" }
       ];
       // Declared tag vocabulary and live queue names, so the palette can tell a
       // squad from a queue from a free-text term.
@@ -684,7 +727,7 @@
             if (value.toLowerCase().indexOf(q) !== 0) return;
             seen[value] = true;
             SETS.forEach(function (s) {
-              out.push({ label: key + ": " + value + " — " + s.label, icon: "◆",
+              out.push({ label: key + ": " + value + " — " + s.label, icon: "<%= RoundhouseUi::Icons.markup(:dashboard) %>",
                          path: s.path + "?tag=" + encodeURIComponent(key + ":" + value) });
             });
           });
@@ -693,7 +736,7 @@
         QUEUE_NAMES.forEach(function (name) {
           if (name.toLowerCase().indexOf(q) !== 0) return;
           SETS.slice(0, 3).forEach(function (s) {
-            out.push({ label: "Queue " + name + " — " + s.label, icon: "≣",
+            out.push({ label: "Queue " + name + " — " + s.label, icon: "<%= RoundhouseUi::Icons.markup(:queues) %>",
                        path: s.path + "?queue=" + encodeURIComponent(name) });
           });
         });
@@ -706,23 +749,23 @@
       }
 
       var CMDS = [
-        { label: "Dashboard", path: "<%= root_path %>", icon: "▦" },
-        { label: "Metrics", path: "<%= metrics_path %>", icon: "▤" },
-        { label: "Busy", path: "<%= busy_path %>", icon: "◐" },
-        <% if RoundhouseUi.backend.supports?(:workers) %>{ label: "Workers", path: "<%= workers_path %>", icon: "◷" },<% end %>
-        { label: "Queues", path: "<%= queues_path %>", icon: "≡" },
-        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "◔" },
-        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "↻" },<% end %>
-        { label: "Errors", path: "<%= errors_path %>", icon: "⚠" },
-        { label: "Dead", path: "<%= dead_set_path %>", icon: "✕" },
-        <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "⊞" },<% end %>
-        <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "◈" },<% end %>
-        { label: "Snapshots", path: "<%= snapshots_path %>", icon: "⛁" },
-        { label: "Audit log", path: "<%= audit_log_path %>", icon: "☷" },
-        { label: "Settings", path: "<%= settings_path %>", icon: "⚙" },
-        <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", icon: "＋" },<% end %>
-        { label: "Toggle theme", action: "theme", icon: "◐" },
-        { label: "Toggle full width", action: "width", icon: "⟷" }
+        { label: "Dashboard", path: "<%= root_path %>", icon: "<%= RoundhouseUi::Icons.markup(:dashboard) %>" },
+        { label: "Metrics", path: "<%= metrics_path %>", icon: "<%= RoundhouseUi::Icons.markup(:metrics) %>" },
+        { label: "Busy", path: "<%= busy_path %>", icon: "<%= RoundhouseUi::Icons.markup(:busy) %>" },
+        <% if RoundhouseUi.backend.supports?(:workers) %>{ label: "Workers", path: "<%= workers_path %>", icon: "<%= RoundhouseUi::Icons.markup(:workers) %>" },<% end %>
+        { label: "Queues", path: "<%= queues_path %>", icon: "<%= RoundhouseUi::Icons.markup(:queues) %>" },
+        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },
+        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "<%= RoundhouseUi::Icons.markup(:retries) %>" },<% end %>
+        { label: "Errors", path: "<%= errors_path %>", icon: "<%= RoundhouseUi::Icons.markup(:errors) %>" },
+        { label: "Dead", path: "<%= dead_set_path %>", icon: "<%= RoundhouseUi::Icons.markup(:dead) %>" },
+        <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "<%= RoundhouseUi::Icons.markup(:capsules) %>" },<% end %>
+        <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "<%= RoundhouseUi::Icons.markup(:redis) %>" },<% end %>
+        { label: "Snapshots", path: "<%= snapshots_path %>", icon: "<%= RoundhouseUi::Icons.markup(:snapshots) %>" },
+        { label: "Audit log", path: "<%= audit_log_path %>", icon: "<%= RoundhouseUi::Icons.markup(:audit) %>" },
+        { label: "Settings", path: "<%= settings_path %>", icon: "<%= RoundhouseUi::Icons.markup(:settings) %>" },
+        <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", icon: "<%= RoundhouseUi::Icons.markup(:enqueue) %>" },<% end %>
+        { label: "Toggle theme", action: "theme", icon: "<%= RoundhouseUi::Icons.markup(:busy) %>" },
+        { label: "Toggle full width", action: "width", icon: "<%= RoundhouseUi::Icons.markup(:width) %>" }
       ];
       var palSel = 0, palFiltered = [];
       function palEl() { return document.getElementById("rh-palette"); }
@@ -849,38 +892,38 @@
 
       <nav class="rh-grp">
         <div class="rh-grp-label">Overview</div>
-        <%= nav_link "Dashboard", root_path, icon: "▦" %>
-        <%= nav_link "Metrics", metrics_path, icon: "▤" %>
-        <%= nav_link "Busy", busy_path, icon: "◐", badge: "busy", badge_title: "Jobs running right now" %>
+        <%= nav_link "Dashboard", root_path, icon: :dashboard %>
+        <%= nav_link "Metrics", metrics_path, icon: :metrics %>
+        <%= nav_link "Busy", busy_path, icon: :busy, badge: "busy", badge_title: "Jobs running right now" %>
         <% if RoundhouseUi.backend.supports?(:workers) %>
-          <%= nav_link "Workers", workers_path, icon: "◷" %>
+          <%= nav_link "Workers", workers_path, icon: :workers %>
         <% end %>
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Work</div>
-        <%= nav_link "Queues", queues_path, icon: "≡", badge: "enqueued", badge_title: "Jobs enqueued across all queues" %>
-        <%= nav_link "Scheduled", scheduled_path, icon: "◔", badge: "scheduled", badge_title: "Jobs scheduled for later" %>
+        <%= nav_link "Queues", queues_path, icon: :queues, badge: "enqueued", badge_title: "Jobs enqueued across all queues" %>
+        <%= nav_link "Scheduled", scheduled_path, icon: :scheduled, badge: "scheduled", badge_title: "Jobs scheduled for later" %>
         <% if RoundhouseUi.backend.supports?(:retries) %>
-          <%= nav_link "Retries", retries_path, icon: "↻", badge: "retries", badge_class: "warn", badge_title: "Jobs waiting to retry" %>
+          <%= nav_link "Retries", retries_path, icon: :retries, badge: "retries", badge_class: "warn", badge_title: "Jobs waiting to retry" %>
         <% end %>
-        <%= nav_link "Errors", errors_path, icon: "⚠" %>
-        <%= nav_link "Dead", dead_set_path, icon: "✕", badge: "dead", badge_class: "crit", badge_title: "Jobs that exhausted their retries" %>
+        <%= nav_link "Errors", errors_path, icon: :errors %>
+        <%= nav_link "Dead", dead_set_path, icon: :dead, badge: "dead", badge_class: "crit", badge_title: "Jobs that exhausted their retries" %>
         <% if RoundhouseUi.allow_job_editing %>
-          <%= nav_link "Enqueue job", new_job_path, icon: "＋" %>
+          <%= nav_link "Enqueue job", new_job_path, icon: :enqueue %>
         <% end %>
       </nav>
       <nav class="rh-grp">
         <div class="rh-grp-label">Infrastructure</div>
         <%# Capsules are a Sidekiq 7+ concept — hide on 6.x and on non-Sidekiq backends. %>
         <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>
-          <%= nav_link "Capsules", capsules_path, icon: "⊞" %>
+          <%= nav_link "Capsules", capsules_path, icon: :capsules %>
         <% end %>
         <% if RoundhouseUi.backend.supports?(:redis) %>
-          <%= nav_link "Redis", redis_info_path, icon: "◈" %>
+          <%= nav_link "Redis", redis_info_path, icon: :redis %>
         <% end %>
-        <%= nav_link "Snapshots", snapshots_path, icon: "⛁" %>
-        <%= nav_link "Audit log", audit_log_path, icon: "☷" %>
-          <%= nav_link "Settings", settings_path, icon: "⚙" %>
+        <%= nav_link "Snapshots", snapshots_path, icon: :snapshots %>
+        <%= nav_link "Audit log", audit_log_path, icon: :audit %>
+          <%= nav_link "Settings", settings_path, icon: :settings %>
       </nav>
     </aside>
 

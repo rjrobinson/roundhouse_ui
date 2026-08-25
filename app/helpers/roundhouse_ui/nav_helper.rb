@@ -6,7 +6,7 @@ module RoundhouseUi
       here = request.path == path || (path != root_path && request.path.start_with?(path))
       link_to path, class: "rh-nav#{' is-active' if here}" do
         safe_join([
-          content_tag(:span, icon, class: "rh-ico"),
+          icon(icon),
           content_tag(:span, label, class: "rh-lbl"),
           badge ? content_tag(:span, "", class: "rh-badge #{badge_class}", title: badge_title, data: { nav: badge }) : "".html_safe
         ])

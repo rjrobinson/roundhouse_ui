@@ -69,6 +69,20 @@ module RoundhouseUi
     def duration(seconds) = RoundhouseUi.duration(seconds)
     def duration_ms(ms) = RoundhouseUi.duration_ms(ms)
 
+    # An icon by name. Inline SVG by default; a class name when the host has its
+    # own icon font. Only our own SVG constants are marked html_safe — a
+    # host-supplied class name goes through content_tag and is escaped.
+    def icon(name, extra_class: nil)
+      markup = RoundhouseUi::Icons.markup(name)
+      return "".html_safe unless markup
+
+      if markup.start_with?("<svg")
+        content_tag(:span, markup.html_safe, class: [ "rh-ico", extra_class ].compact.join(" "))
+      else
+        content_tag(:i, "", class: [ markup, "rh-ico", extra_class ].compact.join(" "), aria: { hidden: true })
+      end
+    end
+
     # The runbook for a job, as a link, or nil when the host declared none (#39).
     # Cached per class per request like tags — the same page can ask for the same
     # class dozens of times.
