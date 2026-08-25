@@ -213,6 +213,7 @@ here is required to mount Roundhouse.
 | `tag_filters` | `nil` | You want stable filter dropdowns instead of ones that only list what happens to be on screen — and want filtering on an unknown key to match nothing. | The `?tag=` URL is enough. |
 | `job_runbooks` | `nil` | Your jobs have runbooks and you'd rather not make someone find them at 3am. | There's nothing to link to yet. |
 | `job_class_namespaces` | `nil` | You want to bound which constants a job payload can cause Roundhouse to resolve. See [Security](#security). | Your job payloads come only from your own app, which is the normal case. |
+| `history` | — | Not a setting. Sidekiq records daily processed and failed counts itself, so the Dashboard shows a History chart with no configuration and no storage. Hidden on Solid Queue, which has no equivalent. |  |
 | `theme` | `nil` | You want Roundhouse to match your own admin's palette, or you just want it to look different. Partial themes are fine — unset tokens keep their shipped values. See [Theming](#theming). | The shipped light/dark pair is fine. |
 | `icons` | `:svg` | You already ship FontAwesome and would rather Roundhouse used it — `:font_awesome`, or a Hash of `{ name => "class names" }`. Roundhouse never loads a font itself either way. | You want the shipped inline SVG, which needs nothing installed. |
 | `themes` | shipped presets | You want people to pick their own palette on the Settings page. | Everyone should see the same thing — set `theme` instead, or `allow_theme_selection = false`. |
@@ -580,6 +581,23 @@ RoundhouseUi.snapshot_store = S3SnapshotStore.new
 
 Restore is not idempotent — restoring twice enqueues everything twice — and it issues one
 push per job, so a very large snapshot is slow to put back.
+
+## History
+
+The Dashboard carries a **History** chart — daily processed counts and the daily
+**failure rate**, over 1 week to 6 months.
+
+This needs no configuration and stores nothing. Sidekiq already keeps a counter
+per day; Roundhouse just reads it. The rate is the line worth watching: counts
+move with traffic, so a busy Monday looks worse than a quiet Sunday even when
+nothing changed.
+
+A dashed baseline marks the **typical** failure rate — the median across days
+that had traffic, so one incident cannot become the new normal and quiet
+weekends cannot drag it to zero.
+
+Sidekiq only. Solid Queue has no equivalent counter, so the section hides rather
+than drawing an empty chart.
 
 ## Security
 

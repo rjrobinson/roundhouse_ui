@@ -18,7 +18,7 @@ module RoundhouseUi
       # fetcher), so :native_pause is withheld and the "not enforced" warning
       # applies — but Sidekiq Pro ships its own enforced pause, so there it is
       # advertised and the warning drops away.
-      CAPABILITIES = %i[retries dead scheduled busy workers redis capsules].freeze
+      CAPABILITIES = %i[retries dead scheduled busy workers redis capsules history].freeze
 
       # Process-local, deliberately: this is a cheap staleness gate, not shared
       # state. Every process reaches its own conclusion within CONCURRENCY_TTL.
@@ -40,6 +40,18 @@ module RoundhouseUi
       # through Redis in chunks, so callers that stop early (browse fills one
       # page and breaks) never load a large queue into memory.
       def queue_jobs(name) = ::Sidekiq::Queue.new(name)
+
+      # Sidekiq keeps a per-day counter whether anyone reads it or not, so this
+      # is free history — no storage of ours, no migration, works everywhere.
+      # Oldest first: a chart should not have to reverse it.
+      def history(days)
+        h = ::Sidekiq::Stats::History.new(days)
+        processed = h.processed
+        failed = h.failed
+        processed.keys.sort.map do |date|
+          RoundhouseUi::Day.new(date: date, processed: processed[date].to_i, failed: failed[date].to_i)
+        end
+      end
 
       # Total worker threads across every reporting process, for the capacity
       # figure (#36). Deliberately not Stats#workers_size, which counts threads

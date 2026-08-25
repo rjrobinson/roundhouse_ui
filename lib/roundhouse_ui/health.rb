@@ -64,13 +64,41 @@ module RoundhouseUi
       Signal.new(key: "latency", label: "Queue latency", status: status, detail: detail)
     end
 
+    # A fully-busy fleet is what you want. It is only a problem when the work is
+    # also backing up — so this used to cry wolf: a healthy app running flat out
+    # reported Critical, and an alarm that fires when nothing is wrong is how
+    # people learn to ignore the banner.
+    #
+    # What makes saturation bad is that it is *sustained*, and queue latency is
+    # already the memory of that: if you have been at capacity long enough to
+    # matter, the oldest job is old. So a momentary spike stays a warning and
+    # only saturation with a backlog behind it escalates — no stored history
+    # needed to tell them apart.
+    SATURATED = 1.0
+    BUSY = 0.85
+
     def utilization_signal
       util = @metrics.utilization
       return nil if util.nil? # no processes reporting in — can't judge
 
-      status = if util >= 1.0 then :crit elsif util >= 0.85 then :warn else :ok end
-      Signal.new(key: "utilization", label: "Worker utilization", status: status,
-                 detail: "#{(util * 100).round}% of worker threads busy")
+      pct = "#{(util * 100).round}% of worker threads busy"
+      return Signal.new(key: "utilization", label: "Worker utilization", status: :ok, detail: pct) if util < BUSY
+      return Signal.new(key: "utilization", label: "Worker utilization", status: :warn, detail: pct) if util < SATURATED
+
+      if falling_behind?
+        Signal.new(key: "utilization", label: "Worker utilization", status: :crit,
+                   detail: "#{pct} and queues are falling behind")
+      else
+        Signal.new(key: "utilization", label: "Worker utilization", status: :warn,
+                   detail: "#{pct} — at capacity, keeping up")
+      end
+    end
+
+    # Saturation is only critical alongside a queue that is not being kept up
+    # with, which is the same threshold the latency signal escalates on.
+    def falling_behind?
+      worst = @queues.max_by { |q| q.latency.to_f }
+      worst && worst.latency.to_f > 60
     end
   end
 end

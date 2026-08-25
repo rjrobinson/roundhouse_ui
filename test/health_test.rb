@@ -33,8 +33,35 @@ module RoundhouseUi
       assert_equal :crit, h.status
     end
 
-    def test_saturated_utilization_is_critical
-      assert_equal :crit, health(utilization: 1.0).status
+    # A fully-busy fleet is what you want, so saturation on its own is a warning.
+    # This test previously asserted :crit, which is the cry-wolf behaviour: a
+    # healthy app running flat out reported Critical, and an alarm that fires
+    # when nothing is wrong trains people to ignore the banner.
+    def test_saturation_alone_is_only_a_warning
+      h = health(utilization: 1.0, queues: [ FakeQueue.new("default", 3) ])
+      util = h.signals.find { |s| s.key == "utilization" }
+      assert_equal :warn, util.status
+      assert_includes util.detail, "keeping up"
+    end
+
+    # Queue latency is the memory of how long we have been saturated: if it has
+    # gone on long enough to matter, the oldest job is old.
+    def test_saturation_with_a_backlog_is_critical
+      h = health(utilization: 1.0, queues: [ FakeQueue.new("default", 900) ])
+      util = h.signals.find { |s| s.key == "utilization" }
+      assert_equal :crit, util.status
+      assert_includes util.detail, "falling behind"
+    end
+
+    # A backlog on its own is the latency signal's business, not this one's.
+    def test_a_backlog_without_saturation_does_not_escalate_utilization
+      h = health(utilization: 0.5, queues: [ FakeQueue.new("default", 900) ])
+      assert_equal :ok, h.signals.find { |s| s.key == "utilization" }.status
+    end
+
+    def test_nearly_saturated_is_a_warning_regardless_of_backlog
+      h = health(utilization: 0.9, queues: [ FakeQueue.new("default", 900) ])
+      assert_equal :warn, h.signals.find { |s| s.key == "utilization" }.status
     end
 
     def test_utilization_signal_omitted_when_no_workers_reporting

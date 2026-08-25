@@ -91,6 +91,37 @@
   </div>
 </div>
 
+<%# Daily history, from the counters Sidekiq already keeps. The live throughput
+    chart above answers "what is happening"; this answers "is that normal",
+    which nothing in Roundhouse could answer before. %>
+<% if @history.present? %>
+  <div class="rh-chart-wrap">
+    <div class="top">
+      <h3>History</h3>
+      <span class="rh-sub">daily · processed and failure rate</span>
+      <span class="rh-hist-ranges">
+        <% RoundhouseUi::History::RANGES.each do |days, label| %>
+          <%= link_to label, root_path(history: days),
+                class: "rh-qf#{' is-on' if @history_days == days.to_i}" %>
+        <% end %>
+      </span>
+    </div>
+    <canvas id="rh-history"
+            width="1100" height="150"
+            data-rh-history="<%= @history.map { |d| { d: d.date, p: d.processed, f: d.failed, r: d.failure_rate.round(5) } }.to_json %>"
+            data-rh-typical="<%= @typical_failure_rate %>"
+            aria-hidden="true"></canvas>
+    <div class="rh-hist-legend">
+      <span><i class="rh-swatch is-proc"></i>processed</span>
+      <span><i class="rh-swatch is-rate"></i>failure rate</span>
+      <% if @typical_failure_rate %>
+        <span class="rh-sub">typical <%= (@typical_failure_rate * 100).round(2) %>%</span>
+      <% end %>
+      <span class="rh-sub rh-hist-hover" id="rh-hist-read"></span>
+    </div>
+  </div>
+<% end %>
+
 <h2 class="rh-h2">Queues <span class="hint">live · click a queue to manage</span></h2>
 <table class="rh-table">
   <thead><tr><th>Queue</th><th>State</th><th class="r">Depth</th><th class="r">Oldest job</th><th></th></tr></thead>

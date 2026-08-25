@@ -66,6 +66,7 @@ class ActiveSupport::TestCase
       when "SMEMBERS"  then @sets[args[0]].dup
       when "SET"       then @strings[args[0]] = args[1]; "OK"
       when "GET"       then @strings[args[0]]
+      when "MGET"      then args.flatten.map { |k| @strings[k] }
       # Real Redis deletes a set once its last member is removed, so EXISTS
       # must ignore keys the Hash default-proc materialized as empty arrays.
       when "EXISTS"    then (@strings.key?(args[0]) || @sets.fetch(args[0], []).any?) ? 1 : 0
