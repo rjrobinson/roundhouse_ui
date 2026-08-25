@@ -70,9 +70,9 @@
     .rh-panel { background:var(--panel); border:1px solid var(--line-soft); border-radius:12px; overflow:hidden; }
 
     table.rh-table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line-soft); border-radius:12px; overflow:hidden; }
-    .rh-table th { text-align:left; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:11px 16px; border-bottom:1px solid var(--line-soft); }
+    .rh-table th { text-align:left; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:8px 14px; border-bottom:1px solid var(--line-soft); }
     .rh-table th.r, .rh-table td.r { text-align:right; }
-    .rh-table td { padding:12px 16px; border-bottom:1px solid var(--line-soft); }
+    .rh-table td { padding:8px 14px; border-bottom:1px solid var(--line-soft); }
     .rh-table tr:last-child td { border-bottom:none; }
     .rh-mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
     .rh-sub { color:var(--faint); font-size:12px; }
@@ -148,6 +148,27 @@
       .rh-btn, .rh-iconbtn, .rh-nav { transition:none !important; }
       .rh-btn:active, .rh-iconbtn:active { transform:none; }
     }
+
+    /* Per-queue trend. A table of numbers tells you values; a column of shapes
+       tells you what the system is doing. Fed from the depths the poll already
+       reads, held in the browser for the session — no storage, no retention. */
+    .rh-trend, .rh-trend-h { width:100px; }
+    .rh-trend canvas { display:block; width:88px; height:22px; }
+    .rh-trend-empty { display:inline-block; width:88px; height:11px; border-radius:3px;
+                      background:linear-gradient(90deg,var(--panel-2) 25%,var(--panel-3) 50%,var(--panel-2) 75%);
+                      background-size:200% 100%; animation:rh-shimmer 1.3s linear infinite; }
+    /* A placeholder that moves reads as "working"; the word "measuring" reads as
+       "broken". Same for the forecast cell before it has two samples. */
+    @keyframes rh-shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+
+    /* Severity as form, not only colour: you find the bad row before reading it.
+       Also the one cue that survives a red-green colour deficiency. */
+    .rh-table tbody tr > td:first-child { border-left:3px solid transparent; }
+    .rh-table tbody tr[data-rh-sev="crit"] > td:first-child { border-left-color:var(--crit); }
+    .rh-table tbody tr[data-rh-sev="warn"] > td:first-child { border-left-color:var(--warn); }
+    .rh-table tbody tr[data-rh-sev="ok"]   > td:first-child { border-left-color:var(--good); }
+
+    @media (prefers-reduced-motion: reduce) { .rh-trend-empty { animation:none; } }
 
     /* Drain forecast (#35). "Growing" is the state that matters during an
        incident, so it is the only one that gets a colour that demands attention. */
@@ -431,6 +452,9 @@
         var peak = Math.max.apply(null, pts);
         var max = peak * 1.25 || 1;
         var x = function (i) { return i / (n - 1) * w; }, y = function (v) { return h - pad - v / max * (h - pad * 2); };
+        // Faint horizontal rules. Reading a value off a bare sparkline is guesswork.
+        ctx.strokeStyle = "rgba(255,255,255,.05)"; ctx.lineWidth = 1;
+        for (var gi = 1; gi < 4; gi++) { var gy = h / 4 * gi; ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke(); }
         var g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(110,139,255,.30)"); g.addColorStop(1, "rgba(110,139,255,0)");
         ctx.beginPath(); ctx.moveTo(0, h); pts.forEach(function (v, i) { ctx.lineTo(x(i), y(v)); }); ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
         ctx.beginPath(); pts.forEach(function (v, i) { i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)); }); ctx.strokeStyle = "#6E8BFF"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
@@ -531,12 +555,31 @@
                 paintForecast(el, depth, vel);
                 var cell = el.closest("td");
                 if (cell) cell.setAttribute("data-sort-value", forecastSort(depth, vel));
+
+                var hist = depthHistory[name] || (depthHistory[name] = []);
+                hist.push(depth);
+                if (hist.length > SPARK_SAMPLES) hist.shift();
+
+                var row = el.closest("tr");
+                var sev = severity(depth, vel);
+                if (row && sev) row.setAttribute("data-rh-sev", sev);
+
+                var spark = row && row.querySelector("[data-rh-spark]");
+                if (spark && hist.length >= 2) {
+                  var wait = row.querySelector("[data-rh-spark-wait]");
+                  if (wait) wait.hidden = true;
+                  spark.hidden = false;
+                  drawSpark(spark, hist, token(SEV_COLOUR[sev] || "--accent"));
+                }
               });
               // Drop state for queues that no longer exist. A queue that goes
               // away and comes back must start measuring afresh, or its old
               // smoothed velocity is blended into the first new sample.
               Object.keys(smoothVel).forEach(function (k) {
                 if (k !== "__total" && !(k in d.queue_depths)) delete smoothVel[k];
+              });
+              Object.keys(depthHistory).forEach(function (k) {
+                if (!(k in d.queue_depths)) delete depthHistory[k];
               });
               lastDepths = d.queue_depths;
             }
@@ -638,6 +681,61 @@
         th.classList.add(dir === "asc" ? "is-asc" : "is-desc");
         sortRows(table, parseInt(th.getAttribute("data-sort-col"), 10), dir);
       });
+
+      // Per-queue depth history. The poll already reads every queue's depth and
+      // was keeping only the previous value; keeping a window instead costs one
+      // array per queue and turns the Size column into a trend.
+      //
+      // Session-local on purpose. Closing the tab restarts the trend, which is
+      // the honest behaviour for something computed in a browser — persisting it
+      // is the retention question in #34, not this.
+      var SPARK_SAMPLES = 40;
+      var depthHistory = {};
+      var SEV_COLOUR = { crit: "--crit", warn: "--warn", ok: "--good" };
+
+      function token(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#6E8BFF";
+      }
+
+      // Urgency from the same rule the Forecast column uses, so a stripe and the
+      // sentence beside it can never disagree.
+      function severity(depth, vel) {
+        if (depth === 0) return "ok";
+        if (vel == null) return null;
+        if (vel > 0 && Math.abs(vel) * 60 >= STALLED_PER_MIN) return "crit";
+        if (Math.abs(vel) * 60 < STALLED_PER_MIN) return "warn";
+        return "ok";
+      }
+
+      function drawSpark(cv, hist, colour) {
+        var ctx = cv.getContext("2d");
+        var w = cv.width, h = cv.height, pad = 4;
+        ctx.clearRect(0, 0, w, h);
+        if (hist.length < 2) return;
+
+        var lo = Math.min.apply(null, hist), hi = Math.max.apply(null, hist);
+        var span = (hi - lo) || 1;
+        var x = function (i) { return pad + i / (hist.length - 1) * (w - pad * 2); };
+        var y = function (v) { return h - pad - (v - lo) / span * (h - pad * 2); };
+
+        // Area first: a filled shape reads as volume, where a bare line reads as
+        // noise at this size.
+        var g = ctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, colour + "66"); g.addColorStop(1, colour + "00");
+        ctx.beginPath(); ctx.moveTo(x(0), h);
+        hist.forEach(function (v, i) { ctx.lineTo(x(i), y(v)); });
+        ctx.lineTo(x(hist.length - 1), h); ctx.closePath();
+        ctx.fillStyle = g; ctx.fill();
+
+        ctx.beginPath();
+        hist.forEach(function (v, i) { i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)); });
+        ctx.strokeStyle = colour; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+
+        // Emphasised endpoint — "now" is the only point anyone acts on.
+        ctx.beginPath();
+        ctx.arc(x(hist.length - 1), y(hist[hist.length - 1]), 2.6, 0, Math.PI * 2);
+        ctx.fillStyle = colour; ctx.fill();
+      }
 
       // Surface a failed poll instead of letting the numbers silently go stale.
       function setConn(ok) {

@@ -45,9 +45,45 @@ module RoundhouseUi
       assert_match "measuring…", @response.body if @response.body.include?("data-rh-forecast")
     end
 
+    # Seeds one real queue: the assertions below are about rendered rows, and the
+    # page shows an empty-state row when there are none.
+    def seed_one(fake, name = "default", size: 3, age: nil)
+      fake.call("SADD", "queues", name)
+      size.times do |i|
+        at = age ? Time.now.to_f - age : Time.now.to_f
+        fake.call("RPUSH", "queue:#{name}", Sidekiq.dump_json("jid" => "#{name}#{i}", "enqueued_at" => at))
+      end
+    end
+
+    # The trend column renders both a shimmer and a hidden canvas: the poll
+    # reveals the canvas once it has two samples. The other way round leaves a
+    # blank gap on first paint.
+    def test_every_queue_row_carries_a_trend_canvas_and_a_placeholder
+      with_fake_redis do |fake|
+        seed_one(fake)
+        get "/roundhouse/queues"
+
+        assert_response :success
+        assert_select "td.rh-trend canvas[data-rh-spark][hidden]", minimum: 1
+        assert_select "td.rh-trend span.rh-trend-empty", minimum: 1
+      end
+    end
+
+    # A stripe needs a value on first paint, before any velocity exists, or every
+    # row is unmarked until the second poll.
+    def test_rows_carry_a_server_seeded_severity
+      with_fake_redis do |fake|
+        seed_one(fake, "slow", size: 2, age: 900)
+        get "/roundhouse/queues"
+
+        assert_select 'tbody tr[data-rh-sev="crit"]', minimum: 1,
+          message: "a queue whose oldest job is 15m old should seed a critical stripe"
+      end
+    end
+
     def test_the_empty_state_still_spans_every_column
       get "/roundhouse/queues"
-      assert_match 'colspan="6"', @response.body
+      assert_match 'colspan="7"', @response.body
     end
   end
 end

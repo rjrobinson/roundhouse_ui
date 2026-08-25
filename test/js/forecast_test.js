@@ -30,12 +30,14 @@ const src = [
   lift("forecast"),
   lift("capacity"),
   lift("forecastSort"),
-  "module.exports = { forecast: forecast, humanizeEta: humanizeEta, capacity: capacity, forecastSort: forecastSort };",
+  "var STALLED_PER_MIN_UNUSED = 1;",
+  lift("severity"),
+  "module.exports = { forecast: forecast, humanizeEta: humanizeEta, capacity: capacity, forecastSort: forecastSort, severity: severity };",
 ].join("\n");
 
 const sandbox = { module: { exports: {} } };
 new Function("module", src)(sandbox.module);
-const { forecast, humanizeEta, capacity, forecastSort } = sandbox.module.exports;
+const { forecast, humanizeEta, capacity, forecastSort, severity } = sandbox.module.exports;
 
 let ran = 0;
 function check(label, actual, expected) {
@@ -181,4 +183,15 @@ assert.deepStrictEqual(sorted("text", [ "beta", "alpha" ], "asc"), [ "alpha", "b
 assert.deepStrictEqual(sorted("num", [ 5, null, 20 ], "asc"), [ 5, 20, null ]);
 assert.deepStrictEqual(sorted("num", [ 5, null, 20 ], "desc"), [ 20, 5, null ]);
 
+// ---- severity stripe ----------------------------------------------------
+// The stripe and the forecast sentence beside it must never disagree, so both
+// read the same thresholds.
+assert.strictEqual(severity(0, 0), "ok", "an empty queue is healthy");
+assert.strictEqual(severity(500, null), null, "unmeasured gets no stripe rather than a green one");
+assert.strictEqual(severity(84000, 12), "crit", "growing is critical");
+assert.strictEqual(severity(900, 0), "warn", "stalled is a warning, not a failure");
+assert.strictEqual(severity(84000, -40), "ok", "draining is healthy however deep");
+assert.strictEqual(severity(900, 0.005), "warn", "growth below the floor is stalled, not critical");
+
 console.log("table sort: 5 cases, all passing");
+console.log("severity stripe: 6 cases, all passing");
