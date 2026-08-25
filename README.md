@@ -171,6 +171,11 @@ RoundhouseUi.configure do |c|
   # installing RoundhouseUi::Fetch enforces it. Default: true.
   # c.pause_enabled = false
 
+  # Show the Busy page's Cancel button. Off by default because cancellation only
+  # does something once you install CancelMiddleware, or have long jobs poll
+  # RoundhouseUi.cancelled?(jid) themselves. See "Cancelling jobs".
+  # c.cancel_enabled = true
+
   # Surface your own labels (owning team, tenant, …) on job rows, the job page,
   # and grouped errors — and filter by them. See "Job tags" below.
   # c.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
@@ -219,9 +224,10 @@ here is required to mount Roundhouse.
 | `themes` | shipped presets | You want people to pick their own palette on the Settings page. | Everyone should see the same thing — set `theme` instead, or `allow_theme_selection = false`. |
 | `allow_theme_selection` | `true` | Leave it on. | Recolouring a production console isn't something you want an operator doing. |
 | `pause_enabled` | `true` | Leave it on. | **Rarely set this to `false`.** Pause is enforced natively on Sidekiq Pro and Solid Queue, and on OSS Sidekiq by installing `RoundhouseUi::Fetch` — so turning it off usually just hides a working feature. Only useful if you want the controls gone entirely. |
+| `cancel_enabled` | `false` | You installed `CancelMiddleware`, or your long-running jobs poll `RoundhouseUi.cancelled?(jid)`. **The flag alone cancels nothing** — without one of those, `cancel!` writes a JID nothing reads, which is why the button is hidden by default. Sidekiq only; Solid Queue has no cancellation path. | You haven't wired either check up yet. |
 
 Two that pair with a middleware rather than working alone: `collect_durations`
-(`DurationCollector`) and job cancellation (`CancelMiddleware`) — see
+(`DurationCollector`) and `cancel_enabled` (`CancelMiddleware`) — see
 [Cancelling jobs](#cancelling-jobs) and [Slowest job classes](#slowest-job-classes).
 
 ## Pausing queues
@@ -492,8 +498,10 @@ job class + error (not yet as an individual-job list with per-row actions).
 
 ## Cancelling jobs
 
-Cancellation is cooperative — Ruby can't safely kill a running thread. Install the
-middleware so a cancelled job is dropped before it runs:
+Cancellation is cooperative — Ruby can't safely kill a running thread, so something
+has to check. Nothing checks by default, which is why the Cancel button is hidden until
+you set `cancel_enabled = true`. Install the middleware so a cancelled job is dropped
+before it runs:
 
 ```ruby
 # config/initializers/sidekiq.rb
@@ -501,6 +509,8 @@ Sidekiq.configure_server do |config|
   config.server_middleware { |chain| chain.add RoundhouseUi::CancelMiddleware }
 end
 ```
+
+…then turn the button on with `c.cancel_enabled = true`.
 
 The **Busy** page's Cancel button flags a job's JID. A queued/scheduled/retrying job
 is then skipped when it would next run; a *currently running* job stops only if it

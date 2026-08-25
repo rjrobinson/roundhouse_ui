@@ -5,6 +5,7 @@ module RoundhouseUi
   class BusyController < ApplicationController
     LONG_RUNNING = 60 # seconds
 
+    before_action :require_cancellable!, only: :cancel
     before_action :require_writable!, only: :cancel
 
     def index
@@ -37,6 +38,14 @@ module RoundhouseUi
     def require_writable!
       return unless RoundhouseUi.read_only
       redirect_to busy_path, alert: "Roundhouse is in read-only mode — cancellation is disabled."
+    end
+
+    # Hiding the button is presentation; this is the control. Without a backend
+    # that can cancel and a host-side check that reads the flag, cancel! only
+    # writes a JID nobody consumes.
+    def require_cancellable!
+      return if RoundhouseUi.cancel_enabled && backend.supports?(:cancel)
+      redirect_to busy_path, alert: "Cancellation is not enabled — see RoundhouseUi.cancel_enabled."
     end
   end
 end
