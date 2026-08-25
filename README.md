@@ -720,6 +720,22 @@ bin/rails test      # full suite, ~1s, no Redis required (Sidekiq's API is stubb
 bundle exec rubocop # lint
 ```
 
+Most of the suite runs against an in-memory stand-in for Redis, which is why it
+finishes in about a second. The destructive paths — enforced pause, snapshot →
+restore, and bulk-on-a-filter — also have tests that run against a **real** Redis,
+because those features are made of Redis semantics and a fake can only confirm the
+fake. They are opt-in and have no default target, since they `FLUSHDB` whatever they
+are pointed at and your local Redis probably belongs to something else:
+
+```bash
+ROUNDHOUSE_TEST_REDIS_URL=redis://localhost:6379/10 bin/rails test
+```
+
+Pick an empty database. They refuse to run against database 0, and they verify which
+database the connection is actually on before deleting anything. CI additionally sets
+`ROUNDHOUSE_REQUIRE_REAL_REDIS=1`, which turns a skip into a failure — without it an
+unreachable Redis would skip them silently and the coverage would be imaginary.
+
 The dummy app under `test/dummy` mounts the engine at `/roundhouse`; point it at a local
 Redis and run `bin/rails server` to click around.
 
