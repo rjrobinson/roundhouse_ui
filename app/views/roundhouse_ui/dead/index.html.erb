@@ -33,6 +33,7 @@
 </div>
 
 <%= form_with url: bulk_dead_path, method: :post, id: "rh-bulk-dead", data: { turbo: false } do %>
+  <%= trace_legend(@jobs) %>
   <table class="rh-table">
     <thead><tr><th style="width:28px"><input type="checkbox" id="rh-all" aria-label="select all"></th><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th class="r">Died</th><th class="r">Actions</th></tr></thead>
     <tbody>

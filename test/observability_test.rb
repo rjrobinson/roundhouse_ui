@@ -127,11 +127,201 @@ module RoundhouseUi
       end
     end
 
-    def test_labelled_variants_name_the_adapter_and_icon_only_ones_do_not
+    # Two contexts by design now, and the rule is repetition: a row in a dense
+    # list gets a control, a single item gets the vendor's mark. This replaced an
+    # equality assertion, because collapsing them put 366 copies of someone
+    # else's logo down one column.
+    def test_a_row_gets_a_control_and_a_single_item_gets_the_mark
       v = view
-      assert_includes v.trace_link(klass: "W", jid: "a"), "Datadog"
-      assert_includes v.error_trace_link(klass: "W", error: "B"), "Datadog"
-      refute_includes v.trace_icon(klass: "W", jid: "a"), "<span>Datadog</span>"
+      control = v.trace_icon(klass: "W", jid: "a")
+      inline  = v.trace_link(klass: "W", jid: "a")
+
+      assert_includes control, "rh-trace-btn"
+      refute_includes control, "rh-mark-dd", "a row must not repeat the vendor mark"
+
+      assert_includes inline, "rh-trace-mark"
+      assert_includes inline, "rh-mark-dd"
+      refute_includes inline, "rh-trace-btn"
+    end
+
+    # Both error surfaces follow the same rule as the job ones.
+    def test_the_error_surfaces_split_the_same_way
+      v = view
+      assert_includes v.error_trace_icon(klass: "W", error: "B"), "rh-trace-btn"
+      assert_includes v.error_trace_link(klass: "W", error: "B"), "rh-mark-dd"
+    end
+
+    # Datadog's rules forbid boxing the logo, and the row control is a box. So
+    # the box may never contain the mark, whatever else changes.
+    def test_the_boxed_control_never_contains_a_vendor_mark
+      html = view.trace_icon(klass: "W", jid: "a")
+
+      assert_includes html, "rh-trace-btn"
+      refute_includes html, "<svg xmlns", "the vendor asset must not be boxed"
+    end
+
+    # Grouped Errors put the control inline in a text cell next to a .rh-runbook
+    # pill. A 28px-tall button there gave that one cell three different heights.
+    def test_the_inline_control_is_sized_for_a_text_cell
+      assert_includes view.error_trace_icon(klass: "W", error: "B"), "is-compact"
+      refute_includes view.trace_icon(klass: "W", jid: "a"), "is-compact",
+        "an Actions-column control matches .rh-btn, not the inline pill"
+    end
+
+    # The control must not own its own box. It carries .rh-btn (or .rh-runbook
+    # when compact) precisely so padding, border, radius and font come from the
+    # sibling it has to match. A hard-coded height here drifted 2px the moment
+    # .rh-btn's own metrics were the source of truth.
+    def test_the_control_borrows_its_box_rather_than_redefining_it
+      assert_includes view.trace_icon(klass: "W", jid: "a"), "rh-btn rh-trace-btn"
+      assert_includes view.error_trace_icon(klass: "W", error: "B"), "rh-runbook rh-trace-btn"
+
+      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
+      rule = css[/^\s*\.rh-trace-btn \{([^}]*)\}/, 1]
+      assert rule, "expected a .rh-trace-btn rule"
+      refute_match(/(?<!line-)height:/, rule,
+        "an own height drifts from .rh-btn; borrow the box instead of restating it")
+      refute_match(/padding:\s/, rule,
+        "shorthand padding overrides .rh-btn's vertical padding and changes the height")
+    end
+
+    # The row glyph says nothing on its own, so a table has to name the target
+    # once. With a plain adapter the rows already carry its label, so hoisting it
+    # would just repeat what is already there.
+    def test_the_legend_names_the_target_only_where_rows_cannot
+      assert_includes view.trace_legend([ :a_row ]), "Traces open in"
+      assert_includes view.trace_legend([ :a_row ]), "rh-mark-dd"
+
+      plain = Class.new do
+        def label = "Honeycomb"
+        def job_url(**) = "https://example.test/t"
+      end
+      RoundhouseUi.observability = plain.new
+      assert_nil view.trace_legend([ :a_row ])
+    end
+
+    # A configured adapter that returns no URL must not leave a legend pointing
+    # nowhere above an otherwise fine table.
+    def test_no_legend_when_the_adapter_yields_no_urls
+      RoundhouseUi.observability = RoundhouseUi::Observability::NullAdapter.new
+      assert_nil view.trace_legend([ :a_row ])
+    end
+
+    # The legend describes a per-row control. Above an empty table it explains
+    # something that is not on the page — "Traces open in Datadog" sitting over
+    # "Nothing scheduled", which is how this was found.
+    def test_no_legend_above_an_empty_table
+      assert_nil view.trace_legend([])
+      assert_nil view.trace_legend(nil)
+    end
+
+    # The mark spells "Datadog" itself, so printing the label beside it renders
+    # "Datadog Datadog". Asserting on the span, not the bare word — the word is
+    # also in the title and aria-label, where it belongs.
+    def test_a_wordmark_adapter_does_not_repeat_its_own_name
+      html = view.trace_link(klass: "W", jid: "a")
+
+      assert_includes html, "rh-trace-mark"
+      assert_includes html, "rh-mark-dd"
+      refute_includes html, "<span>Datadog</span>"
+      assert_includes html, 'aria-label="Open in Datadog"'
+    end
+
+    # A legend on a page whose rows have no trace control explains a glyph that
+    # is not there. Busy had one for exactly that reason.
+    def test_only_pages_with_a_row_control_carry_a_legend
+      views = Dir[RoundhouseUi::Engine.root.join("app/views/roundhouse_ui/*/index.html.erb")]
+      refute_empty views
+
+      views.each do |path|
+        body = File.read(path)
+        next unless body.include?("trace_legend")
+
+        assert_includes body, "trace_icon",
+          "#{File.basename(File.dirname(path))} has a legend but no row control to explain"
+      end
+    end
+
+    # An adapter with no mark of its own keeps the name; a bare arrow says
+    # nothing about where it goes.
+    def test_an_adapter_without_a_wordmark_keeps_its_label
+      plain = Class.new do
+        def label = "Honeycomb"
+        def job_url(**) = "https://example.test/trace"
+      end
+      RoundhouseUi.observability = plain.new
+
+      html = view.trace_link(klass: "W", jid: "a")
+      assert_includes html, "<span>Honeycomb</span>"
+      refute_includes html, "rh-trace-mark"
+    end
+
+    # Datadog's white lockup is different artwork, not the purple one recoloured.
+    # Shipping one and forcing the fill is what rendered Bits as a solid tile
+    # with the dog knocked out of him.
+    def test_both_lockup_variants_ship_and_are_distinct_artwork
+      light = Observability::DatadogAdapter::MARK_ON_LIGHT
+      dark  = Observability::DatadogAdapter::MARK_ON_DARK
+
+      assert_includes light, "0 0 800.5 203.19"
+      assert_includes dark,  "0 0 800.5 196.2"
+      refute_equal light.scan(/<(?:path|polygon)/).size, 0
+      refute_equal light[/d="([^"]+)"/, 1], dark[/d="([^"]+)"/, 1],
+        "the two variants must be different artwork, not one recoloured"
+    end
+
+    # The exact defect: blanket-applying evenodd to the white asset closes voids
+    # that its .st0 class deliberately leaves open. If every element carries
+    # evenodd, the conversion flattened Datadog's own fill rules.
+    def test_the_white_lockup_keeps_its_nonzero_elements
+      dark = Observability::DatadogAdapter::MARK_ON_DARK
+      shapes = dark.scan(/<(?:path|polygon)\b[^>]*>/)
+
+      refute_empty shapes
+      assert shapes.any? { |el| !el.include?("fill-rule") },
+        "at least one element must keep the default nonzero rule"
+      assert shapes.any? { |el| el.include?('fill-rule="evenodd"') },
+        "and at least one must keep evenodd"
+    end
+
+    # An inline <style> inside the SVG would need a nonce the adapter cannot see,
+    # so under default-src 'none' the mark would render unfilled.
+    def test_neither_lockup_carries_css_the_csp_would_block
+      [ Observability::DatadogAdapter::MARK_ON_LIGHT,
+        Observability::DatadogAdapter::MARK_ON_DARK ].each do |svg|
+        refute_includes svg, "<style"
+        refute_match(/class="st\d"/, svg, "an unconverted Illustrator class renders unfilled")
+      end
+    end
+
+    # The mark appears in more than one container — inline in a link, and in the
+    # legend above a table. Scoping its rules under a parent affordance class
+    # meant the legend matched none of them and drew both variants at full size,
+    # so the selectors must stay unscoped.
+    def test_the_mark_rules_are_not_scoped_to_one_container
+      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
+
+      assert_includes css, ".rh-mark-on-light { display:block; }"
+      assert_includes css, ".rh-mark-on-dark { display:none; }"
+      assert_includes css, "@media (prefers-color-scheme: dark)"
+      assert_match(/^\s*\.rh-mark-dd \{[^}]*height:/, css, "the mark must size itself anywhere")
+
+      css.scan(/^\s*([^\n{]*\.rh-mark-on-(?:light|dark))\s*\{[^}]*display:/).flatten.each do |sel|
+        sel = sel.strip
+        next if sel.start_with?(":root")
+        assert_equal 1, sel.split.size,
+          "#{sel} confines a display rule to one container; the mark renders in several"
+      end
+    end
+
+    # Datadog's usage rules forbid encasing the logo in a box or shape, and the
+    # affordance this replaced was a 24px bordered square.
+    def test_a_vendor_mark_is_never_boxed
+      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
+      rule = css[/^\s*\.rh-trace-mark \{([^}]*)\}/, 1]
+
+      assert rule, "expected a .rh-trace-mark rule"
+      refute_match(/\bborder\b|\bbackground\b/, rule, "a vendor mark must not be encased")
     end
 
     # An adapter with no error_url must not raise on the error surfaces.

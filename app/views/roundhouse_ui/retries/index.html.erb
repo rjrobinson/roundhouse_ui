@@ -22,6 +22,7 @@
   </div>
 <% end %>
 
+<%= trace_legend(@jobs) %>
 <table class="rh-table">
   <thead><tr><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th>Attempt</th><th>Next try</th><th class="r">Actions</th></tr></thead>
   <tbody>
