@@ -535,9 +535,27 @@ the term is left out of the query entirely when nil.
 
 ## Snapshots
 
-Back up a queue before purging it (the safety net for clearing a stuck queue), then restore.
-Storage is pluggable via `RoundhouseUi.snapshot_store` (default: Redis). For large/stuck
-queues use a file or S3 store so the backup doesn't sit in the Redis you're trying to relieve.
+Back up a queue before purging it, then restore if you were wrong. Both actions are
+audit-logged.
+
+Only a Redis store ships, and it is the default. A snapshot of a stuck queue then lives in
+the Redis you are trying to relieve — and under `allkeys-lru` it is itself evictable, so a
+large backup can disappear. Point `RoundhouseUi.snapshot_store` at your own store to put it
+somewhere else; the contract is four methods:
+
+```ruby
+class S3SnapshotStore
+  def write(id, blob) = # persist it
+  def read(id)        = # → the blob, or nil
+  def delete(id)      = # remove it
+  def ids             = # → array of snapshot ids
+end
+
+RoundhouseUi.snapshot_store = S3SnapshotStore.new
+```
+
+Restore is not idempotent — restoring twice enqueues everything twice — and it issues one
+push per job, so a very large snapshot is slow to put back.
 
 ## Security
 
