@@ -23,6 +23,28 @@ module RoundhouseUi
     # enumerate exactly what our pages use (same-origin only, nonce'd inline JS).
     after_action :set_content_security_policy
 
+    # Read-only enforcement, fail closed. Every POST is treated as a write unless
+    # its controller says otherwise, so a destructive action added tomorrow is
+    # guarded the moment it exists rather than the moment someone remembers a
+    # before_action. This used to be seven near-identical `require_writable!`
+    # methods, each wired to a hand-maintained `only:` list — all seven correct,
+    # and all seven one omission away from silently not being.
+    #
+    # `guard_in_read_only` covers the dry-run GETs: a preview shows what a bulk
+    # action would do, and is gated with the action it previews.
+    class_attribute :read_only_exempt_actions, default: [].freeze, instance_writer: false
+    class_attribute :read_only_extra_actions,  default: [].freeze, instance_writer: false
+
+    def self.allow_in_read_only(*actions)
+      self.read_only_exempt_actions = actions.map(&:to_s).freeze
+    end
+
+    def self.guard_in_read_only(*actions)
+      self.read_only_extra_actions = actions.map(&:to_s).freeze
+    end
+
+    before_action :require_writable!, if: :read_only_guarded_action?
+
     # Record every state-changing (POST) action. Actions halted by a
     # before_action (e.g. read-only mode) never reach here, so we only log what
     # actually ran.
@@ -50,6 +72,26 @@ module RoundhouseUi
     # rather than naming Sidekiq directly. See ADR 0001.
     def backend
       RoundhouseUi.backend
+    end
+
+    def read_only_guarded_action?
+      return false if self.class.read_only_exempt_actions.include?(action_name)
+
+      request.post? || self.class.read_only_extra_actions.include?(action_name)
+    end
+
+    def require_writable!
+      return unless RoundhouseUi.read_only
+
+      redirect_to read_only_redirect_path,
+                  alert: "Roundhouse is in read-only mode — this action is disabled."
+    end
+
+    # Where someone lands when a write is refused. The buttons still render in
+    # read-only mode, so this fires on an ordinary click and the destination is
+    # worth getting right; sections override it to send you back where you were.
+    def read_only_redirect_path
+      root_path
     end
 
     def record_audit_event

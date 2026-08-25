@@ -18,6 +18,16 @@ All notable changes to this project are documented here. The format is based on
   `.rh-btn-danger` differed from `.rh-btn` by a single `:hover` rule, so Retry
   and Delete were the same button until the cursor was already on one
   ([#32](https://github.com/rjrobinson/roundhouse_ui/issues/32)).
+- **Read-only mode is enforced fail-closed.** Every `POST` is treated as a write
+  unless its controller explicitly says otherwise, so a destructive action added
+  tomorrow is guarded the moment it exists. It was previously seven near-identical
+  `require_writable!` methods, each wired to a hand-maintained `only:` list — all
+  seven correct, and each one omission away from silently not being. Taking a queue
+  snapshot remains the single deliberate exemption, now declared with
+  `allow_in_read_only :snapshot` rather than expressed by absence from a list.
+
+  The refusal message is now the same everywhere ("Roundhouse is in read-only mode
+  — this action is disabled."); each section still redirects back to itself.
 
 ### Fixed
 - **Deleting a Solid Queue entry no longer orphans its job row.** The adapter

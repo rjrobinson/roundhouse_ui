@@ -1,7 +1,5 @@
 module RoundhouseUi
   class SnapshotsController < ApplicationController
-    before_action :require_writable!, only: %i[restore destroy]
-
     def index
       @snapshots = RoundhouseUi::Snapshots.all
     end
@@ -18,9 +16,6 @@ module RoundhouseUi
 
     private
 
-    def require_writable!
-      return unless RoundhouseUi.read_only
-      redirect_to snapshots_path, alert: "Roundhouse is in read-only mode — restore and delete are disabled."
-    end
+    def read_only_redirect_path = snapshots_path
   end
 end

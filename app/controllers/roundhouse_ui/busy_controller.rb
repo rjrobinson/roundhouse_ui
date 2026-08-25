@@ -6,7 +6,6 @@ module RoundhouseUi
     LONG_RUNNING = 60 # seconds
 
     before_action :require_cancellable!, only: :cancel
-    before_action :require_writable!, only: :cancel
 
     def index
       @threshold = LONG_RUNNING
@@ -25,6 +24,8 @@ module RoundhouseUi
 
     private
 
+    def read_only_redirect_path = busy_path
+
     # Average seconds per class, keyed by the real job class so an ActiveJob
     # wrapper does not collapse every mailer into one baseline.
     def typical_durations
@@ -33,11 +34,6 @@ module RoundhouseUi
       DurationCollector.summary.to_h { |d| [ d[:klass].to_s, d[:avg_ms].to_f / 1000.0 ] }
     rescue StandardError
       {}
-    end
-
-    def require_writable!
-      return unless RoundhouseUi.read_only
-      redirect_to busy_path, alert: "Roundhouse is in read-only mode — cancellation is disabled."
     end
 
     # Hiding the button is presentation; this is the control. Without a backend

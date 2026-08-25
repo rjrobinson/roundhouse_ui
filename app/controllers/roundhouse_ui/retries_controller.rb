@@ -2,7 +2,7 @@ module RoundhouseUi
   class RetriesController < ApplicationController
     include JobSetBrowsing
 
-    before_action :require_writable!, only: %i[requeue destroy bulk_all preview]
+    guard_in_read_only :preview
 
     def index
       @query = params[:q].to_s.strip
@@ -53,9 +53,6 @@ module RoundhouseUi
 
     private
 
-    def require_writable!
-      return unless RoundhouseUi.read_only
-      redirect_to retries_path, alert: "Roundhouse is in read-only mode — retry and delete are disabled."
-    end
+    def read_only_redirect_path = retries_path
   end
 end
