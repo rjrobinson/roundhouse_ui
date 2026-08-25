@@ -28,7 +28,7 @@ module RoundhouseUi
         {
           "hostname" => "worker-01", "pid" => 4821, "concurrency" => 10, "busy" => 3,
           "queues" => %w[default low], "started_at" => now - 3600, "beat" => now,
-          "version" => "8.1.6", "tag" => "trainual", "rss" => 412_000
+          "version" => "8.1.6", "tag" => "acme", "rss" => 412_000
         },
         identity: "worker-01:4821:abc"
       )

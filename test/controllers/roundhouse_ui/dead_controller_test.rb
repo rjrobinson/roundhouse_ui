@@ -70,7 +70,7 @@ module RoundhouseUi
     end
 
     def test_trace_link_renders_when_observability_configured
-      RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "trainual")
+      RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(service: "sidekiq")
       stub_method(Sidekiq::DeadSet, :new, @set) do
         get "/roundhouse/dead"
         assert_match "Datadog", @response.body

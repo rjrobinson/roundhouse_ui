@@ -6,9 +6,9 @@ module RoundhouseUi
 
     def test_record_and_recent_roundtrip
       with_fake_redis do
-        Audit.record(actor: "rj@trainual.com", action: "purged queue", target: "low")
+        Audit.record(actor: "ops@example.com", action: "purged queue", target: "low")
         entry = Audit.recent.first
-        assert_equal "rj@trainual.com", entry["actor"]
+        assert_equal "ops@example.com", entry["actor"]
         assert_equal "purged queue", entry["action"]
         assert_equal "low", entry["target"]
       end
@@ -25,10 +25,10 @@ module RoundhouseUi
     end
 
     def test_actor_resolver_attributes_the_action
-      RoundhouseUi.actor_resolver = ->(_controller) { "mara@trainual.com" }
+      RoundhouseUi.actor_resolver = ->(_controller) { "sam@example.com" }
       with_fake_redis do
         post "/roundhouse/queues/low/pause"
-        assert_equal "mara@trainual.com", Audit.recent.first["actor"]
+        assert_equal "sam@example.com", Audit.recent.first["actor"]
       end
     ensure
       RoundhouseUi.actor_resolver = nil
