@@ -26,7 +26,8 @@ module RoundhouseUi
         assert_match "low", @response.body
         assert_match "host:4821", @response.body
         assert_match "2m 0s", @response.body # 120s elapsed, formatted not raw (#31)
-        assert_match "⚠", @response.body        # long-running flag
+        assert_select 'tr[data-rh-sev="warn"]', minimum: 1  # long-running, no baseline to compare against
+        assert_select "div.rh-elapsed div.t", minimum: 1
       end
     end
 

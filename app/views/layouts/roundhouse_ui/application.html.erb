@@ -149,6 +149,60 @@
       .rh-btn:active, .rh-iconbtn:active { transform:none; }
     }
 
+    /* Retry attempt as a ladder. A count tells you a number; a ladder tells you
+       how close this job is to giving up, without reading. */
+    .rh-ladder { display:inline-flex; gap:2px; vertical-align:middle; }
+    .rh-ladder i { width:4px; height:10px; border-radius:1px; background:var(--panel-3); }
+    .rh-ladder i.is-on { background:var(--warn); }
+    .rh-ladder i.is-hot { background:var(--crit); }
+    .rh-ladder-n { margin-left:6px; font-variant-numeric:tabular-nums; }
+
+    /* Next-attempt ring. The label is fixed-width so every ring lands on the
+       same x — right-aligning the pair leaves them ragged, because "in 6h" and
+       "in 40s" are different widths. */
+    .rh-next { display:inline-flex; align-items:center; gap:6px; justify-content:flex-end; }
+    .rh-next .rh-sub { min-width:3.4rem; text-align:left; font-variant-numeric:tabular-nums; }
+    .rh-ring { width:15px; height:15px; border-radius:50%; flex:0 0 15px;
+               background:conic-gradient(var(--accent) var(--rh-turn,0turn), var(--panel-2) 0); }
+
+    /* A ranked table wants lengths, not a column of figures: the point of
+       "slowest classes" is proportion, and proportion is a length. */
+    .rh-dbar { display:flex; align-items:center; gap:8px; }
+    .rh-dbar .t { flex:1; min-width:70px; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden; }
+    .rh-dbar .t i { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+    .rh-dbar .n { min-width:3.6rem; text-align:right; font-family:var(--mono); font-size:11.5px;
+                  font-variant-numeric:tabular-nums; }
+
+    /* A count is also a magnitude. 340 and 2 should not look the same. */
+    .rh-count { position:relative; height:16px; min-width:52px; border-radius:3px;
+                background:var(--panel-2); overflow:hidden; display:inline-block; width:100%; }
+    .rh-count i { position:absolute; inset:0 auto 0 0; background:var(--accent); opacity:.34; }
+    .rh-count[data-rh-sev="crit"] i { background:var(--crit); opacity:.42; }
+    .rh-count[data-rh-sev="warn"] i { background:var(--warn); opacity:.38; }
+    .rh-count span { position:relative; display:block; text-align:right; padding:0 5px;
+                     font:500 11px var(--mono); line-height:16px; font-variant-numeric:tabular-nums; }
+
+    /* Elapsed against what is typical for that class. "4m 12s" means nothing on
+       its own — fine for a nightly rollup, a hang for a webhook. */
+    .rh-elapsed { display:flex; align-items:center; gap:7px; }
+    .rh-elapsed .t { flex:1; min-width:56px; height:4px; border-radius:2px; background:var(--panel-2); overflow:hidden; }
+    .rh-elapsed .t i { display:block; height:100%; background:var(--good); transition:width .6s linear; }
+    .rh-elapsed .t[data-rh-sev="warn"] i { background:var(--warn); }
+    .rh-elapsed .t[data-rh-sev="crit"] i { background:var(--crit); }
+    .rh-elapsed .n { min-width:3.4rem; text-align:right; }
+
+    /* Health verdict: a rail carries severity where colour alone relies on
+       someone distinguishing red text from grey. */
+    .rh-health { display:flex; gap:11px; }
+    .rh-health-rail { width:3px; border-radius:2px; flex:0 0 3px; background:var(--faint); }
+    .rh-health.is-ok   .rh-health-rail { background:var(--good); }
+    .rh-health.is-warn .rh-health-rail { background:var(--warn); }
+    .rh-health.is-crit .rh-health-rail { background:var(--crit); }
+
+    /* Trend on a stat card: "8,420,118" becomes "8.4M and climbing" without a
+       second number to read. */
+    .rh-card canvas { display:block; width:100%; height:26px; margin-top:6px; }
+
     /* Per-queue trend. A table of numbers tells you values; a column of shapes
        tells you what the system is doing. Fed from the depths the poll already
        reads, held in the browser for the session — no storage, no retention. */
@@ -495,6 +549,7 @@
             setConn(true);
             restartTick();
             apply(d);
+            paintCards(d);
             // Feeds the ⌘K palette. Derived from the depth keys rather than sent
             // twice — see the stats endpoint.
             if (d.queue_depths) QUEUE_NAMES = Object.keys(d.queue_depths).sort();
@@ -691,6 +746,11 @@
       // is the retention question in #34, not this.
       var SPARK_SAMPLES = 40;
       var depthHistory = {};
+      // Stat-card trends. Same idea as the queue trends and the same window:
+      // the poll already returns these numbers, so a card can show direction
+      // rather than only a value.
+      var CARD_SERIES = { processed: "processed", failed: "failed", busy: "busy", backlog: null };
+      var cardHistory = {};
       var SEV_COLOUR = { crit: "--crit", warn: "--warn", ok: "--good" };
 
       function token(name) {
@@ -735,6 +795,27 @@
         ctx.beginPath();
         ctx.arc(x(hist.length - 1), y(hist[hist.length - 1]), 2.6, 0, Math.PI * 2);
         ctx.fillStyle = colour; ctx.fill();
+      }
+
+      // Backlog is derived rather than sent, so it is computed here to keep the
+      // card and the number above it from disagreeing.
+      function cardValue(key, d) {
+        if (key === "backlog") return d.enqueued + d.scheduled + d.retries;
+        return d[CARD_SERIES[key]];
+      }
+
+      var CARD_COLOUR = { processed: "--accent", failed: "--crit", busy: "--good", backlog: "--warn" };
+
+      function paintCards(d) {
+        document.querySelectorAll("[data-rh-card]").forEach(function (cv) {
+          var key = cv.getAttribute("data-rh-card");
+          var v = cardValue(key, d);
+          if (v == null) return;
+          var hist = cardHistory[key] || (cardHistory[key] = []);
+          hist.push(v);
+          if (hist.length > SPARK_SAMPLES) hist.shift();
+          if (hist.length >= 2) drawSpark(cv, hist, token(CARD_COLOUR[key] || "--accent"));
+        });
       }
 
       // Surface a failed poll instead of letting the numbers silently go stale.
