@@ -1,6 +1,7 @@
 # Roundhouse
 <img width="4460" height="3152" alt="CleanShot 2026-07-01 at 09 42 17@2x" src="https://github.com/user-attachments/assets/3484709b-9c4f-449e-8776-53ad2de4781f" />
-**A modern, real-time web UI for Sidekiq and Solid Queue.**
+
+<!-- TODO: demo GIF -->
 
 [![CI](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/rjrobinson/roundhouse_ui/actions/workflows/ci.yml)
 [![Gem Version](https://img.shields.io/gem/v/roundhouse_ui)](https://rubygems.org/gems/roundhouse_ui)
@@ -8,31 +9,49 @@
 [![Rails](https://img.shields.io/badge/rails-%3E%3D%207.0-D30001?logo=rubyonrails&logoColor=white)](https://rubyonrails.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](MIT-LICENSE)
 
-Roundhouse is a mountable Rails engine — a control plane built for the way you
-actually operate background jobs: a high-signal dashboard, searchable sets, grouped
-errors, smart bulk actions, safe queue management, and job inspection/editing. It
-reads through a **backend port**, so the same UI drives **Sidekiq** or **Solid
-Queue** (see [Backends](#backends)). All server-rendered with Turbo — **no build
-step, no frontend dependency** — and **no Sidekiq Pro required**.
+Roundhouse is a real-time ops UI for Sidekiq and Solid Queue — grouped errors,
+argument search, bulk actions on a filter, enforced pause, snapshots, and an
+audit log — in one mountable engine with no build step and no Sidekiq Pro
+required.
+
+## Why
+
+I wrote this during an incident where I needed to know which jobs for one
+customer had failed, and whether I could retry only those. Sidekiq::Web gave me
+a retry set of forty thousand rows, twenty-five at a time, with no search. So I
+opened a Rails console at 2am and started writing `Sidekiq::RetrySet.new.select`
+against production — which is not where anyone should be deciding what to retry.
+
+Roundhouse answers that question in the browser, and records who answered it.
+
+## Install
+
+```ruby
+# Gemfile
+gem "roundhouse_ui"
+
+# config/routes.rb — mount behind your own auth; Roundhouse ships none
+authenticate :user, ->(u) { u.admin? } do
+  mount RoundhouseUi::Engine => "/roundhouse"
+end
+
+# config/initializers/roundhouse.rb — only if you're on Solid Queue
+RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
+```
+
+## What you get
+
+- **Grouped errors** — failures fingerprinted by class + error, so one bad deploy is one row with a count, not thousands.
+- **Search across the retry, dead and scheduled sets** — by class, JID, error, or argument value.
+- **Bulk retry or delete scoped to a filter** — every job matching your search, not just the page you can see.
+- **Enforced pause** — a paused queue actually stops being worked, on OSS Sidekiq too.
+- **Snapshot → restore** — back a queue up before you purge it, and put it back if you were wrong.
+- **Audit log** — every state-changing action, with who did it.
+
+The same UI drives **Sidekiq** or **Solid Queue** — see [Backends](#backends);
+running both at once is [#17](https://github.com/rjrobinson/roundhouse_ui/issues/17).
 
 > Gem name is `roundhouse_ui`; the brand and mount path are **Roundhouse**.
-
-## Features
-
-- **High-signal dashboard** — a composite health verdict (error rate + queue latency + utilization, with a "why"), *top failing job classes* and *problem queues* panels, and a live throughput chart with a configurable interval — all refreshing in place (polling pauses when the tab is hidden).
-- **Grouped errors** — failures fingerprinted by `class + error`, so one bad deploy is a single issue with a count, not thousands of rows.
-- **Smart bulk actions** — retry/delete every job matching a filter (not just the visible page), plus select-and-act on Dead.
-- **Search** — across the dead/retry/scheduled sets by class, JID, error, or argument value.
-- **Queue management** — pause/resume, purge with an impact count, and **snapshot → restore**.
-- **Job inspection & editing** — full args (with redaction), error, and collapsible backtrace; edit & re-enqueue, or enqueue a new job (opt-in).
-- **Per-class durations** (opt-in) — the slowest job classes, which Sidekiq doesn't track.
-- **Audit log** — every state-changing action recorded and attributable.
-- **⌘K command palette**, read-only mode, and a strict self-contained CSP.
-- **Per-person settings** — light/dark, palette, content width and refresh interval, stored in the browser; nothing server-side to share or migrate. Hosts can set the palette for everyone, or withdraw the choice.
-
-Sidekiq-specific extras: **Workers** (quiet/stop, threads, heartbeat), **Redis pressure** (eviction-policy check for silent job loss), and **Capsules**.
-
-There's **no database of its own** — Roundhouse reads your job backend directly (Sidekiq via its API, Solid Queue via its tables).
 
 ## Requirements
 
