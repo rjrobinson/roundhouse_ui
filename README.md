@@ -217,8 +217,8 @@ reads paused state from Pro's registry, advertises `native_pause`, and drops the
 
 - **Don't** install `RoundhouseUi::Fetch` — it isn't needed, and on `super_fetch`
   installs it would displace reliable fetch and lose its crash-recovery guarantees.
-- **Don't** set `pause_enabled = false` — pause genuinely works; disabling it only
-  hides a feature you already have.
+- **Don't** set `pause_enabled = false` — pause works; disabling it only hides a
+  feature you already have.
 
 Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
 Redis key directly: Pro's fetchers read that set once at startup and afterwards
@@ -269,8 +269,8 @@ authors designed, so choosing a palette is never a choice to give up light mode:
 | `kanagawa` | [Kanagawa](https://github.com/rebelot/kanagawa.nvim) Wave | Lotus |
 | `solarized` | [Solarized](https://github.com/altercation/solarized) Dark | Light |
 
-The eleventh is `cyberpunk` — deliberately loud, and dark-only, which Settings
-labels so, because a dark-only palette is simply inert in light mode.
+The eleventh is `cyberpunk` — loud, and dark-only, which Settings labels, since
+a dark-only palette is inert in light mode.
 
 Catppuccin and Rosé Pine each ship one light flavour and several dark ones, so
 their entries share a light half. That's upstream's own design rather than a
@@ -280,26 +280,15 @@ shortcut here, which is why the preset name says which dark flavour you get.
 RoundhouseUi.theme = RoundhouseUi::Theme::PRESETS[:kanagawa]
 ```
 
-> **Role mapping is where the judgement is.** Every project names its swatches
-> differently and none of them has our token set, so the mapping is the part
-> that can be wrong while every colour is right. Two rules do most of the work:
-> `panel` must lift off `bg`, and `line` must be *soft* — the shipped theme
-> draws borders at 1.20:1 against their own panel. Reaching one surface step too
-> far is the easy mistake and it does not look like a colour bug, it looks like
-> the theme is broken: it put Nord's light border at 6.4:1 and Rosé Pine's dark
-> border at 3.2:1, a hard outline around every button and input. Tests hold each
-> palette to that band, so a new palette cannot regress it.
->
-> Every one of the 280 values is lifted from the project's own palette file —
-> `palette.json`, `gruvbox.vim`, `nord.css`, `colors.lua` — not transcribed by
-> eye, and the test suite asserts each one still renders. Because every project
-> names its swatches differently, the role mapping is the part with judgement in
-> it: `panel` has to read as distinct from `bg`, `panel_2` has to be dark (or
-> light) enough for `muted` text to sit on, and `line_soft` has to differ from
-> `panel` or card borders vanish. Tests hold each palette to contrast floors as
-> well as to those structural rules — Nord's own comment grey lands at 1.36:1 on
-> its own panel, and that is exactly the kind of thing a list of hex values
-> cannot show you.
+> All 280 values come from each project's own palette file — `palette.json`,
+> `gruvbox.vim`, `nord.css`, `colors.lua` — rather than transcribed by eye. The
+> mapping onto our tokens is what can be wrong while every colour is right:
+> `panel` must lift off `bg`, `panel_2` must carry `muted` text, and `line` must
+> be soft — the shipped theme draws borders at 1.20:1 against their own panel.
+> One surface step too far doesn't read as a colour bug, it reads as a broken
+> theme: it put Nord's light border at 6.4:1 and Rosé Pine's dark at 3.2:1, a
+> hard outline around every button and input. Tests hold every palette to
+> contrast floors and to those structural rules, so a new one can't regress it.
 
 ### Letting people pick
 
@@ -319,7 +308,7 @@ more choice than you want in a production console. A palette beats `theme`, and
 is the floor rather than something a viewer can be stranded away from.
 
 Every offered palette is emitted as CSS on every page: all eleven cost about
-1.5 KB gzipped, so this is a taste question, not a performance one.
+1.5 KB gzipped.
 
 Withdraw the control entirely where recolouring a production console isn't
 something an operator should be doing:
@@ -339,8 +328,8 @@ local storage — nothing is written server-side, so one person's choices never
 change what anyone else sees, and there's no state to migrate or clean up. A
 private window starts fresh.
 
-The refresh interval is worth a word: every tick runs your app's own
-authentication and routing, so it isn't free. Whatever you set for
+Every refresh tick runs your app's own authentication and routing, so a faster
+interval isn't free. Whatever you set for
 `poll_interval` is the default and is named on the page; a viewer can go faster
 or slower within 2–300 seconds.
 
