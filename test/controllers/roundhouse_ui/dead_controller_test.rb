@@ -33,6 +33,7 @@ module RoundhouseUi
     end
 
     def teardown
+      RoundhouseUi.job_tags = nil
       RoundhouseUi.read_only = false
       RoundhouseUi.observability = RoundhouseUi::Observability::NullAdapter.new
     end
@@ -152,6 +153,77 @@ module RoundhouseUi
       end
       assert_empty @entries.first.actions
       assert_empty @entries.last.actions
+    end
+
+    # Dry run (#37). Bulk actions run on a filter rather than a page, so the
+    # count tells you how many and never which. These pin that the preview shows
+    # the real set and changes nothing.
+    def test_preview_lists_the_jobs_a_bulk_action_would_touch
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: { op: "delete", q: "Stripe" }
+
+        assert_response :success
+        assert_match "ChargeCustomerJob", @response.body
+        refute_match "BulkImportJob", @response.body, "a non-matching job must not be listed"
+        assert_match "Delete 1", @response.body
+      end
+    end
+
+    # The whole promise of a dry run.
+    def test_preview_touches_nothing
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: { op: "delete", q: "Stripe" }
+        assert_response :success
+      end
+      assert_empty @entries.flat_map(&:actions), "preview must not act on any job"
+    end
+
+    # A destructive-scope bug already happened here once: a form that dropped the
+    # queue filter would delete more than the page showed.
+    def test_the_confirm_form_carries_every_filter
+      # A live tag resolver, so the tag filter actually selects rather than
+      # excluding everything and leaving nothing to assert against.
+      RoundhouseUi.job_tags = ->(klass:, item:) { { squad: "core" } }
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: { op: "delete", q: "Stripe", queue: "default", tag: "squad:core" }
+
+        assert_select "form[action=?]", "/roundhouse/dead/bulk_all" do
+          assert_select "input[name=op][value=delete]"
+          assert_select "input[name=q][value=Stripe]"
+          assert_select "input[name=queue][value=default]"
+          assert_select "input[name=tag][value=?]", "squad:core"
+        end
+      end
+    end
+
+    def test_preview_says_so_when_nothing_matches
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: { op: "delete", q: "matches-nothing" }
+
+        assert_response :success
+        assert_match "Nothing to do", @response.body
+        assert_select "form[action=?]", "/roundhouse/dead/bulk_all", count: 0,
+          message: "there must be nothing to confirm when nothing matches"
+      end
+    end
+
+    # An unrecognised op must not silently become a delete.
+    def test_an_unknown_op_falls_back_to_retry
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: { op: "obliterate", q: "Stripe" }
+
+        assert_response :success
+        assert_match "Retry 1", @response.body
+        refute_match "Delete 1", @response.body
+      end
+    end
+
+    def test_read_only_refuses_the_preview
+      RoundhouseUi.read_only = true
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: { op: "delete", q: "Stripe" }
+        assert_redirected_to "/roundhouse/dead"
+      end
     end
   end
 end
