@@ -1039,6 +1039,7 @@
         { label: "Dead", path: "<%= dead_set_path %>", icon: "<%= RoundhouseUi::Icons.markup(:dead) %>" },
         <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "<%= RoundhouseUi::Icons.markup(:capsules) %>" },<% end %>
         <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "<%= RoundhouseUi::Icons.markup(:redis) %>" },<% end %>
+        <% if RoundhouseUi::Recurring.any? %>{ label: "Recurring", path: "<%= recurring_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },<% end %>
         { label: "Snapshots", path: "<%= snapshots_path %>", icon: "<%= RoundhouseUi::Icons.markup(:snapshots) %>" },
         { label: "Audit log", path: "<%= audit_log_path %>", icon: "<%= RoundhouseUi::Icons.markup(:audit) %>" },
         { label: "Settings", path: "<%= settings_path %>", icon: "<%= RoundhouseUi::Icons.markup(:settings) %>" },
@@ -1201,6 +1202,7 @@
           <%= nav_link "Redis", redis_info_path, icon: :redis %>
         <% end %>
         <%= nav_link "Snapshots", snapshots_path, icon: :snapshots %>
+        <% if RoundhouseUi::Recurring.any? %><%= nav_link "Recurring", recurring_path, icon: :scheduled %><% end %>
         <%= nav_link "Audit log", audit_log_path, icon: :audit %>
           <%= nav_link "Settings", settings_path, icon: :settings %>
       </nav>

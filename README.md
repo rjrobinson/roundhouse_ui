@@ -582,6 +582,32 @@ RoundhouseUi.snapshot_store = S3SnapshotStore.new
 Restore is not idempotent — restoring twice enqueues everything twice — and it issues one
 push per job, so a very large snapshot is slow to put back.
 
+## Recurring jobs
+
+Periodic work, whichever scheduler defines it. Nothing to configure — Roundhouse
+detects what is loaded:
+
+| Source | Read via |
+|---|---|
+| [sidekiq-cron](https://github.com/sidekiq-cron/sidekiq-cron) | `Sidekiq::Cron::Job.all` |
+| [sidekiq-scheduler](https://github.com/sidekiq-scheduler/sidekiq-scheduler) | `Sidekiq.schedule` |
+| Sidekiq Enterprise periodic | `Sidekiq::Periodic::LoopSet` |
+| Solid Queue | `SolidQueue::RecurringTask` |
+
+More than one can be active at once — an app mid-migration genuinely runs two —
+and all of them show. The nav item hides when none is present.
+
+The useful part is not the crontab. It is **"this says hourly and has not run in
+three days"**, which needs the schedule's interval, which needs a cron parser.
+`fugit` ships with both sidekiq-cron and sidekiq-scheduler, so it is there
+wherever this feature is; without it, staleness reads as unknown rather than
+being guessed. A task is flagged overdue only after missing **two** intervals — a
+job due at :00 that runs at :00:07 is not late, and a page that says otherwise
+gets ignored.
+
+**Read-only.** Schedules belong in the code that declares them, and a UI that
+silently changes a production schedule is a different risk conversation.
+
 ## History
 
 The Dashboard carries a **History** chart — daily processed counts and the daily

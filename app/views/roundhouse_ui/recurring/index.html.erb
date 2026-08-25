@@ -1,0 +1,71 @@
+<% content_for :title, "Recurring" %>
+
+<%# The useful view is not the crontab — it is "this says hourly and has not run
+    in three days". That comparison needs the schedule's interval, which needs a
+    cron parser; where one is unavailable, staleness is reported as unknown
+    rather than guessed. %>
+<h2 class="rh-h2">
+  Recurring · <%= pluralize(@tasks.size, "task") %>
+  <% if @overdue.positive? %><span class="hint"><%= @overdue %> overdue</span><% end %>
+  <% if @sources.any? %><span class="hint">from <%= @sources.to_sentence %></span><% end %>
+</h2>
+
+<% if @tasks.empty? %>
+  <div class="rh-panel">
+    <p class="rh-empty">
+      No recurring jobs found. Roundhouse reads sidekiq-cron, sidekiq-scheduler,
+      Sidekiq Enterprise periodic loops and Solid Queue recurring tasks — configure
+      one and its schedule appears here.
+    </p>
+  </div>
+<% else %>
+  <table class="rh-table">
+    <thead><tr>
+      <th class="rh-sort" data-sort-col="0" data-sort-type="text">Task</th>
+      <th class="rh-sort" data-sort-col="1" data-sort-type="text">Schedule</th>
+      <th>Queue</th>
+      <th class="rh-sort r" data-sort-col="3" data-sort-type="num">Last run</th>
+      <th>State</th>
+    </tr></thead>
+    <tbody>
+      <% @tasks.each do |t| %>
+        <% sev = { overdue: "crit", paused: "warn", unknown: "warn", ok: "ok" }[t.status] %>
+        <tr data-rh-sev="<%= sev %>">
+          <td data-sort-value="<%= t.name %>">
+            <div class="rh-mono"><%= t.name %></div>
+            <% if t.klass.present? && t.klass.to_s != t.name.to_s %>
+              <div class="rh-sub rh-mono"><%= t.klass %></div>
+            <% end %>
+          </td>
+          <td data-sort-value="<%= t.schedule %>"><span class="rh-pill rh-mono"><%= t.schedule %></span></td>
+          <td><%= t.queue.present? ? queue_pill(t.queue) : content_tag(:span, "—", class: "rh-sub") %></td>
+          <td class="r" data-sort-value="<%= t.last_run&.to_i || 0 %>">
+            <%= t.last_run ? job_time(t.last_run, overdue: "#{time_ago_in_words(t.last_run)} ago") : content_tag(:span, "never", class: "rh-sub") %>
+          </td>
+          <td>
+            <% case t.status %>
+            <% when :overdue %>
+              <span class="rh-fc rh-fc-growing"><%= icon(:warn) %> overdue — schedule says <%= t.schedule %></span>
+            <% when :paused %>
+              <span class="rh-pill rh-pill-warn">paused</span>
+            <% when :unknown %>
+              <span class="rh-fc rh-fc-stalled"><%= icon(:warn) %> never run</span>
+            <% else %>
+              <span class="rh-fc rh-fc-draining"><%= icon(:ok) %> on schedule</span>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <p class="rh-note">
+    Read-only. Schedules are defined in your application; this shows what those
+    definitions are currently doing.
+    <% unless defined?(::Fugit) %>
+      Staleness cannot be judged without a cron parser — install
+      <code>fugit</code> (sidekiq-cron and sidekiq-scheduler both already depend
+      on it) and overdue tasks will be flagged.
+    <% end %>
+  </p>
+<% end %>
