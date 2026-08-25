@@ -11,6 +11,7 @@ require "roundhouse_ui/queue_summary"
 require "roundhouse_ui/theme"
 require "roundhouse_ui/tags"
 require "roundhouse_ui/runbooks"
+require "roundhouse_ui/icons"
 require "roundhouse_ui/cancellation"
 require "roundhouse_ui/cancel_middleware"
 require "roundhouse_ui/metrics"
@@ -141,6 +142,12 @@ module RoundhouseUi
     # `theme` sets the default for everyone; this is the menu each person picks
     # from in their own browser. Default: the shipped presets.
     attr_accessor :themes
+
+    # How icons render. `:svg` (default) inlines them — no font, no request, no
+    # CSP change. `:font_awesome` or a Hash of `{ name => "class names" }` emits
+    # class names instead, for hosts that already ship an icon font; Roundhouse
+    # never loads one itself either way.
+    attr_accessor :icons
 
     # Where the runbook for a job class lives. A callable, or a Hash keyed by
     # class name:
@@ -299,5 +306,6 @@ module RoundhouseUi
   self.collect_durations = false
   self.job_tags_per_job = false
   self.allow_theme_selection = true
+  self.icons = :svg
   self.themes = Theme::PRESETS
 end
