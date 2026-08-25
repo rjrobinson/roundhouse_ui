@@ -13,6 +13,17 @@ module RoundhouseUi
     include ActionView::Helpers::OutputSafetyHelper
     include ActionView::Helpers::UrlHelper
 
+    # A destructive button has to read as destructive before the cursor is on
+    # it. The regression this guards is real: for eleven months .rh-btn-danger
+    # differed from .rh-btn by a :hover rule alone, so Retry and Delete were
+    # the same button until you were already pointing at one.
+    def test_destructive_buttons_are_marked_at_rest_not_only_on_hover
+      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
+      resting = css.scan(/^\s*\.rh-btn-danger(?!:)[^{]*\{([^}]*)\}/).flatten
+      assert_equal 1, resting.size, "expected exactly one resting .rh-btn-danger rule"
+      assert_match(/--crit/, resting.first)
+    end
+
     def test_the_attempt_ladder_fills_one_rung_per_attempt
       html = attempt_ladder(3)
       assert_equal 3, html.scan(/class="is-(?:on|hot)"/).size

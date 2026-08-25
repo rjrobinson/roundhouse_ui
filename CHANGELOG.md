@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **The Busy page's Cancel button is now off by default**, behind
+  `cancel_enabled`. Cancellation only does anything once you install
+  `CancelMiddleware` or have long-running jobs poll
+  `RoundhouseUi.cancelled?(jid)`; with neither, `cancel!` wrote a JID nothing
+  ever read, so the button was inert and said so nowhere. The route is gated
+  too, not just the column. Set `cancel_enabled = true` to get it back
+  ([#24](https://github.com/rjrobinson/roundhouse_ui/issues/24)).
+- **Destructive buttons now read as destructive at rest**, not only on hover —
+  `.rh-btn-danger` differed from `.rh-btn` by a single `:hover` rule, so Retry
+  and Delete were the same button until the cursor was already on one
+  ([#32](https://github.com/rjrobinson/roundhouse_ui/issues/32)).
+
+### Fixed
+- **Deleting a Solid Queue entry no longer orphans its job row.** The adapter
+  called `destroy` on the execution, which left the `solid_queue_jobs` row
+  behind — invisible to every page and unreachable by every worker. It now
+  calls `discard`, which takes both under a row lock
+  ([#20](https://github.com/rjrobinson/roundhouse_ui/issues/20)).
+
 ## [0.10.0] - 2026-08-17
 
 ### Added

@@ -22,6 +22,19 @@ module RoundhouseUi
         job
       end
 
+      # Deleting an entry has to take the job with it. destroy removes only the
+      # execution, and the orphaned solid_queue_jobs row is then invisible to
+      # every page and unreachable by every worker.
+      def test_deleting_an_entry_leaves_no_orphaned_job_row
+        job = make_job(klass: "ChargeJob")
+        ::SolidQueue::FailedExecution.create!(job: job, error: { "message" => "boom" })
+
+        @backend.dead_set.first.delete
+
+        assert_equal 0, ::SolidQueue::FailedExecution.count
+        assert_equal 0, ::SolidQueue::Job.where(id: job.id).count, "job row outlived its execution"
+      end
+
       def test_capabilities_reflect_solid_queue
         assert @backend.supports?(:native_pause), "pause is native in Solid Queue"
         assert @backend.supports?(:dead)

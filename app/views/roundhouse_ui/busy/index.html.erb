@@ -1,11 +1,14 @@
 <% content_for :title, "Busy" %>
 
+<%# Cancellation is inert unless the host installed the middleware or polls
+    cancelled? itself, so the column only exists where the flag says it works. %>
+<% cancellable = RoundhouseUi.cancel_enabled && RoundhouseUi.backend.supports?(:cancel) %>
 <h2 class="rh-h2">Busy <span class="hint"><%= @work.size %> <%= "job".pluralize(@work.size) %> running now</span></h2>
 <table class="rh-table">
-  <thead><tr><th>Job</th><th>Queue</th><th>Worker</th><th>Running for</th><th class="r">vs typical</th><th class="r">Actions</th></tr></thead>
+  <thead><tr><th>Job</th><th>Queue</th><th>Worker</th><th>Running for</th><th class="r">vs typical</th><% if cancellable %><th class="r">Actions</th><% end %></tr></thead>
   <tbody>
     <% if @work.empty? %>
-      <tr><td colspan="6" class="rh-empty">No jobs running right now.</td></tr>
+      <tr><td colspan="<%= cancellable ? 6 : 5 %>" class="rh-empty">No jobs running right now.</td></tr>
     <% else %>
       <% @work.each do |w| %>
         <% elapsed = (Time.now - w[:run_at]).to_i %>
@@ -36,7 +39,7 @@
               </span>
             </div>
           </td>
-          <td class="r"><%= button_to "Cancel", cancel_job_path(w[:job].jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Request cancellation of #{w[:job].jid}? Cooperative jobs abort; others are skipped on their next attempt." } %></td>
+          <% if cancellable %><td class="r"><%= button_to "Cancel", cancel_job_path(w[:job].jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Request cancellation of #{w[:job].jid}? Cooperative jobs abort; others are skipped on their next attempt." } %></td><% end %>
         </tr>
       <% end %>
     <% end %>

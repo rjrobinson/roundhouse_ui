@@ -125,6 +125,14 @@ module RoundhouseUi
     # "not enforced" warning entirely. Default: true.
     attr_accessor :pause_enabled
 
+    # Cancellation only does something if the host opted into it — either by
+    # installing RoundhouseUi::CancelMiddleware as server middleware, or by
+    # having long-running jobs poll RoundhouseUi.cancelled?(jid) themselves.
+    # With neither, cancel! writes a JID that nothing ever reads, so the Busy
+    # page's button would be inert. Default false: the button appears once you
+    # say the check exists. Also requires a backend that supports :cancel.
+    attr_accessor :cancel_enabled
+
     # Override any of the UI's colour tokens, as pure CSS custom properties:
     #
     #   RoundhouseUi.theme = { accent: "#FF2BD1", accent_2: "#00E5FF" }
@@ -304,6 +312,7 @@ module RoundhouseUi
   self.redact_args = []
   self.show_sidekiq_failures = false
   self.pause_enabled = true
+  self.cancel_enabled = false
   self.poll_interval = 5
   self.collect_durations = false
   self.job_tags_per_job = false

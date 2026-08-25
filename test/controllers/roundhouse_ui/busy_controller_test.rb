@@ -31,7 +31,12 @@ module RoundhouseUi
       end
     end
 
-    def teardown = RoundhouseUi.read_only = false
+    def setup = RoundhouseUi.cancel_enabled = true
+
+    def teardown
+      RoundhouseUi.read_only = false
+      RoundhouseUi.cancel_enabled = false
+    end
 
     def test_cancel_marks_the_jid
       with_fake_redis do
@@ -47,6 +52,39 @@ module RoundhouseUi
         post "/roundhouse/busy/abc123/cancel"
         assert_response :redirect
         refute RoundhouseUi::Cancellation.cancelled?("abc123")
+      end
+    end
+
+    # cancel! writes a JID that only the middleware or a job's own cancelled?
+    # poll ever reads. With neither installed the button did nothing and said
+    # nothing, so the flag has to gate the route as well as the column (#24).
+    def test_cancel_is_refused_when_cancellation_is_not_enabled
+      RoundhouseUi.cancel_enabled = false
+      with_fake_redis do
+        post "/roundhouse/busy/abc123/cancel"
+        assert_response :redirect
+        refute RoundhouseUi::Cancellation.cancelled?("abc123")
+      end
+    end
+
+    def test_the_actions_column_is_absent_when_cancellation_is_not_enabled
+      RoundhouseUi.cancel_enabled = false
+      work = FakeWork.new(FakeJobRecord.new("SlowImportJob", "j1", {}), "low", Time.now - 120)
+      stub_method(Sidekiq::WorkSet, :new, FakeWorkSet.new([ [ "host:1", "t", work ] ])) do
+        get "/roundhouse/busy"
+        assert_response :success
+        assert_select "th", text: "Actions", count: 0
+        assert_select "form[action=?]", "/roundhouse/busy/j1/cancel", count: 0
+      end
+    end
+
+    def test_the_actions_column_appears_when_cancellation_is_enabled
+      work = FakeWork.new(FakeJobRecord.new("SlowImportJob", "j1", {}), "low", Time.now - 120)
+      stub_method(Sidekiq::WorkSet, :new, FakeWorkSet.new([ [ "host:1", "t", work ] ])) do
+        get "/roundhouse/busy"
+        assert_response :success
+        assert_select "th", text: "Actions", count: 1
+        assert_select "form[action=?]", "/roundhouse/busy/j1/cancel", count: 1
       end
     end
 
