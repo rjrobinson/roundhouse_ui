@@ -39,23 +39,32 @@
     <th class="rh-sort" data-sort-col="1" data-sort-type="text">State</th>
     <th class="rh-sort r" data-sort-col="2" data-sort-type="num">Size</th>
     <th class="rh-sort r" data-sort-col="3" data-sort-type="num">Latency</th>
-    <th class="rh-sort" data-sort-col="4" data-sort-type="num">Forecast</th>
+    <th class="rh-trend-h">Trend</th>
+    <th class="rh-sort" data-sort-col="5" data-sort-type="num">Forecast</th>
     <th class="r">Actions</th>
   </tr></thead>
   <tbody>
     <% if @queues.empty? %>
-      <tr><td colspan="6" class="rh-empty"><%= @query.present? ? "No queues match “#{@query}”." : "No active queues" %></td></tr>
+      <tr><td colspan="7" class="rh-empty"><%= @query.present? ? "No queues match “#{@query}”." : "No active queues" %></td></tr>
     <% else %>
       <% @queues.each do |q| %>
         <% paused = @paused.include?(q.name) %>
         <% latency = q.latency %>
-        <tr>
+        <%# data-rh-sev is set by the poll once a velocity exists; the server seeds
+            what it can already know so the stripe is not blank on first paint. %>
+        <tr data-rh-sev="<%= q.size.zero? ? "ok" : (latency > 600 ? "crit" : latency > 60 ? "warn" : "ok") %>">
           <td data-sort-value="<%= q.name %>"><%= link_to queue_pill(q.name), queue_path(q.name), class: "rh-pill-link" %></td>
           <td data-sort-value="<%= paused ? "paused" : "active" %>"><% if paused %><span class="rh-pill rh-pill-warn">paused</span><% else %><span class="rh-sub">active</span><% end %></td>
           <td class="r" data-sort-value="<%= q.size %>"><%= number_with_delimiter q.size %></td>
           <td class="r <%= "rh-lat-warn" if latency > 60 %>" data-sort-value="<%= latency.to_f %>"><%= duration(latency) %></td>
           <%# Filled by the stats poll — it needs two samples for a velocity, so
               the first paint honestly says it is still measuring. %>
+          <%# Both render; the poll reveals the canvas once it has two samples to
+              draw. Shown the other way round the canvas would be a blank gap. %>
+          <td class="rh-trend">
+            <span class="rh-trend-empty" data-rh-spark-wait="<%= q.name %>"></span>
+            <canvas width="176" height="44" data-rh-spark="<%= q.name %>" aria-hidden="true" hidden></canvas>
+          </td>
           <%# sort-value starts unknown and is written by the poll, so an unmeasured
               queue sorts last rather than pretending to be zero. %>
           <td data-sort-value=""><span class="rh-fc rh-fc-wait" data-rh-forecast="<%= q.name %>"><%= q.size.zero? ? "clear" : "measuring…" %></span></td>
