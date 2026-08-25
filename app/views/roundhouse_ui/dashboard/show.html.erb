@@ -51,6 +51,7 @@
     <div class="k">Backlog</div>
     <div class="v num"><%= number_with_delimiter @metrics.backlog %></div>
     <div class="d">enqueued <span class="num" data-stat="enqueued"><%= number_with_delimiter @stats.enqueued %></span> · scheduled <span class="num" data-stat="scheduled"><%= number_with_delimiter @stats.scheduled_size %></span></div>
+    <canvas data-rh-card="backlog" width="300" height="52" aria-hidden="true"></canvas>
   </div>
 </div>
 
@@ -88,7 +89,6 @@
         </div>
       <% end %>
     <% end %>
-    <canvas data-rh-card="backlog" width="300" height="52" aria-hidden="true"></canvas>
   </div>
 </div>
 

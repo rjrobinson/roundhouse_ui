@@ -55,6 +55,25 @@ module RoundhouseUi
     end
   end
 
+  class DashboardCardTrendsTest < ActionDispatch::IntegrationTest
+    # A blind insertion put one of these inside the Problem-queues panel instead
+    # of its card, where it rendered a stray 26px canvas and no trend.
+    def test_every_card_trend_sits_inside_a_card
+      get "/roundhouse"
+      assert_response :success
+      assert_select ".rh-card canvas[data-rh-card]", count: 4
+      assert_select ".rh-insight canvas[data-rh-card]", count: 0
+    end
+
+    # The four keys the poll knows how to compute. A canvas naming anything else
+    # silently draws nothing.
+    def test_the_card_keys_match_what_the_poll_can_supply
+      get "/roundhouse"
+      keys = @response.body.scan(/data-rh-card="(\w+)"/).flatten.sort
+      assert_equal %w[backlog busy failed processed], keys
+    end
+  end
+
   class BusyBaselineTest < ActionDispatch::IntegrationTest
     def teardown = RoundhouseUi.collect_durations = false
 
