@@ -25,6 +25,19 @@ All notable changes to this project are documented here. The format is based on
   behind — invisible to every page and unreachable by every worker. It now
   calls `discard`, which takes both under a row lock
   ([#20](https://github.com/rjrobinson/roundhouse_ui/issues/20)).
+- **Forgery protection is now shipped by the engine, not inherited from the host.**
+  The README has always promised that every destructive action is a CSRF-protected
+  `POST`; the engine never actually asked for protection, so it held only because a
+  host on `config.load_defaults 5.2` or later puts the guard on
+  `ActionController::Base` for everyone. Mounted in an app on older defaults, every
+  purge, delete and bulk action was forgeable. Roundhouse now declares
+  `protect_from_forgery with: :exception` on its own controller, for the same reason
+  it sets its own Content-Security-Policy: the engine states its security posture
+  instead of hoping the host set one. `AssetsController` still opts out, deliberately.
+
+  No test had ever seen the guard run — every Rails test environment disables
+  forgery protection — so the suite now re-enables it and asserts a token-less POST
+  is refused.
 
 ## [0.10.0] - 2026-08-17
 

@@ -8,6 +8,15 @@ module RoundhouseUi
     helper TagsHelper
     helper_method :content_nonce
 
+    # Forgery protection, shipped rather than inherited. ActionController::Base
+    # only carries this because the host's `config.load_defaults` (5.2+) put it
+    # there, so an app on older defaults mounts a console where every
+    # destructive POST is forgeable — while our own README promises the
+    # opposite. Same argument as the CSP below: the engine states its security
+    # posture instead of hoping the host set one. AssetsController opts out,
+    # deliberately and in writing.
+    protect_from_forgery with: :exception
+
     # Self-contained CSP, set per-request on our own responses so Roundhouse is
     # safe to mount even when the host sets no policy — and never weakens one it
     # does (this header only applies to engine responses). Strict default; we

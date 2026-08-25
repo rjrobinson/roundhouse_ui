@@ -663,6 +663,8 @@ c.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
 
 
 - All destructive actions are CSRF-protected `POST`s — never GET — and gated by `read_only`.
+  The engine asks for forgery protection itself rather than relying on your
+  `config.load_defaults`, so this holds on an app whose defaults predate Rails 5.2.
 - Roundhouse sets its own strict, self-contained Content-Security-Policy on its responses
   (nonce'd inline script, same-origin only), so it's safe even if the host sets no policy.
 - Configure `redact_args` to keep tokens and PII out of the UI, and set `actor_resolver` so
