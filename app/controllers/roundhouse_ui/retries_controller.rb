@@ -2,7 +2,7 @@ module RoundhouseUi
   class RetriesController < ApplicationController
     include JobSetBrowsing
 
-    before_action :require_writable!, only: %i[requeue destroy bulk_all]
+    before_action :require_writable!, only: %i[requeue destroy bulk_all preview]
 
     def index
       @query = params[:q].to_s.strip
@@ -35,6 +35,23 @@ module RoundhouseUi
       note = "#{verb} #{count} matching job(s)."
       note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if capped
       redirect_to retries_path, notice: note
+    end
+
+    # Dry run (#37). Bulk actions operate on a filter rather than a page, which is
+    # what makes them useful and what makes them dangerous — the count in the
+    # toolbar tells you how many, never which. This shows the actual set before
+    # anything is touched.
+    def preview
+      @queue_filter = queue_filter
+      @op = params[:op] == "delete" ? "delete" : "retry"
+      @query = params[:q].to_s.strip
+      @tag = tag_filter
+      @matches, @capped = bulk_matches(backend.retry_set, @query, JobSetBrowsing::BULK_CAP, tag: @tag)
+      @confirm_path = bulk_all_retries_path
+      @back_path = retries_path
+      @set = "retries"
+      @noun = "retry"
+      render "roundhouse_ui/shared/bulk_preview"
     end
 
     private

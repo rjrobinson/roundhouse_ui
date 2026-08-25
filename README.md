@@ -470,6 +470,10 @@ can retry or delete **every** matching job in one action (not just the visible
 page), capped at 1,000 per run. Gated to when a filter is present so it can't
 become "retry everything", `read_only`-aware, and audit-logged.
 
+Both go through a **dry run** first: the matched jobs are listed, with their
+arguments and errors, and nothing is touched until you confirm. The count in the
+toolbar tells you how many jobs match; only the dry run tells you which.
+
 ## Observability deep-links
 
 The core depends on nothing — it asks the configured adapter for a URL and renders a link

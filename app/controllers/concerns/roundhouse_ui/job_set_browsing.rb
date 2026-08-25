@@ -48,7 +48,10 @@ module RoundhouseUi
     # Apply an op ("retry"/"delete") to every entry matching the query, capped at
     # BULK_CAP. Entries are collected first, then acted on — mutating a Sidekiq set
     # mid-iteration skips entries. Returns [count_acted_on, capped?].
-    def bulk_apply(set, query, op, cap = BULK_CAP, tag: nil)
+    # The jobs a bulk action would touch, without touching them. Split out of
+    # bulk_apply so the dry run and the action itself cannot disagree about what
+    # "matching" means — the preview is the same scan, stopped one step early.
+    def bulk_matches(set, query, cap = BULK_CAP, tag: nil)
       matches = []
       capped = false
       cache = tag_cache_for(tag)
@@ -61,6 +64,11 @@ module RoundhouseUi
           break
         end
       end
+      [ matches, capped ]
+    end
+
+    def bulk_apply(set, query, op, cap = BULK_CAP, tag: nil)
+      matches, capped = bulk_matches(set, query, cap, tag: tag)
       matches.each { |entry| op == "delete" ? entry.delete : entry.retry }
       [ matches.size, capped ]
     end

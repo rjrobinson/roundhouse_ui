@@ -26,8 +26,8 @@
       <span class="rh-actionlabel" title="<%= filter_description(@query, @tag) %>">
         All <%= number_with_delimiter @total %> <%= filter_description(@query, @tag) %>
       </span>
-      <%= button_to "↻ Retry", bulk_all_dead_path, method: :post, params: { op: "retry", q: @query, tag: params[:tag], queue: params[:queue] }, class: "rh-btn", form_class: "rh-inline", data: { turbo_confirm: "Retry every dead job #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
-      <%= button_to "✕ Delete", bulk_all_dead_path, method: :post, params: { op: "delete", q: @query, tag: params[:tag], queue: params[:queue] }, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Permanently delete every dead job #{filter_description(@query, @tag)} (up to #{RoundhouseUi::JobSetBrowsing::BULK_CAP})?" } %>
+      <%= link_to "↻ Retry", preview_bulk_dead_path(op: "retry", q: @query, tag: params[:tag], queue: params[:queue]), class: "rh-btn" %>
+      <%= link_to "✕ Delete", preview_bulk_dead_path(op: "delete", q: @query, tag: params[:tag], queue: params[:queue]), class: "rh-btn rh-btn-danger" %>
     </div>
   <% end %>
 </div>
