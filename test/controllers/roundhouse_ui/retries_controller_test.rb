@@ -37,7 +37,9 @@ module RoundhouseUi
         assert_response :success
         assert_match "SyncSlackJob", @response.body
         assert_match "ChargeCustomerJob", @response.body
-        assert_match ">3</td>", @response.body # retry_count 2 shown as attempt 3, unprefixed
+        # retry_count 2 is attempt 3, now shown as a ladder with the count beside it
+        assert_select "span.rh-ladder-n", text: "3/25"
+        assert_select "span.rh-ladder i.is-on", count: 3
 
         get "/roundhouse/retries", params: { q: "stripe" }
         assert_match "ChargeCustomerJob", @response.body

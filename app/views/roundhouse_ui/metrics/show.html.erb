@@ -68,14 +68,23 @@
     <div class="rh-panel"><div class="rh-empty">No durations recorded yet — jobs need to run with the collector middleware installed.</div></div>
   <% else %>
     <table class="rh-table">
-      <thead><tr><th>Job class</th><th class="r">Runs</th><th class="r">Avg</th><th class="r">Total time</th></tr></thead>
+      <thead><tr><th>Job class</th><th class="r">Runs</th><th class="r">Avg</th><th>Total time</th></tr></thead>
       <tbody>
+        <%# The point of "slowest classes" is proportion — this one class is most
+            of your compute — and proportion is a length, not a figure you compare
+            by reading down a column. %>
+        <% worst = @durations.map { |d| d[:total_ms].to_f }.max || 0 %>
         <% @durations.each do |d| %>
           <tr>
             <td class="rh-mono"><%= d[:klass] %></td>
             <td class="r rh-mono"><%= number_with_delimiter d[:count] %></td>
             <td class="r rh-mono <%= "rh-lat-warn" if d[:avg_ms] >= 1000 %>"><%= duration_ms(d[:avg_ms]) %></td>
-            <td class="r rh-mono"><%= duration_ms(d[:total_ms]) %></td>
+            <td>
+              <div class="rh-dbar">
+                <div class="t"><i style="width:<%= worst.positive? ? (d[:total_ms].to_f / worst * 100).round(1) : 0 %>%"></i></div>
+                <span class="n"><%= duration_ms(d[:total_ms]) %></span>
+              </div>
+            </td>
           </tr>
         <% end %>
       </tbody>
