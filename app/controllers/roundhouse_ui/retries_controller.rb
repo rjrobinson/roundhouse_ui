@@ -2,7 +2,7 @@ module RoundhouseUi
   class RetriesController < ApplicationController
     include JobSetBrowsing
 
-    before_action :require_writable!, only: %i[requeue destroy bulk_all]
+    before_action :require_writable!, only: %i[requeue destroy bulk_all preview]
 
     def index
       @query = params[:q].to_s.strip
@@ -30,11 +30,25 @@ module RoundhouseUi
     # safety. Offered only when a filter is active.
     def bulk_all
       @queue_filter = queue_filter
-      count, capped = bulk_apply(backend.retry_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
+      found = bulk_apply(backend.retry_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
-      note = "#{verb} #{count} matching job(s)."
-      note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if capped
+      note = "#{verb} #{found.entries.size} matching job(s)."
+      note += " Stopped at the #{JobSetBrowsing::BULK_CAP} cap — run again for more." if found.capped
       redirect_to retries_path, notice: note
+    end
+
+    # A dry run: the count tells you how many match, this tells you which (#37).
+    def preview
+      @queue_filter = queue_filter
+      @op = params[:op] == "delete" ? "delete" : "retry"
+      @query = params[:q].to_s.strip
+      @tag = tag_filter
+      @matched = bulk_matches(backend.retry_set, @query, JobSetBrowsing::BULK_CAP, tag: @tag)
+      @confirm_path = bulk_all_retries_path
+      @back_path = retries_path
+      @set = "retries"
+      @noun = "retry"
+      render "roundhouse_ui/shared/bulk_preview"
     end
 
     private
