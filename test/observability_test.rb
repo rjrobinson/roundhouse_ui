@@ -77,3 +77,67 @@ module RoundhouseUi
     end
   end
 end
+
+module RoundhouseUi
+  # Four entry points, one appearance. They were four hand-rolled copies and only
+  # some got updated — two still emitted a literal ↗ after the rest moved to SVG.
+  class ObservabilityConsistencyTest < ActionDispatch::IntegrationTest
+    def setup
+      RoundhouseUi.observability =
+        RoundhouseUi::Observability::DatadogAdapter.new(site: "datadoghq.com", service: "sidekiq")
+    end
+
+    def teardown = RoundhouseUi.observability = RoundhouseUi::Observability::NullAdapter.new
+
+    def view
+      v = ActionController::Base.new.view_context
+      v.extend(RoundhouseUi::ObservabilityHelper)
+      v.extend(RoundhouseUi::ApplicationHelper)
+      v
+    end
+
+    def all_affordances
+      v = view
+      [ v.trace_link(klass: "W", jid: "abc123"),
+        v.trace_icon(klass: "W", jid: "abc123"),
+        v.error_trace_link(klass: "W", error: "Boom"),
+        v.error_trace_icon(klass: "W", error: "Boom") ]
+    end
+
+    def test_every_affordance_uses_the_same_glyph
+      all_affordances.each_with_index do |html, i|
+        assert_includes html, "<svg", "affordance #{i} did not render the shared glyph"
+      end
+    end
+
+    # The character these replaced renders differently per platform, which is why
+    # it went away everywhere else.
+    def test_no_affordance_falls_back_to_a_unicode_arrow
+      all_affordances.each_with_index do |html, i|
+        refute_includes html, "↗", "affordance #{i} still emits a literal arrow"
+      end
+    end
+
+    # They open a third-party page in a new tab, so none may hand it a
+    # window.opener handle back into the console.
+    def test_every_affordance_opens_safely
+      all_affordances.each_with_index do |html, i|
+        assert_includes html, 'rel="noopener noreferrer"', "affordance #{i} is missing rel"
+        assert_includes html, 'target="_blank"', "affordance #{i} is missing target"
+      end
+    end
+
+    def test_labelled_variants_name_the_adapter_and_icon_only_ones_do_not
+      v = view
+      assert_includes v.trace_link(klass: "W", jid: "a"), "Datadog"
+      assert_includes v.error_trace_link(klass: "W", error: "B"), "Datadog"
+      refute_includes v.trace_icon(klass: "W", jid: "a"), "<span>Datadog</span>"
+    end
+
+    # An adapter with no error_url must not raise on the error surfaces.
+    def test_an_adapter_without_error_urls_renders_nothing_there
+      RoundhouseUi.observability = RoundhouseUi::Observability::NullAdapter.new
+      assert_nil view.error_trace_icon(klass: "W", error: "Boom")
+    end
+  end
+end

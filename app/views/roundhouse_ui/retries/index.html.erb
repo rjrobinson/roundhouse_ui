@@ -23,7 +23,7 @@
 <% end %>
 
 <table class="rh-table">
-  <thead><tr><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th class="r">Attempt</th><th class="r">Next try</th><th class="r">Actions</th></tr></thead>
+  <thead><tr><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th>Attempt</th><th>Next try</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @jobs.empty? %>
       <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= any_filter?(@query, @tag) ? "No retries #{filter_description(@query, @tag)}." : "Nothing waiting to retry 🎉" %></td></tr>
@@ -40,7 +40,7 @@
           <td><%= attempt_ladder(job.item["retry_count"].to_i + 1) %></td>
           <%# `since` is the last failure, so the ring shows how far through the
               backoff this job is, not only when it next fires. %>
-          <td class="r"><span class="rh-next"><%= countdown(job.at, since: job.item["failed_at"] && Time.at(job.item["failed_at"])) %></span></td>
+          <td><span class="rh-next"><%= countdown(job.at, since: job.item["failed_at"] && Time.at(job.item["failed_at"])) %></span></td>
           <td class="r">
             <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
             <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "retry", jid: job.jid), class: "rh-btn" %><% end %>

@@ -78,7 +78,10 @@
     .rh-sub { color:var(--faint); font-size:12px; }
     .rh-err { color:var(--crit); font-family:var(--mono); font-size:12px; }
     .rh-empty { color:var(--faint); text-align:center; padding:30px 16px; }
-    .rh-trace { color:var(--accent); text-decoration:none; font-size:11px; }
+    .rh-trace { color:var(--accent); text-decoration:none; font-size:11.5px;
+                 display:inline-flex; align-items:center; gap:4px; vertical-align:middle; }
+    .rh-trace .rh-ico { width:14px; height:14px; flex:0 0 14px; }
+    .rh-trace:hover { text-decoration:underline; }
     .rh-trace:hover { text-decoration:underline; }
 
     .rh-st { display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:2px 9px; border-radius:6px; }
@@ -160,8 +163,8 @@
     /* Next-attempt ring. The label is fixed-width so every ring lands on the
        same x — right-aligning the pair leaves them ragged, because "in 6h" and
        "in 40s" are different widths. */
-    .rh-next { display:inline-flex; align-items:center; gap:6px; justify-content:flex-end; }
-    .rh-next .rh-sub { min-width:3.4rem; text-align:left; font-variant-numeric:tabular-nums; }
+    .rh-next { display:inline-flex; align-items:center; gap:6px; }
+    .rh-next .rh-sub { font-variant-numeric:tabular-nums; white-space:nowrap; }
     .rh-ring { width:15px; height:15px; border-radius:50%; flex:0 0 15px;
                background:conic-gradient(var(--accent) var(--rh-turn,0turn), var(--panel-2) 0); }
 
@@ -208,12 +211,17 @@
        reads, held in the browser for the session — no storage, no retention. */
     .rh-trend, .rh-trend-h { width:100px; }
     .rh-trend canvas { display:block; width:88px; height:22px; }
-    .rh-trend-empty { display:inline-block; width:88px; height:11px; border-radius:3px;
-                      background:linear-gradient(90deg,var(--panel-2) 25%,var(--panel-3) 50%,var(--panel-2) 75%);
-                      background-size:200% 100%; animation:rh-shimmer 1.3s linear infinite; }
+    .rh-trend-empty { display:inline-block; width:88px; height:22px; border-radius:3px;
+                      background:linear-gradient(90deg,var(--panel-2) 30%,var(--panel-3) 50%,var(--panel-2) 70%);
+                      background-size:220% 100%; animation:rh-shimmer 2.6s linear infinite; }
+    /* Setting `display` on these beats the user-agent's `[hidden] { display:none }`,
+       so without this the placeholder and the drawn sparkline both render, stacked.
+       An attribute selector outranks the bare class, so no !important is needed. */
+    .rh-trend canvas[hidden], .rh-trend-empty[hidden] { display:none; }
     /* A placeholder that moves reads as "working"; the word "measuring" reads as
-       "broken". Same for the forecast cell before it has two samples. */
-    @keyframes rh-shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+       "broken". Slow, because this sits in a column of eight and anything quick
+       enough to notice individually is exhausting in aggregate. */
+    @keyframes rh-shimmer { from { background-position:220% 0; } to { background-position:-220% 0; } }
 
     /* Severity as form, not only colour: you find the bad row before reading it.
        Also the one cue that survives a red-green colour deficiency. */
@@ -774,7 +782,11 @@
         if (hist.length < 2) return;
 
         var lo = Math.min.apply(null, hist), hi = Math.max.apply(null, hist);
-        var span = (hi - lo) || 1;
+        // A queue that has not moved has span 0, and (v - lo) / 1 puts every
+        // point on the floor — a flat line at the bottom looks like an axis, or
+        // like zero. Pad the range so an unchanging series sits mid-height.
+        var span = hi - lo;
+        if (span <= 0) { lo -= 1; span = 2; }
         var x = function (i) { return pad + i / (hist.length - 1) * (w - pad * 2); };
         var y = function (v) { return h - pad - (v - lo) / span * (h - pad * 2); };
 

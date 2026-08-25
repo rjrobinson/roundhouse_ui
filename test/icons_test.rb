@@ -15,7 +15,7 @@ module RoundhouseUi
     def test_every_icon_referenced_by_the_ui_exists
       %i[dashboard queues retries dead errors busy metrics snapshots audit settings
          scheduled workers capsules redis enqueue width theme pause delete ok warn
-         stalled].each do |name|
+         stalled search runbook trace_out].each do |name|
         assert Icons::PATHS.key?(name), "missing SVG for :#{name}"
         assert Icons::FONT_AWESOME.key?(name), "missing FontAwesome mapping for :#{name}"
       end
