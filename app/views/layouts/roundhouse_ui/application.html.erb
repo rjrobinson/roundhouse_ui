@@ -125,14 +125,10 @@
     @keyframes rh-flash { from { background:color-mix(in srgb, var(--accent) 32%, transparent); } to { background:transparent; } }
     .rh-changed { animation:rh-flash 1.4s ease-out; border-radius:4px; }
 
-    /* Rows settle in on navigation. Not on poll — the poll never re-renders a
-       table, so this fires once per page rather than every few seconds. */
-    @keyframes rh-rowin { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
-    .rh-table tbody tr { animation:rh-rowin .3s cubic-bezier(.2,.7,.3,1) backwards; }
-    .rh-table tbody tr:nth-child(2) { animation-delay:.04s; }
-    .rh-table tbody tr:nth-child(3) { animation-delay:.08s; }
-    .rh-table tbody tr:nth-child(4) { animation-delay:.12s; }
-    .rh-table tbody tr:nth-child(n+5) { animation-delay:.16s; }
+    /* No entrance animation on rows, deliberately. Navigation is the frequent
+       action in an ops console — Queues to Errors to Dead and back, all day —
+       so choreographing it turns every click into a small wait. Motion here
+       signals that the DATA changed, never that the page did. */
 
     /* The one row that will not fix itself. Slow on purpose — faster reads as an
        alarm, and an alarm you see all day is one you stop seeing. */
@@ -148,7 +144,7 @@
     .rh-nav { transition:background .16s ease, color .16s ease, border-color .16s ease; }
 
     @media (prefers-reduced-motion: reduce) {
-      .rh-table tbody tr, .rh-fc-growing, .rh-flash, .rh-changed { animation:none !important; }
+      .rh-fc-growing, .rh-flash, .rh-changed { animation:none !important; }
       .rh-btn, .rh-iconbtn, .rh-nav { transition:none !important; }
       .rh-btn:active, .rh-iconbtn:active { transform:none; }
     }
