@@ -69,6 +69,17 @@ module RoundhouseUi
     def duration(seconds) = RoundhouseUi.duration(seconds)
     def duration_ms(ms) = RoundhouseUi.duration_ms(ms)
 
+    # The runbook for a job, as a link, or nil when the host declared none (#39).
+    # Cached per class per request like tags — the same page can ask for the same
+    # class dozens of times.
+    def runbook_link(klass, item = nil, label: "Runbook")
+      url = RoundhouseUi::Runbooks.for(klass, item, cache: (@rh_runbook_cache ||= {}))
+      return nil unless url
+
+      link_to label, url, class: "rh-runbook", target: "_blank", rel: "noopener noreferrer",
+        title: "Open the runbook for #{RoundhouseUi.unwrapped_class(klass, item)}"
+    end
+
     # Queues carry meaning at a glance (critical vs low), so render them as a
     # pill rather than grey text lost between two columns. On the job sets the
     # pill filters to that queue; `link:` is off where there's nothing to filter

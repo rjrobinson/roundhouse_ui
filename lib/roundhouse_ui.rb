@@ -10,6 +10,7 @@ require "roundhouse_ui/redaction"
 require "roundhouse_ui/queue_summary"
 require "roundhouse_ui/theme"
 require "roundhouse_ui/tags"
+require "roundhouse_ui/runbooks"
 require "roundhouse_ui/cancellation"
 require "roundhouse_ui/cancel_middleware"
 require "roundhouse_ui/metrics"
@@ -22,6 +23,11 @@ require "roundhouse_ui/backends/solid_queue"
 # Brand name is "Roundhouse"; the gem and Ruby namespace are RoundhouseUi
 # (matching the published gem name `roundhouse_ui`).
 module RoundhouseUi
+  # A well-formed Ruby constant path, and a sane bound on its length. Used to
+  # decide what may reach String#safe_constantize — see .job_class.
+  JOB_CLASS_NAME = /\A[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*\z/
+  MAX_JOB_CLASS_NAME = 200
+
   class << self
     # When true, destructive actions (purge, retry, delete, …) are disabled.
     # Mount Roundhouse read-only where operators should only observe.
@@ -136,6 +142,16 @@ module RoundhouseUi
     # from in their own browser. Default: the shipped presets.
     attr_accessor :themes
 
+    # Where the runbook for a job class lives. A callable, or a Hash keyed by
+    # class name:
+    #
+    #   c.job_runbooks = RoundhouseUi::Runbooks.from_constant(:RUNBOOK)
+    #   c.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
+    #
+    # Resolved at read time like job_tags, so it applies to jobs already in the
+    # sets. Only http(s) URLs are rendered. Default: nil.
+    attr_accessor :job_runbooks
+
     # Set false where an operator should not be able to recolour a production
     # console. Settings then hides palette selection and everyone keeps the
     # host's `theme`. Default: true.
@@ -188,6 +204,60 @@ module RoundhouseUi
       raw.is_a?(Float) ? Time.at(raw) : Time.at(raw / 1000.0)
     rescue StandardError
       nil
+    end
+
+    # Optional allowlist for constant resolution. When set, only these
+    # namespaces may be resolved from a job payload:
+    #
+    #   c.job_class_namespaces = %w[Workers Jobs Billing]
+    #
+    # This is the only control here that actually restricts what can be loaded.
+    # Shape checks do not: Ruby rejects a malformed constant path before it
+    # attempts any lookup, so a name like "../../etc/passwd" never reaches
+    # autoloading in the first place — only well-formed names do, and those are
+    # exactly what a shape check permits.
+    #
+    # Default nil (no restriction), because most apps do not need it: production
+    # Rails sets `eager_load = true`, so every app constant is already loaded and
+    # resolving one executes no new file. Set it where the job payload is not
+    # fully trusted and you would rather bound the blast radius anyway.
+    attr_accessor :job_class_namespaces
+
+    # Resolve a job class name to its Class, for resolvers that read constants
+    # off the class (Tags.from_constant, Runbooks.from_constant).
+    #
+    # The name comes from the job payload — `item["class"]` or `item["wrapped"]`
+    # — which is data, not code. Three narrowings, and it is worth being precise
+    # about which of them is a security control and which are not:
+    #
+    #   * The namespace allowlist, when configured, IS one. It runs before the
+    #     constant lookup and is the only thing here that decides what may be
+    #     resolved.
+    #   * The shape and length checks are NOT. They reject names Ruby would
+    #     reject anyway, before it attempts a lookup; they are here so the
+    #     rejection is explicit and a pathological string is bounded early.
+    #   * Requiring a Module back is robustness: a name resolving to an Array
+    #     would otherwise be sent `const_defined?`, which it does not answer.
+    #
+    # What nothing at this layer can do is stop a chosen name for a class that
+    # genuinely exists — reading a constant requires loading the class. Hosts who
+    # want no constant resolution at all should supply a resolver that does none:
+    # a Hash keyed by class name serves both tags and runbooks and never
+    # constantizes.
+    def job_class(name)
+      str = name.to_s
+      return nil unless str.length <= MAX_JOB_CLASS_NAME && str.match?(JOB_CLASS_NAME)
+      return nil unless namespace_allowed?(str)
+
+      klass = str.safe_constantize
+      klass if klass.is_a?(Module)
+    end
+
+    def namespace_allowed?(str)
+      allowed = job_class_namespaces
+      return true if allowed.nil? || Array(allowed).empty?
+
+      Array(allowed).any? { |ns| str == ns.to_s || str.start_with?("#{ns}::") }
     end
 
     # Durations, in one place. This lived in a view helper, which meant anything

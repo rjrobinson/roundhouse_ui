@@ -53,7 +53,7 @@ module RoundhouseUi
     # base-class OWNER covers subclasses) defines the constant.
     def from_constant(const_name, as: const_name.to_s.downcase)
       lambda do |klass:, item:|
-        k = klass.to_s.safe_constantize
+        k = RoundhouseUi.job_class(klass)
         { as => k.const_get(const_name) } if k&.const_defined?(const_name)
       end
     end

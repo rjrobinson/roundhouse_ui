@@ -20,6 +20,12 @@ module RoundhouseUi
       # advertised and the warning drops away.
       CAPABILITIES = %i[retries dead scheduled busy workers redis capsules].freeze
 
+      # Process-local, deliberately: this is a cheap staleness gate, not shared
+      # state. Every process reaches its own conclusion within CONCURRENCY_TTL.
+      class << self
+        attr_accessor :concurrency_cache
+      end
+
       def supports?(capability)
         return RoundhouseUi::Pause.native? if capability == :native_pause
 
@@ -39,8 +45,27 @@ module RoundhouseUi
       # figure (#36). Deliberately not Stats#workers_size, which counts threads
       # *busy this instant* — that goes to zero on an idle fleet, and dividing a
       # required rate by it would claim the fleet has infinite headroom.
+      #
+      # Two things this call has to get right, because it runs on the poll
+      # endpoint that every open tab hits every few seconds:
+      #
+      #   * `ProcessSet.new(false)` skips Sidekiq's dead-process cleanup, which
+      #     issues a SET and can issue an SREM. Roundhouse is an observer; a
+      #     read endpoint must not write to Redis, least of all on a read-only
+      #     install. Sidekiq's own workers prune the set.
+      #   * The result is cached briefly. Thread counts change on deploy or
+      #     scale, not between polls, so re-reading the process set on every
+      #     poll spends round-trips on an answer that has not moved.
+      CONCURRENCY_TTL = 15.0 # seconds
+
       def concurrency
-        ::Sidekiq::ProcessSet.new.sum { |p| p["concurrency"].to_i }
+        now = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
+        cached = self.class.concurrency_cache
+        return cached[:value] if cached && now - cached[:at] < CONCURRENCY_TTL
+
+        value = ::Sidekiq::ProcessSet.new(false).sum { |p| p["concurrency"].to_i }
+        self.class.concurrency_cache = { value: value, at: now }
+        value
       rescue StandardError
         nil
       end

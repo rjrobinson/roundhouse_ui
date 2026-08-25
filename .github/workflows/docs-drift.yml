@@ -1,0 +1,73 @@
+# Asks a reviewer model whether the prose still describes the code.
+#
+# This is the half the deterministic checks in test/documentation_test.rb cannot
+# do. Those answer "do the things the docs name still exist" — renamed options,
+# dead links, invented theme tokens. This answers "is the explanation still
+# true", which needs a reader.
+#
+# DISABLED until ANTHROPIC_API_KEY is set as a repository secret. Delete the
+# `if: false` on the job below to turn it on.
+#
+# Three deliberate constraints, because an advisory bot that cries wolf gets
+# muted within a fortnight:
+#
+#   1. It runs ONLY when a file the docs actually describe changes. Most pull
+#      requests will never trigger it.
+#   2. It posts at most one comment, and is told that silence is the correct
+#      output when nothing is wrong. It is not a required check and cannot block
+#      a merge.
+#   3. It reports; it does not edit. A model rewriting documentation
+#      unsupervised is how confident, wrong prose gets published.
+name: Docs drift
+
+on:
+  pull_request:
+    paths:
+      - "lib/roundhouse_ui/runbooks.rb"
+      - "lib/roundhouse_ui/tags.rb"
+      - "lib/roundhouse_ui/theme.rb"
+      - "lib/roundhouse_ui.rb"
+      - "README.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: false # ← remove once ANTHROPIC_API_KEY exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The wiki is a separate repository, so it has to be fetched explicitly —
+      # which is exactly why it can drift without anyone noticing.
+      - name: Fetch the wiki
+        continue-on-error: true
+        run: git clone https://github.com/${{ github.repository }}.wiki.git wiki
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            This pull request changes behaviour that the documentation describes.
+            Check the README and the pages under wiki/ against the diff.
+
+            Report ONLY places where the documentation is now factually wrong:
+            behaviour that changed, an option that no longer works as described,
+            a security claim that is no longer true, an example that would fail
+            if someone pasted it in.
+
+            Do not report: style, wording, missing coverage of the new change,
+            or anything you are unsure about. A false alarm costs more than a
+            missed nit, because this comment is advisory and gets ignored once
+            it is noisy.
+
+            If the documentation is still accurate, say exactly "No drift found"
+            and nothing else. That is the expected outcome for most changes.
+
+            Note that wiki/ is a separate repository and is NOT updated by this
+            pull request — flag stale wiki pages, but do not treat their absence
+            from the diff as an error.

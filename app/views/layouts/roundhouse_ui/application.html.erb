@@ -116,6 +116,16 @@
     /* Quick filters: counts by tag, from the scan that already ran. */
     /* Drain forecast (#35). "Growing" is the state that matters during an
        incident, so it is the only one that gets a colour that demands attention. */
+    .rh-sort { cursor:pointer; user-select:none; white-space:nowrap; }
+    .rh-sort:hover { color:var(--muted); }
+    .rh-sort::after { content:"↕"; opacity:.28; margin-left:5px; font-size:10px; }
+    .rh-sort.is-asc::after  { content:"↑"; opacity:1; color:var(--accent); }
+    .rh-sort.is-desc::after { content:"↓"; opacity:1; color:var(--accent); }
+
+    .rh-runbook { font-size:11px; font-family:var(--mono); color:var(--accent); text-decoration:none;
+                  border:1px solid var(--line); border-radius:6px; padding:1px 7px; white-space:nowrap; }
+    .rh-runbook:hover { border-color:var(--accent); background:var(--panel-2); }
+
     .rh-cap-pick { font-size:10px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
 
     .rh-fc { font-size:12px; font-family:var(--mono); white-space:nowrap; }
@@ -333,6 +343,25 @@
         return { text: "clears in " + humanizeEta(depth / -vel), cls: "rh-fc-draining" };
       }
 
+      // One urgency scale for the Forecast column, low = healthy, so an ascending
+      // sort reads best-first like every other column. Bands are kept far apart
+      // rather than blended, because "draining in 3 days" and "growing slowly"
+      // are different kinds of problem and should not interleave.
+      //
+      //   clear      -1
+      //   draining   seconds to clear   (sooner is better)
+      //   stalled    1e12
+      //   growing    1e13 + jobs/sec    (faster is worse)
+      //
+      // An unmeasured queue returns "", which the sorter puts last in both
+      // directions — see sortRows.
+      function forecastSort(depth, vel) {
+        if (depth === 0) return -1;
+        if (vel == null) return "";
+        if (Math.abs(vel) * 60 < STALLED_PER_MIN) return 1e12;
+        return vel > 0 ? 1e13 + vel : depth / -vel;
+      }
+
       function rateLabel(vel) {
         var v = Math.abs(vel);
         return v >= 1 ? v.toFixed(0) + "/s" : Math.round(v * 60) + "/min";
@@ -399,7 +428,9 @@
             setConn(true);
             restartTick();
             apply(d);
-            if (d.queue_names) QUEUE_NAMES = d.queue_names; // feeds the ⌘K palette
+            // Feeds the ⌘K palette. Derived from the depth keys rather than sent
+            // twice — see the stats endpoint.
+            if (d.queue_depths) QUEUE_NAMES = Object.keys(d.queue_depths).sort();
             var now = Date.now();
             var backlog = d.enqueued + d.scheduled + d.retries;
             if (lastProcessed != null) {
@@ -455,6 +486,14 @@
                   vel = smooth(name, (depth - lastDepths[name]) / dtq);
                 }
                 paintForecast(el, depth, vel);
+                var cell = el.closest("td");
+                if (cell) cell.setAttribute("data-sort-value", forecastSort(depth, vel));
+              });
+              // Drop state for queues that no longer exist. A queue that goes
+              // away and comes back must start measuring afresh, or its old
+              // smoothed velocity is blended into the first new sample.
+              Object.keys(smoothVel).forEach(function (k) {
+                if (k !== "__total" && !(k in d.queue_depths)) delete smoothVel[k];
               });
               lastDepths = d.queue_depths;
             }
@@ -504,6 +543,58 @@
         return { text: "+" + extra,
                  note: "on top of " + concurrency + " — " + need + " threads to clear in time" };
       }
+
+      // Sortable tables (#queues). Client-side on purpose: the Forecast column
+      // has no server-side value at all — it is computed from two polls — so a
+      // server sort could not order by it. Doing all columns the same way keeps
+      // one behaviour rather than two.
+      //
+      // Comparison reads data-sort-value, never the cell text: latency renders
+      // as "3h 19m" and the forecast as a sentence, and parsing those back would
+      // be re-deriving what the server already knew.
+      function sortRows(table, col, dir) {
+        var tbody = table.tBodies[0];
+        if (!tbody) return;
+        var rows = Array.prototype.slice.call(tbody.rows).filter(function (r) {
+          return !r.querySelector(".rh-empty");
+        });
+        var type = table.tHead.rows[0].cells[col].getAttribute("data-sort-type");
+        rows.sort(function (a, b) {
+          var x = cellValue(a, col), y = cellValue(b, col);
+          // Rows with no value yet ("measuring…") sort last in both directions
+          // rather than clustering at whichever end zero happens to fall.
+          if (x === "" && y === "") return 0;
+          if (x === "") return 1;
+          if (y === "") return -1;
+          var cmp = type === "num" ? parseFloat(x) - parseFloat(y) : String(x).localeCompare(String(y));
+          return dir === "asc" ? cmp : -cmp;
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+      }
+
+      function cellValue(row, col) {
+        var cell = row.cells[col];
+        if (!cell) return "";
+        var v = cell.getAttribute("data-sort-value");
+        return v == null ? cell.textContent.trim() : v;
+      }
+
+      document.addEventListener("click", function (e) {
+        var th = e.target.closest && e.target.closest("th.rh-sort");
+        if (!th) return;
+        var table = th.closest("table");
+        var wasAsc = th.classList.contains("is-asc");
+        table.querySelectorAll("th.rh-sort").forEach(function (o) {
+          o.classList.remove("is-asc", "is-desc");
+        });
+        // Numbers open descending: on this page the interesting end of Size and
+        // Latency is the big one, which is the same reason the default order is
+        // worst-first.
+        var dir = wasAsc ? "desc" : (th.classList.contains("is-desc") ? "asc"
+                                     : (th.getAttribute("data-sort-type") === "num" ? "desc" : "asc"));
+        th.classList.add(dir === "asc" ? "is-asc" : "is-desc");
+        sortRows(table, parseInt(th.getAttribute("data-sort-col"), 10), dir);
+      });
 
       // Surface a failed poll instead of letting the numbers silently go stale.
       function setConn(ok) {

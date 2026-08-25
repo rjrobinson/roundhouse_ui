@@ -33,9 +33,9 @@ module RoundhouseUi
         retries:   s.retry_size,
         dead:      s.dead_size,
         queues:      qs.size,
-        queue_names: qs.map(&:name).sort,
-        # The drain forecast needs a second sample to compute a velocity, and
-        # this is the read that already has the depths.
+        # Names ride along as the keys. They used to be sent separately as well,
+        # which meant every queue name appeared twice in one response — 40KB per
+        # poll per open tab on a 500-queue app, half of it duplicated.
         queue_depths: qs.to_h { |q| [ q.name, q.size ] },
         # Total worker threads, for the capacity figure (#36). workers_size is
         # threads *busy right now*, which is a different number and goes to zero

@@ -80,9 +80,15 @@ class ActiveSupport::TestCase
       # a plain list is enough — but it has to answer rather than raise, or the
       # poll endpoint cannot be tested at all.
       when "LINDEX"    then @lists[args[0]][args[1].to_i]
+      when "SSCAN"     then [ "0", @sets[args[0]].dup ]
       when "HGET"      then nil
       when "HINCRBY", "HINCRBYFLOAT" then 1
       when "ZCARD"     then @lists[args[0]].size
+      when "ZRANGE"    then
+        key, a, b = args
+        out = @lists[key][a.to_i..b.to_i] || []
+        args.any? { |x| x.to_s.casecmp?("withscores") } ? out.flat_map { |m| [ m, "0" ] } : out
+      when "ZREM"      then key, *ms = args; ms.count { |m| @lists[key].delete(m) }
       when "ZADD"      then key, _score, m = args; @lists[key] |= [ m ]; 1
       when "SCARD"     then @sets[args[0]].size
       when "HGETALL"   then {}
@@ -95,12 +101,19 @@ class ActiveSupport::TestCase
     # Real clients batch commands and return their replies in order; the batched
     # queue read depends on that ordering, so the fake has to model it rather
     # than being bypassed.
+    # redis-client exposes every command as a method as well as through `call`,
+    # and Sidekiq's API uses both styles. Forwarding keeps the fake honest about
+    # that; an unknown command still raises from `call` rather than being
+    # silently swallowed here.
+    def method_missing(name, *args) = call(name.to_s.upcase, *args)
+    def respond_to_missing?(*) = true
+
     # Sidekiq::Queue.all scans the queue set. Which method it calls depends on the
     # client: Sidekiq 7+ on redis-client uses `sscan`, 6.5 on redis-rb uses
     # `sscan_each` — the same split that makes `conn.call` the only safe
     # signature in lib/. The fake has to answer both or the poll endpoint is
     # only testable on one version.
-    def sscan(key, _cursor = "0", **_opts) = [ "0", @sets[key].dup ]
+    def sscan(key, *_args, **_opts) = @sets[key].dup
     def sscan_each(key, **_opts, &blk) = @sets[key].dup.each(&blk)
 
     def pipelined

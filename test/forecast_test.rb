@@ -21,7 +21,8 @@ module RoundhouseUi
       get "/roundhouse/stats", headers: { "Accept" => "application/json" }
       body = JSON.parse(@response.body)
       assert_equal body["queues"], body["queue_depths"].size
-      assert_equal body["queue_names"].sort, body["queue_depths"].keys.sort
+      # Names are the depth keys; sending them separately duplicated every name.
+      refute body.key?("queue_names"), "queue names must not be sent twice"
     end
 
     # Capacity needs total threads, not threads busy right now — workers_size

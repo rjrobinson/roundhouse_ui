@@ -116,6 +116,7 @@ RoundhouseUi.configure do |c|
   # Surface your own labels (owning team, tenant, …) on job rows, the job page,
   # and grouped errors — and filter by them. See "Job tags" below.
   # c.job_tags = RoundhouseUi::Tags.from_constant(:OWNER, as: :squad)
+  # c.job_runbooks = RoundhouseUi::Runbooks.from_constant(:RUNBOOK)
 
   # Recolour the UI — pure CSS custom properties, no build step. See "Theming".
   # c.theme = { accent: "#FF2BD1", accent_2: "#00E5FF" }
@@ -152,6 +153,8 @@ here is required to mount Roundhouse.
 | `job_tags` | `nil` | You already know which team, tenant or product area owns a job — usually as a constant on the class — and want that visible and filterable in the UI. See [Job tags](#job-tags). | Every job belongs to the same team. |
 | `job_tags_per_job` | `false` | **Only** when `job_tags` reads the payload (tagging by tenant, account, …). Costs one resolver call per row rather than one per class. | Tags derive from the job class, which is the common case. |
 | `tag_filters` | `nil` | You want stable filter dropdowns instead of ones that only list what happens to be on screen — and want filtering on an unknown key to match nothing. | The `?tag=` URL is enough. |
+| `job_runbooks` | `nil` | Your jobs have runbooks and you'd rather not make someone find them at 3am. | There's nothing to link to yet. |
+| `job_class_namespaces` | `nil` | You want to bound which constants a job payload can cause Roundhouse to resolve. See [Security](#security). | Your job payloads come only from your own app, which is the normal case. |
 | `theme` | `nil` | You want Roundhouse to match your own admin's palette, or you just want it to look different. Partial themes are fine — unset tokens keep their shipped values. See [Theming](#theming). | The shipped light/dark pair is fine. |
 | `themes` | shipped presets | You want people to pick their own palette on the Settings page. | Everyone should see the same thing — set `theme` instead, or `allow_theme_selection = false`. |
 | `allow_theme_selection` | `true` | Leave it on. | Recolouring a production console isn't something you want an operator doing. |
@@ -322,6 +325,33 @@ authentication and routing, so it isn't free. Whatever you set for
 `poll_interval` is the default and is named on the page; a viewer can go faster
 or slower within 2–300 seconds.
 
+## Runbooks
+
+Whoever wrote the job knows what to do when it fails. The person paged at 3am
+usually does not. Point Roundhouse at whatever you already have:
+
+```ruby
+# a constant on the class, same convention as job tags
+RoundhouseUi.job_runbooks = RoundhouseUi::Runbooks.from_constant(:RUNBOOK)
+
+# or a plain map
+RoundhouseUi.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
+
+# or any callable
+RoundhouseUi.job_runbooks = ->(klass:, item:) { "https://wiki/jobs/#{klass}" }
+```
+
+A **Runbook** link then appears on the job page and on each grouped error row —
+the two places someone lands during an incident. Resolved at read time like
+tags, so it applies to jobs already in the sets, with no middleware and nothing
+stored. Inherited constants count, so one base class can carry a runbook for a
+whole family, and ActiveJob-wrapped jobs resolve by their real class.
+
+> Only `http`/`https` URLs render. The value lands in an `href`, where no amount
+> of escaping makes `javascript:` safe, so the scheme is checked instead — a
+> misconfigured host gets no link rather than a link that runs. Links open in a
+> new tab with `rel="noopener noreferrer"`.
+
 ## Job tags
 
 Most apps already know who owns a job — commonly a constant on the class. Point
@@ -463,6 +493,33 @@ Storage is pluggable via `RoundhouseUi.snapshot_store` (default: Redis). For lar
 queues use a file or S3 store so the backup doesn't sit in the Redis you're trying to relieve.
 
 ## Security
+
+**Constant resolution from job payloads.** `Tags.from_constant` and
+`Runbooks.from_constant` read a constant off the job class, which means turning
+`item["class"]` — a string out of Redis — into a Class. Worth knowing precisely
+what that does and does not expose:
+
+- Malformed names never reach a lookup. Ruby rejects `"../../etc/passwd"` as a
+  constant path before attempting to resolve anything, so no autoload occurs.
+- A **well-formed name of a class that really exists** does resolve, and
+  resolving a class loads it. In production this is close to inert: Rails sets
+  `eager_load = true`, so every app constant is already loaded and no new file
+  is executed.
+- Writing a crafted payload requires Redis write access — which, on a Sidekiq
+  install, already permits enqueuing a real job, a more serious compromise than
+  this.
+
+Two ways to tighten it if your payloads are not fully trusted:
+
+```ruby
+# Bound which constants may be resolved at all
+c.job_class_namespaces = %w[Workers Jobs Billing]
+
+# Or resolve nothing: a Hash never constantizes
+c.job_tags = ->(klass:, item:) { { squad: OWNER_MAP[klass] } }
+c.job_runbooks = { "Billing::SyncWorker" => "https://wiki/billing" }
+```
+
 
 - All destructive actions are CSRF-protected `POST`s — never GET — and gated by `read_only`.
 - Roundhouse sets its own strict, self-contained Content-Security-Policy on its responses
