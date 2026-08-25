@@ -10,6 +10,11 @@ module RoundhouseUi
     def index
       @threshold = LONG_RUNNING
       @work = backend.busy
+      # "4m 12s" means nothing on its own — fine for a nightly rollup, a hang for
+      # a webhook. DurationCollector already records the average per class, so
+      # where it is enabled the page can say "×8 typical" instead. Empty
+      # otherwise, and the view degrades to elapsed with no ceiling.
+      @typical = typical_durations
     end
 
     def cancel
@@ -18,6 +23,16 @@ module RoundhouseUi
     end
 
     private
+
+    # Average seconds per class, keyed by the real job class so an ActiveJob
+    # wrapper does not collapse every mailer into one baseline.
+    def typical_durations
+      return {} unless RoundhouseUi.collect_durations
+
+      DurationCollector.summary.to_h { |d| [ d[:klass].to_s, d[:avg_ms].to_f / 1000.0 ] }
+    rescue StandardError
+      {}
+    end
 
     def require_writable!
       return unless RoundhouseUi.read_only

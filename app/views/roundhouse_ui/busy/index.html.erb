@@ -2,19 +2,40 @@
 
 <h2 class="rh-h2">Busy <span class="hint"><%= @work.size %> <%= "job".pluralize(@work.size) %> running now</span></h2>
 <table class="rh-table">
-  <thead><tr><th>Job</th><th>Queue</th><th>Worker</th><th class="r">Running for</th><th class="r">Actions</th></tr></thead>
+  <thead><tr><th>Job</th><th>Queue</th><th>Worker</th><th>Running for</th><th class="r">vs typical</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @work.empty? %>
-      <tr><td colspan="5" class="rh-empty">No jobs running right now.</td></tr>
+      <tr><td colspan="6" class="rh-empty">No jobs running right now.</td></tr>
     <% else %>
       <% @work.each do |w| %>
         <% elapsed = (Time.now - w[:run_at]).to_i %>
         <% long = elapsed >= @threshold %>
-        <tr>
+        <%# Elapsed against what is normal for THIS class, where we know it.
+            A ratio answers "is this wrong" where a duration only answers "how
+            long", and those are different questions on a page about hangs. %>
+        <% typical = @typical[RoundhouseUi.unwrapped_class(w[:job].klass, w[:job].item)] %>
+        <% ratio = typical.to_f.positive? ? elapsed / typical : nil %>
+        <% sev = if ratio.nil? then (long ? "warn" : "ok")
+                 elsif ratio > 2.5 then "crit"
+                 elsif ratio > 1 then "warn"
+                 else "ok" end %>
+        <tr data-rh-sev="<%= sev %>">
           <td><%= job_display_class(w[:job]) %><br><span class="rh-sub"><%= w[:job].jid %></span></td>
           <td><span class="rh-sub"><%= w[:queue] %></span></td>
           <td><span class="rh-sub"><%= w[:process] %></span></td>
-          <td class="r rh-mono <%= "rh-lat-warn" if long %>"><%= duration(elapsed) %><%= " ⚠" if long %></td>
+          <td class="rh-mono"><%= duration(elapsed) %></td>
+          <td class="r">
+            <div class="rh-elapsed">
+              <div class="t" data-rh-sev="<%= sev %>">
+                <i style="width:<%= ratio ? [ ratio * 100, 100 ].min.round(1) : [ elapsed.to_f / @threshold * 100, 100 ].min.round(1) %>%"></i>
+              </div>
+              <span class="n rh-sub">
+                <%= if ratio then "×#{ratio.round(1)}"
+                    elsif RoundhouseUi.collect_durations then "no baseline"
+                    else "—" end %>
+              </span>
+            </div>
+          </td>
           <td class="r"><%= button_to "Cancel", cancel_job_path(w[:job].jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Request cancellation of #{w[:job].jid}? Cooperative jobs abort; others are skipped on their next attempt." } %></td>
         </tr>
       <% end %>

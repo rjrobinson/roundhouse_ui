@@ -2,8 +2,9 @@
 <% content_for :crumb, Rails.env %>
 
 <% verdict = { ok: "Healthy", warn: "Degraded", crit: "Critical" }[@health.status] %>
-<details class="rh-health rh-health-<%= @health.status %>"<%= " open".html_safe unless @health.healthy? %>>
+<details class="rh-health rh-health-<%= @health.status %> is-<%= @health.status %>"<%= " open".html_safe unless @health.healthy? %>>
   <summary>
+    <span class="rh-health-rail" aria-hidden="true"></span>
     <span class="rh-health-dot"></span>
     <span class="rh-health-verdict"><%= verdict %></span>
     <span class="rh-health-reason"><%= @health.reason %></span>
@@ -25,16 +26,19 @@
     <div class="k">Processed</div>
     <div class="v num" data-stat="processed"><%= number_with_delimiter @stats.processed %></div>
     <div class="d"><span class="num" data-stat="rate">—</span> / min · <%= ((1 - @metrics.failure_ratio) * 100).round(1) %>% ok</div>
+    <canvas data-rh-card="processed" width="300" height="52" aria-hidden="true"></canvas>
   </div>
   <div class="rh-card">
     <div class="k">Failed · total</div>
     <div class="v num" data-stat="failed"><%= number_with_delimiter @stats.failed %></div>
     <div class="d bad"><span class="num" data-stat="dead"><%= number_with_delimiter @stats.dead_size %></span> dead · <%= (@metrics.failure_ratio * 100).round(1) %>% rate</div>
+    <canvas data-rh-card="failed" width="300" height="52" aria-hidden="true"></canvas>
   </div>
   <div class="rh-card">
     <div class="k">Busy threads</div>
     <div class="v num" data-stat="busy"><%= @stats.workers_size %></div>
     <div class="d"><%= @metrics.utilization ? "#{(@metrics.utilization * 100).round}% of #{@metrics.concurrency} busy" : "no workers reporting" %></div>
+    <canvas data-rh-card="busy" width="300" height="52" aria-hidden="true"></canvas>
   </div>
   <div class="rh-card">
     <div class="k">Backlog</div>
@@ -77,6 +81,7 @@
         </div>
       <% end %>
     <% end %>
+    <canvas data-rh-card="backlog" width="300" height="52" aria-hidden="true"></canvas>
   </div>
 </div>
 
