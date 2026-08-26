@@ -102,8 +102,14 @@ module RoundhouseUi
 
     # Any filter active? Bulk-on-match is filter-gated, so this decides whether
     # the bulk bar renders at all — and which empty-state copy is honest.
+    # Delegates to the concern's predicate where it is available, so the button the
+    # view offers and the scope the route enforces cannot drift apart. They did:
+    # this returned true only for the view, while bulk_all had no gate at all.
     def any_filter?(query, tag, queue = @queue_filter)
-      query.present? || !tag.nil? || queue.present? || @class_filter.present? || @error_filter.present?
+      return controller.send(:bulk_filter_present?, query, tag) if controller.respond_to?(:bulk_filter_present?, true)
+
+      query.present? || !tag.nil? || queue.present? ||
+        @class_filter.present? || @error_filter.present?
     end
 
     # Value only — the key is near-constant down a column, so repeating it is

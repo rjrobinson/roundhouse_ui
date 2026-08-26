@@ -6,7 +6,7 @@ module RoundhouseUi
 
     PER_PAGE = 25
     BULK_CAP = 1_000 # safety ceiling on a single match-set action
-    Matched = Struct.new(:entries, :capped, keyword_init: true)
+    Matched = Struct.new(:entries, :capped, :unfiltered, keyword_init: true)
 
     # Every filter, once per request, rather than re-derived in each action. The
     # queue filter was already assigned in seven places across three controllers;
@@ -66,7 +66,28 @@ module RoundhouseUi
     # mid-iteration skips entries. Returns [count_acted_on, capped?].
     # The same scan the action runs, stopped one step early, so a dry run and the
     # action it confirms cannot disagree about what "matching" means.
+    # Is any filter active? The single source of truth for "this bulk action has a
+    # scope". tags_helper's any_filter? delegates here rather than recomputing it —
+    # the view and the route disagreeing is exactly how the hole below happened.
+    def bulk_filter_present?(query, tag)
+      query.present? || !tag.nil? || @queue_filter.present? ||
+        @class_filter.present? || @error_filter.present?
+    end
+
     def bulk_matches(set, query, cap = BULK_CAP, tag: nil)
+      # An unfiltered bulk action selects EVERY entry: entry_selected? finds no
+      # filter to fail, `"".present?` is false, and `return true if tag.nil?` does
+      # the rest. So POST /dead/bulk_all with nothing but op=delete emptied the set,
+      # up to the cap, and reported "Deleted 50 matching job(s)" as if that were
+      # the request. Verified against a real Redis before this guard existed.
+      #
+      # The comment above bulk_all claimed it was "only offered when a filter is
+      # active" — and it was only OFFERED that way. The button was hidden by the
+      # view while the route stayed open. The guard belongs here, at the one place
+      # both the dry run and the action pass through, not in a before_action that
+      # the next destructive action can forget to add.
+      return Matched.new(entries: [], capped: false, unfiltered: true) unless bulk_filter_present?(query, tag)
+
       entries = []
       capped = false
       cache = tag_cache_for(tag)
@@ -84,6 +105,8 @@ module RoundhouseUi
 
     def bulk_apply(set, query, op, cap = BULK_CAP, tag: nil)
       found = bulk_matches(set, query, cap, tag: tag)
+      return found if found.unfiltered
+
       found.entries.each { |entry| op == "delete" ? entry.delete : entry.retry }
       found
     end
