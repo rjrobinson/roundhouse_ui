@@ -2,12 +2,12 @@
 
 <form method="get" action="<%= scheduled_path %>" class="rh-search">
   <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, or arg value…">
-  <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
-  <% if params[:queue].present? %><input type="hidden" name="queue" value="<%= params[:queue] %>"><% end %>
-  <%# Without these, typing a search while the glass filter is active silently
-      drops it — the same reason tag and queue are carried above. %>
-  <% if @class_filter.present? %><input type="hidden" name="class" value="<%= @class_filter %>"><% end %>
-  <% if @error_filter.present? %><input type="hidden" name="error" value="<%= @error_filter %>"><% end %>
+  <%# Every active filter except q, which the box itself carries. Enumerated by
+      hand this dropped whatever was added last — and a form that quietly loses a
+      filter is how a search stopped narrowing what it said it narrowed. %>
+  <% active_filters.except(:q).each do |key, value| %>
+    <input type="hidden" name="<%= key %>" value="<%= value %>">
+  <% end %>
 </form>
 
 <%= render "roundhouse_ui/shared/tag_filter" %>

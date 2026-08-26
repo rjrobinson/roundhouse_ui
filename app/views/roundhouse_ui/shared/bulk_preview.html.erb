@@ -21,11 +21,15 @@
     </div>
   <% end %>
 
+    <%# The confirm form carries EVERY active filter, not a hand-picked four. It
+        listed op, q, tag and queue — and not class or error — so a dry run showing
+        two jobs POSTed a request that deleted five, and reported "Deleted 5
+        matching job(s)" as though that had been approved. %>
   <div class="rh-toolbar">
     <%= button_to "#{@op == "delete" ? "✕ Delete" : "↻ Retry"} #{number_with_delimiter @matched.entries.size} #{@noun.pluralize(@matched.entries.size)}",
           @confirm_path,
           method: :post,
-          params: { op: @op, q: @query, tag: params[:tag], queue: params[:queue] },
+          params: active_filters.merge(op: @op),
           class: "rh-btn #{'rh-btn-danger' if @op == 'delete'}",
           form_class: "rh-inline" %>
     <%= link_to "Cancel", @back_path, class: "rh-btn" %>

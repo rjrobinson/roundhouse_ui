@@ -97,5 +97,44 @@ module RoundhouseUi
       body = response.body.split("</style>").last.to_s
       assert_match(/preview/, body, "a filtered page must offer the bulk controls")
     end
+    # THE property the dry run exists to provide, asserted end to end with real
+    # deletes: whatever the preview counted is what the confirm destroys.
+    #
+    # It did not hold. The confirm form carried op, q, tag and queue — not class or
+    # error — so a preview listing 2 jobs POSTed a request that deleted 5, and
+    # reported "Deleted 5 matching job(s)" as though that had been approved.
+    def test_the_dry_run_count_is_exactly_what_the_confirm_destroys
+      Sidekiq.redis { |c| c.call("FLUSHDB") }
+      [ %w[a1 BillingWorker stripe], %w[a2 BillingWorker stripe],
+        %w[c1 MailerWorker stripe], %w[c2 MailerWorker stripe],
+        %w[d1 SearchWorker stripe] ].each_with_index do |(jid, klass, arg), i|
+        Sidekiq.redis { |c| c.call("ZADD", "dead", i.to_s, Sidekiq.dump_json(
+          "class" => klass, "args" => [ arg ], "queue" => "default", "jid" => jid,
+          "error_class" => "Boom", "failed_at" => Time.now.to_f)) }
+      end
+
+      # A query that matches all five, AND a class filter that narrows to two.
+      get "/roundhouse/dead/preview", params: { op: "delete", q: "stripe", class: "BillingWorker" }
+      assert_response :success
+
+      body = response.body.split("</style>").last.to_s
+      previewed = body.scan(/\b(?:a1|a2|c1|c2|d1)\b/).uniq
+      assert_equal %w[a1 a2], previewed.sort, "the dry run did not honour the class filter"
+
+      form = body[/<form[^>]*bulk_all[^>]*>.*?<\/form>/m] ||
+             body[/<form(?:(?!<\/form>).)*bulk_all(?:(?!<\/form>).)*<\/form>/m]
+      refute_nil form, "no confirm form in the dry run"
+      params = form.scan(/<input[^>]*name="([^"]+)"[^>]*value="([^"]*)"/).to_h
+      assert_equal "BillingWorker", params["class"],
+        "the confirm form dropped the class filter, so it will delete more than was shown"
+
+      post "/roundhouse/dead/bulk_all", params: params
+      survivors = Sidekiq::DeadSet.new.map(&:jid).sort
+
+      assert_equal %w[c1 c2 d1], survivors,
+        "confirmed a deletion of #{previewed.size} and destroyed #{5 - survivors.size}"
+      assert_match(/Deleted 2 /, flash[:notice].to_s,
+        "the notice must report what was approved")
+    end
   end
 end

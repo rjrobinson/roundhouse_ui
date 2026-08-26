@@ -180,21 +180,40 @@ module RoundhouseUi
 
     # A destructive-scope bug already happened here once: a form that dropped the
     # queue filter would delete more than the page showed.
+    # This test used to enumerate four filters by hand while its name promised
+    # every one. So when class= and error= were added, it kept passing while the
+    # confirm form silently dropped both — and a dry run listing two jobs POSTed a
+    # request that deleted five. The test and the six hand-enumerating call sites
+    # had the same bug: a hardcoded list nobody updates.
+    #
+    # It is driven by FILTER_KEYS now. Add a sixth filter and this fails until the
+    # form carries it.
     def test_the_confirm_form_carries_every_filter
       # A live tag resolver, so the tag filter actually selects rather than
       # excluding everything and leaving nothing to assert against.
       RoundhouseUi.job_tags = ->(klass:, item:) { { squad: "core" } }
-      stub_method(Sidekiq::DeadSet, :new, @set) do
-        get "/roundhouse/dead/preview", params: { op: "delete", q: "Stripe", queue: "default", tag: "squad:core" }
+      # Values that MATCH the fixture. With values that match nothing the preview
+      # renders "Nothing to do" and no form, and the test would pass on absence.
+      sent = { op: "delete", q: "Stripe", queue: "default", tag: "squad:core",
+               class: "ChargeCustomerJob", error: "Stripe::RateLimitError" }
 
-        assert_select "form[action=?]", "/roundhouse/dead/bulk_all" do
-          assert_select "input[name=op][value=delete]"
-          assert_select "input[name=q][value=Stripe]"
-          assert_select "input[name=queue][value=default]"
-          assert_select "input[name=tag][value=?]", "squad:core"
-        end
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: sent
+
+        assert_select "form[action=?]", "/roundhouse/dead/bulk_all"
+
+        carried = css_select("form[action='/roundhouse/dead/bulk_all'] input")
+                  .to_h { |i| [ i["name"], i["value"] ] }
+        assert_equal "delete", carried["op"]
+
+        missing = JobSetBrowsing::FILTER_KEYS.reject { |key| carried[key.to_s] == sent[key].to_s }
+        assert_empty missing,
+          "the confirm form drops #{missing.join(', ')}. Whatever it does not carry, " \
+          "the POST will not filter on — so the dry run you approved and the jobs " \
+          "that actually get destroyed are different sets. It carried: #{carried.keys.inspect}"
       end
     end
+
 
     def test_preview_says_so_when_nothing_matches
       stub_method(Sidekiq::DeadSet, :new, @set) do

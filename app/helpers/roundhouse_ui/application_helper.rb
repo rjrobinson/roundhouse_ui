@@ -18,6 +18,21 @@ module RoundhouseUi
       ])
     end
 
+    # A URL that keeps every active filter, naming only what changes. Pass a key
+    # as nil to clear just that one.
+    #
+    # Never enumerate filter params by hand in a view. That is what let the pager
+    # drop the class filter on page two, and the confirm form drop it between the
+    # dry run and the deletion.
+    def filter_params(overrides = {})
+      base = respond_to?(:active_filters) ? active_filters : {}
+      base.merge(overrides).compact
+    end
+
+    def filter_url(overrides = {})
+      url_for(filter_params(overrides).merge(only_path: true))
+    end
+
     # Where "find more like this" goes, per set.
     LIKE_PATHS = { "dead" => :dead_set_path, "retry" => :retries_path,
                    "scheduled" => :scheduled_path }.freeze
@@ -173,9 +188,7 @@ module RoundhouseUi
       return content_tag(:span, name, class: "rh-pill rh-mono") unless link
 
       active = @queue_filter == name.to_s
-      link_to name, url_for(only_path: true, page: nil, q: @query.presence,
-                            tag: params[:tag].presence,
-                            queue: (active ? nil : name)),
+      link_to name, filter_url(page: nil, queue: (active ? nil : name)),
         class: "rh-pill rh-mono rh-pill-link#{' is-on' if active}",
         title: active ? "Clear queue filter" : "Show only #{name}"
     end
