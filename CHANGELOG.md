@@ -7,6 +7,26 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **A faceted search grammar** (`RoundhouseUi::FilterQuery`), the parser behind
+  typing `class=Billing::SyncWorker error=Timeout::Error stripe` into the one search
+  box. `key=value` becomes an exact structured filter; whatever follows is one
+  verbatim substring needle.
+
+  The separator is `=`, not Datadog's `:`, because Ruby names are colon-dense —
+  `Billing::SyncWorker` needs no escaping when only the first `=` splits. Facets
+  lead, and the text is a contiguous slice from wherever they stop, so with no
+  facets it is byte-identical to the old `params[:q].strip` and every existing
+  search and bookmark behaves exactly as before.
+
+  Anything not understood is **refused whole**, with the offending token named —
+  never quietly dropped and never fallen back to free text. Discarding a token is
+  the only resolution that can select *more* than what was typed, and this box sits
+  above "delete all matching". Refused: unknown keys, empty values, conflicting
+  duplicates, unterminated quotes, negation and wildcards in a facet. `text="…"` is
+  the escape hatch for genuinely facet-shaped text.
+
+  Not yet wired into the controllers — that is the next commit.
+
 - **Demo workers and a capped load generator**, so the console can be seen doing
   something. `require "roundhouse_ui/demo"` in a development initializer, then
   `rake roundhouse_ui:demo:load[15]`. Six classes across six queues with different
