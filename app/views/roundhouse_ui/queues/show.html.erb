@@ -2,7 +2,11 @@
 
 <form method="get" action="<%= queue_path(@name) %>" class="rh-search">
   <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, or arg value…">
-  <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
+  <%# Every active filter except q. This page browses a job set through the same
+      concern as the others, so it has the same filters to lose. %>
+  <% active_filters.except(:q).each do |key, value| %>
+    <input type="hidden" name="<%= key %>" value="<%= value %>">
+  <% end %>
 </form>
 
 <%= render "roundhouse_ui/shared/tag_filter" %>

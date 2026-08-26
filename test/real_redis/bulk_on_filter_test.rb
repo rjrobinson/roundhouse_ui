@@ -12,6 +12,7 @@ module RoundhouseUi
     # bare object is the unusual thing here.
     class Browser
       def self.before_action(*) = nil
+      def self.helper_method(*) = nil
       include JobSetBrowsing
     end
 

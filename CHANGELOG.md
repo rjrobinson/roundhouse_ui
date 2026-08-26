@@ -96,6 +96,26 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **A dry run of two jobs could confirm the deletion of five.** The bulk-preview
+  confirm form carried `op`, `q`, `tag` and `queue` — and not `class` or `error`. So
+  previewing `?op=delete&q=stripe&class=BillingWorker` listed 2 jobs, and the POST it
+  produced deleted all 5 matching `q` alone, reporting "Deleted 5 matching job(s)"
+  as though that had been approved. The preview *links*, the pager, the queue pills,
+  the tag chips and every search form had the same hole in different places.
+
+  `bulk_matches`'s own comment promises the dry run and the action "cannot disagree
+  about what matching means". They could, because they were handed different filters.
+
+  Filter state now has exactly one serialization point (`active_filters`), and every
+  URL and form starts from all of it and names only what it changes
+  (`filter_url` / `filter_params`) — so omitting a filter is not expressible. Nine
+  hand-enumerating sites removed.
+
+  The test that was supposed to catch this was named
+  `test_the_confirm_form_carries_every_filter` and asserted **four** filters by hand,
+  so adding a fifth left it green. It is driven by `FILTER_KEYS` now, and a new
+  structural test fails if anything anywhere enumerates filter params by hand.
+
 - **An unfiltered `bulk_all` deleted the whole set.** `POST /dead/bulk_all` with
   nothing but `op=delete` — no query, tag, class, error or queue — emptied the dead
   set up to the 1,000 cap and reported "Deleted 50 matching job(s)" as though that

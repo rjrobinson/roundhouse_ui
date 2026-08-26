@@ -13,8 +13,34 @@ module RoundhouseUi
     # class and error would have made that twenty-one, and a browse that read one
     # filter while its bulk counterpart read another is the failure this whole
     # file is arranged to prevent.
+    # Every filter this concern understands. One list, so "all of them" is a thing
+    # the code can say.
+    FILTER_KEYS = %i[q tag queue class error].freeze
+
     included do
       before_action :load_filters
+      helper_method :active_filters
+    end
+
+    # The filters currently in force, as URL params. THE single serialization
+    # point: every URL and form that must preserve the filter starts from all of it
+    # and names only what it changes, so dropping one is not expressible.
+    #
+    # This was hand-enumerated at six sites. Adding the class/error pair updated
+    # three of them, and the confirm form was one of the three that were missed —
+    # so a dry run listing two jobs POSTed a request that deleted five, and
+    # reported "Deleted 5 matching job(s)" as if that had been approved. The
+    # comment above bulk_matches promises the dry run and the action "cannot
+    # disagree about what matching means". They could, because they were handed
+    # different filters.
+    def active_filters
+      {
+        q: params[:q].to_s.strip.presence,
+        tag: params[:tag].presence,
+        queue: @queue_filter,
+        class: @class_filter,
+        error: @error_filter
+      }.compact
     end
 
     def load_filters

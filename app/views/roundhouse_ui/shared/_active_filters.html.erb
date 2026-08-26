@@ -16,8 +16,7 @@
         <span class="k">class</span>
         <span class="v" title="<%= @class_filter %>"><%= @class_filter %></span>
         <%= link_to "×",
-              url_for(only_path: true, class: nil, page: nil, error: @error_filter,
-                      q: @query.presence, tag: params[:tag].presence, queue: params[:queue].presence),
+              filter_url(class: nil, page: nil),
               class: "x", title: "Clear the class filter",
               aria: { label: "Clear the class filter" } %>
       </span>
@@ -28,8 +27,7 @@
         <span class="k">error</span>
         <span class="v" title="<%= @error_filter %>"><%= @error_filter %></span>
         <%= link_to "×",
-              url_for(only_path: true, error: nil, page: nil, class: @class_filter,
-                      q: @query.presence, tag: params[:tag].presence, queue: params[:queue].presence),
+              filter_url(error: nil, page: nil),
               class: "x", title: "Clear the error filter",
               aria: { label: "Clear the error filter" } %>
       </span>
@@ -37,8 +35,7 @@
 
     <%# One × per chip removes one thing; this removes the lot. %>
     <%= link_to "clear all",
-          url_for(only_path: true, class: nil, error: nil, tag: nil, queue: nil, page: nil,
-                  q: @query.presence),
+          filter_url(class: nil, error: nil, tag: nil, queue: nil, page: nil),
           class: "clear-all", title: "Clear every filter" %>
   </div>
 <% end %>
