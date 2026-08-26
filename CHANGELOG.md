@@ -96,6 +96,23 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **An unfiltered `bulk_all` deleted the whole set.** `POST /dead/bulk_all` with
+  nothing but `op=delete` — no query, tag, class, error or queue — emptied the dead
+  set up to the 1,000 cap and reported "Deleted 50 matching job(s)" as though that
+  were the request. Same for retries. With no filter every entry matches:
+  `entry_selected?` finds nothing to fail, `"".present?` is false, and
+  `return true if tag.nil?` does the rest.
+
+  The action's own comment claimed it was "only offered when a filter is active" —
+  and it was only *offered* that way. The view hid the button; the route had no gate
+  at all. The refusal now lives inside `bulk_matches`, the one place both the dry run
+  and the action pass through, rather than in a `before_action` the next destructive
+  action can forget. `any_filter?` delegates to the same predicate, so the button the
+  view offers and the scope the route enforces cannot drift apart again.
+
+  The checkbox `bulk` action is deliberately unaffected: an explicit list of jids
+  *is* a scope.
+
 - **The Processed and Failed cards plotted a line that could only go up.** Both are
   lifetime counters, so their sparkline was a monotonic ramp whose slope carried the
   whole signal and whose level is what the eye reads — and on Failed, auto-scaled
