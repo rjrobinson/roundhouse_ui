@@ -6,7 +6,12 @@ module RoundhouseUi
   # it runs against Redis sorted sets, which the fake models as a plain list with
   # the scores thrown away.
   class RealRedisBulkOnFilterTest < RealRedisTestCase
+    # Exercises the scan predicate directly, with no request cycle around it — so
+    # it has to absorb the concern's before_action registration. Defining this
+    # rather than guarding the concern: the concern is for controllers, and the
+    # bare object is the unusual thing here.
     class Browser
+      def self.before_action(*) = nil
       include JobSetBrowsing
     end
 
@@ -80,6 +85,35 @@ module RoundhouseUi
       seen = (page1 + page2 + page3).map(&:jid)
       assert_equal 60, seen.size
       assert_equal 60, seen.uniq.size, "paging returned the same job on two pages"
+    end
+    def test_find_more_like_this_narrows_a_bulk_delete_to_exactly_that_issue
+      # The glass exists to reveal these controls, so what it selects is what gets
+      # deleted. A substring class filter would take BillingWorkerLegacy with it.
+      2.times { |i| seed_retry(klass: "BillingWorker",       jid: "hit#{i}",  error: "Timeout::Error") }
+      seed_retry(klass: "BillingWorker",       jid: "other",  error: "ArgumentError")
+      seed_retry(klass: "BillingWorkerLegacy", jid: "legacy", error: "Timeout::Error")
+      seed_retry(klass: "MailerWorker",        jid: "mailer", error: "Timeout::Error")
+
+      b = browser
+      b.instance_variable_set(:@class_filter, "BillingWorker")
+      b.instance_variable_set(:@error_filter, "Timeout::Error")
+      found = b.bulk_apply(Sidekiq::RetrySet.new, "", "delete")
+
+      assert_equal 2, found.entries.size
+      remaining = Sidekiq::RetrySet.new.map(&:jid).sort
+      assert_equal %w[legacy mailer other], remaining,
+        "a bulk delete on the like-this filter took rows it was not shown"
+    end
+
+    def test_the_class_filter_alone_still_spares_a_longer_name
+      seed_retry(klass: "BillingWorker",       jid: "hit",    error: "Boom")
+      seed_retry(klass: "BillingWorkerLegacy", jid: "legacy", error: "Boom")
+
+      b = browser
+      b.instance_variable_set(:@class_filter, "BillingWorker")
+      b.bulk_apply(Sidekiq::RetrySet.new, "", "delete")
+
+      assert_equal %w[legacy], Sidekiq::RetrySet.new.map(&:jid)
     end
   end
 end

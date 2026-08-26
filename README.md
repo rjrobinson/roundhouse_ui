@@ -553,6 +553,20 @@ Both go through a **dry run** first: the matched jobs are listed, with their
 arguments and errors, and nothing is touched until you confirm. The count in the
 toolbar tells you how many jobs match; only the dry run tells you which.
 
+### Find more like this
+
+Every row on **Retries**, **Dead** and **Scheduled** carries a 🔍 that narrows the
+set to that job's class and, where the set records one, that job's error — the
+same pair the Errors page treats as a single issue. One click turns "this one row
+looks wrong" into "here are all 7,546 of them, and here are the bulk controls".
+
+The filters it sets (`?class=` and `?error=`) are **exact**, not substring
+searches. That matters because the button's whole purpose is to reveal
+`Delete all matching`: a substring filter would also select jobs whose *arguments*
+merely mention the class you clicked, and you would never see the difference.
+Same reason `?tag=` and `?queue=` are structured rather than folded into the
+search box.
+
 ## Observability deep-links
 
 The core depends on nothing — it asks the configured adapter for a URL and renders a link

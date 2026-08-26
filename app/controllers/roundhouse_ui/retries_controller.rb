@@ -9,7 +9,6 @@ module RoundhouseUi
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.retry_set.size
       @tag = tag_filter
-      @queue_filter = queue_filter
       @jobs, @has_next = browse(backend.retry_set, @query, @page, PER_PAGE, tag: @tag)
     end
 
@@ -29,7 +28,6 @@ module RoundhouseUi
     # Smart bulk: retry/delete EVERY job matching the current filter, capped for
     # safety. Offered only when a filter is active.
     def bulk_all
-      @queue_filter = queue_filter
       found = bulk_apply(backend.retry_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
       note = "#{verb} #{found.entries.size} matching job(s)."
@@ -39,7 +37,6 @@ module RoundhouseUi
 
     # A dry run: the count tells you how many match, this tells you which (#37).
     def preview
-      @queue_filter = queue_filter
       @op = params[:op] == "delete" ? "delete" : "retry"
       @query = params[:q].to_s.strip
       @tag = tag_filter
