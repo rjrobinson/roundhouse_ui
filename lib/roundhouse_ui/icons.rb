@@ -43,6 +43,12 @@ module RoundhouseUi
       warn:      '<path d="M12 4.2 2.8 20h18.4L12 4.2Z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
       stalled:   '<circle cx="12" cy="12" r="8.4"/><path d="M8.5 12h7"/>',
       search:    '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4 21 21"/>',
+      # A funnel, for "find more like this". Deliberately not the magnifier: the
+      # search box is one control and this is another, and giving them the same
+      # glyph is what made the row control ambiguous. A funnel also cannot be
+      # misread as "duplicate", which two stacked shapes would be with Edit
+      # sitting directly beside it.
+      filter:    '<path d="M4 5h16l-6.2 7.3v5.9L10.2 21v-8.7L4 5Z"/>',
       runbook:   '<path d="M5 4h9l5 5v11H5Z"/><path d="M14 4v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>',
       # Default trace glyph: an external-link arrow. Roundhouse ships no vendor
       # logo — see Observability adapters, which may supply their own mark.
@@ -64,6 +70,7 @@ module RoundhouseUi
       delete:    "fa-solid fa-trash-can",      ok:        "fa-solid fa-check",
       warn:      "fa-solid fa-triangle-exclamation", stalled: "fa-solid fa-minus",
       search:    "fa-solid fa-magnifying-glass", runbook: "fa-regular fa-file-lines",
+      filter:    "fa-solid fa-filter",
       trace_out: "fa-solid fa-arrow-up-right-from-square"
     }.freeze
 

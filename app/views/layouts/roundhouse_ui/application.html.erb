@@ -177,9 +177,17 @@
     .rh-filter-chip .k { color:var(--faint); font-family:var(--mono); }
     .rh-filter-chip .v { font-family:var(--mono); max-width:34ch; overflow:hidden;
                          text-overflow:ellipsis; white-space:nowrap; }
-    .rh-filter-chip .x { color:var(--faint); text-decoration:none; font-size:13px; line-height:1;
-                         padding:0 1px; }
-    .rh-filter-chip .x:hover { color:var(--crit); }
+    /* A real hit target, not a 13px glyph at --faint. The chip is the only way
+       back out of a filter you cannot see in the search box, so the way out has to
+       look like one. */
+    .rh-filter-chip .x { display:inline-flex; align-items:center; justify-content:center;
+                         width:16px; height:16px; margin-right:-3px; border-radius:4px;
+                         color:var(--muted); text-decoration:none; font-size:14px;
+                         line-height:1; }
+    .rh-filter-chip .x:hover { color:var(--crit); background:color-mix(in srgb, var(--crit) 16%, transparent); }
+    .rh-filter-chip:hover { border-color:var(--muted); }
+    .rh-active-filters .clear-all { font-size:var(--ctl-fs-sm); color:var(--muted); text-decoration:none; }
+    .rh-active-filters .clear-all:hover { color:var(--crit); text-decoration:underline; }
 
     .rh-pill-link { text-decoration:none; border:1px solid transparent; }
     .rh-pill-link:hover { border-color:var(--accent); color:var(--text); }
@@ -1140,10 +1148,10 @@
       // Capability-gated exactly like the sidebar: a backend without a retry
       // set must not be offered a search into one.
       var SETS = [
-        { label: "Dead",      path: "<%= dead_set_path %>",  icon: "<%= RoundhouseUi::Icons.markup(:dead) %>" },
-        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "<%= RoundhouseUi::Icons.markup(:retries) %>" },<% end %>
-        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },
-        { label: "Errors",    path: "<%= errors_path %>",    icon: "<%= RoundhouseUi::Icons.markup(:errors) %>" }
+        { label: "Dead",      path: "<%= dead_set_path %>",  ico: "dead" },
+        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", ico: "retries" },<% end %>
+        { label: "Scheduled", path: "<%= scheduled_path %>", ico: "scheduled" },
+        { label: "Errors",    path: "<%= errors_path %>",    ico: "errors" }
       ];
       // Declared tag vocabulary and live queue names, so the palette can tell a
       // squad from a queue from a free-text term.
@@ -1169,7 +1177,7 @@
             if (value.toLowerCase().indexOf(q) !== 0) return;
             seen[value] = true;
             SETS.forEach(function (s) {
-              out.push({ label: key + ": " + value + " — " + s.label, icon: "<%= RoundhouseUi::Icons.markup(:dashboard) %>",
+              out.push({ label: key + ": " + value + " — " + s.label, ico: "dashboard",
                          path: s.path + "?tag=" + encodeURIComponent(key + ":" + value) });
             });
           });
@@ -1178,7 +1186,7 @@
         QUEUE_NAMES.forEach(function (name) {
           if (name.toLowerCase().indexOf(q) !== 0) return;
           SETS.slice(0, 3).forEach(function (s) {
-            out.push({ label: "Queue " + name + " — " + s.label, icon: "<%= RoundhouseUi::Icons.markup(:queues) %>",
+            out.push({ label: "Queue " + name + " — " + s.label, ico: "queues",
                        path: s.path + "?queue=" + encodeURIComponent(name) });
           });
         });
@@ -1191,26 +1199,35 @@
       }
 
       var CMDS = [
-        { label: "Dashboard", path: "<%= root_path %>", icon: "<%= RoundhouseUi::Icons.markup(:dashboard) %>" },
-        { label: "Metrics", path: "<%= metrics_path %>", icon: "<%= RoundhouseUi::Icons.markup(:metrics) %>" },
-        { label: "Busy", path: "<%= busy_path %>", icon: "<%= RoundhouseUi::Icons.markup(:busy) %>" },
-        <% if RoundhouseUi.backend.supports?(:workers) %>{ label: "Workers", path: "<%= workers_path %>", icon: "<%= RoundhouseUi::Icons.markup(:workers) %>" },<% end %>
-        { label: "Queues", path: "<%= queues_path %>", icon: "<%= RoundhouseUi::Icons.markup(:queues) %>" },
-        { label: "Scheduled", path: "<%= scheduled_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },
-        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", icon: "<%= RoundhouseUi::Icons.markup(:retries) %>" },<% end %>
-        { label: "Errors", path: "<%= errors_path %>", icon: "<%= RoundhouseUi::Icons.markup(:errors) %>" },
-        { label: "Dead", path: "<%= dead_set_path %>", icon: "<%= RoundhouseUi::Icons.markup(:dead) %>" },
-        <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", icon: "<%= RoundhouseUi::Icons.markup(:capsules) %>" },<% end %>
-        <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", icon: "<%= RoundhouseUi::Icons.markup(:redis) %>" },<% end %>
-        <% if RoundhouseUi::Recurring.any? %>{ label: "Recurring", path: "<%= recurring_path %>", icon: "<%= RoundhouseUi::Icons.markup(:scheduled) %>" },<% end %>
-        { label: "Snapshots", path: "<%= snapshots_path %>", icon: "<%= RoundhouseUi::Icons.markup(:snapshots) %>" },
-        { label: "Audit log", path: "<%= audit_log_path %>", icon: "<%= RoundhouseUi::Icons.markup(:audit) %>" },
-        { label: "Settings", path: "<%= settings_path %>", icon: "<%= RoundhouseUi::Icons.markup(:settings) %>" },
-        <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", icon: "<%= RoundhouseUi::Icons.markup(:enqueue) %>" },<% end %>
-        { label: "Toggle theme", action: "theme", icon: "<%= RoundhouseUi::Icons.markup(:busy) %>" },
-        { label: "Toggle full width", action: "width", icon: "<%= RoundhouseUi::Icons.markup(:width) %>" }
+        { label: "Dashboard", path: "<%= root_path %>", ico: "dashboard" },
+        { label: "Metrics", path: "<%= metrics_path %>", ico: "metrics" },
+        { label: "Busy", path: "<%= busy_path %>", ico: "busy" },
+        <% if RoundhouseUi.backend.supports?(:workers) %>{ label: "Workers", path: "<%= workers_path %>", ico: "workers" },<% end %>
+        { label: "Queues", path: "<%= queues_path %>", ico: "queues" },
+        { label: "Scheduled", path: "<%= scheduled_path %>", ico: "scheduled" },
+        <% if RoundhouseUi.backend.supports?(:retries) %>{ label: "Retries", path: "<%= retries_path %>", ico: "retries" },<% end %>
+        { label: "Errors", path: "<%= errors_path %>", ico: "errors" },
+        { label: "Dead", path: "<%= dead_set_path %>", ico: "dead" },
+        <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", ico: "capsules" },<% end %>
+        <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", ico: "redis" },<% end %>
+        <% if RoundhouseUi::Recurring.any? %>{ label: "Recurring", path: "<%= recurring_path %>", ico: "scheduled" },<% end %>
+        { label: "Snapshots", path: "<%= snapshots_path %>", ico: "snapshots" },
+        { label: "Audit log", path: "<%= audit_log_path %>", ico: "audit" },
+        { label: "Settings", path: "<%= settings_path %>", ico: "settings" },
+        <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", ico: "enqueue" },<% end %>
+        { label: "Toggle theme", action: "theme", ico: "busy" },
+        { label: "Toggle full width", action: "width", ico: "width" }
       ];
       var palSel = 0, palFiltered = [];
+      // A cloned <svg> node, by name, from the server-rendered store. Never a
+      // markup string — a string is exactly what put escaped SVG source in every row.
+      function icoNode(name) {
+        if (!name) return null;
+        var store = document.getElementById("rh-ico-store");
+        if (!store || !store.content) return null;
+        var holder = store.content.querySelector('[data-ico="' + name + '"]');
+        return holder && holder.firstElementChild ? holder.firstElementChild.cloneNode(true) : null;
+      }
       function palEl() { return document.getElementById("rh-palette"); }
       function palInputEl() { return document.getElementById("rh-palette-input"); }
       function palListEl() { return document.getElementById("rh-palette-list"); }
@@ -1232,7 +1249,8 @@
         palFiltered.forEach(function (c, i) {
           var d = document.createElement("div");
           d.className = "rh-palette-item" + (i === palSel ? " sel" : "");
-          var s = document.createElement("span"); s.className = "rh-palette-ico"; s.textContent = c.icon;
+          var s = document.createElement("span"); s.className = "rh-palette-ico";
+          var glyph = icoNode(c.ico); if (glyph) s.appendChild(glyph);
           d.appendChild(s); d.appendChild(document.createTextNode(c.label));
           d.addEventListener("click", function () { palRun(c); });
           d.addEventListener("mousemove", function () { palSel = i; palMark(); });
@@ -1391,6 +1409,15 @@
       <%= yield %>
     </main>
   </div>
+
+  <%# Icons for the palette, rendered once by the same `icon` helper the rest of
+      the UI uses. The palette used to interpolate the icon markup straight into a
+      JS string, and that markup is NOT html_safe — so ERB escaped it, and every row
+      rendered a wall of `&lt;svg viewBox=&quot;…` as literal text, because the
+      palette assigns it with textContent. It broke silently when icons stopped
+      being single Unicode glyphs. No markup travels through JS now; JS clones a
+      node instead. %>
+  <template id="rh-ico-store"><% RoundhouseUi::Icons::PATHS.each_key do |ico_name| %><span data-ico="<%= ico_name %>"><%= icon(ico_name) %></span><% end %></template>
 
   <div id="rh-palette" class="rh-palette" data-turbo-permanent hidden>
     <div class="rh-palette-box">

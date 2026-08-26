@@ -83,7 +83,7 @@ module RoundhouseUi
       parts << "matching “#{query}”" if query.present?
       parts << "tagged #{tag[0]}: #{tag[1]}" if tag
       parts << "in queue #{queue}" if queue.present?
-      parts << like_description if @class_filter.present?
+      parts << like_description if @class_filter.present? || @error_filter.present?
       parts.join(" and ")
     end
 
@@ -91,6 +91,10 @@ module RoundhouseUi
     # what it selected, because the bulk Delete sitting next to it acts on
     # precisely this set and nothing wider.
     def like_description
+      # Either half stands on its own. "every Timeout::Error, whatever the class"
+      # is a question worth asking, so clearing the class must not take the error
+      # with it — which is what it used to do.
+      return "failing with #{@error_filter}" if @class_filter.blank?
       return "like #{@class_filter}" if @error_filter.blank?
 
       "like #{@class_filter} failing with #{@error_filter}"
@@ -99,7 +103,7 @@ module RoundhouseUi
     # Any filter active? Bulk-on-match is filter-gated, so this decides whether
     # the bulk bar renders at all — and which empty-state copy is honest.
     def any_filter?(query, tag, queue = @queue_filter)
-      query.present? || !tag.nil? || queue.present? || @class_filter.present?
+      query.present? || !tag.nil? || queue.present? || @class_filter.present? || @error_filter.present?
     end
 
     # Value only — the key is near-constant down a column, so repeating it is
