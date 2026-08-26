@@ -1,22 +1,28 @@
 <%# The structured filters, shown where you can see them and remove them.
-    The glass sets ?class= and ?error=, which match exactly. They are deliberately
+    The funnel sets ?class= and ?error=, which match exactly. They are deliberately
     NOT written into the search box: ?q= is a substring match, and this sits
     directly above "delete all matching", so a class name in the search box would
     quietly widen that button to jobs whose ARGUMENTS merely mention the class.
-    A chip shows the same thing and can be dismissed, without changing what the
-    filter selects. %>
-<% if @class_filter.present? %>
+
+    Each × clears only its own half. Clearing the class used to take the error with
+    it, on the reasoning that an error alone was not useful — which was wrong:
+    "every Timeout::Error, whatever the class" is a real question. %>
+<% if @class_filter.present? || @error_filter.present? %>
   <div class="rh-active-filters">
     <span class="rh-sub">Filtered to</span>
-    <span class="rh-filter-chip">
-      <span class="k">class</span>
-      <span class="v" title="<%= @class_filter %>"><%= @class_filter %></span>
-      <%= link_to "×",
-            url_for(only_path: true, class: nil, error: nil, page: nil,
-                    q: @query.presence, tag: params[:tag].presence, queue: params[:queue].presence),
-            class: "x", title: "Clear the class filter",
-            aria: { label: "Clear the class filter" } %>
-    </span>
+
+    <% if @class_filter.present? %>
+      <span class="rh-filter-chip">
+        <span class="k">class</span>
+        <span class="v" title="<%= @class_filter %>"><%= @class_filter %></span>
+        <%= link_to "×",
+              url_for(only_path: true, class: nil, page: nil, error: @error_filter,
+                      q: @query.presence, tag: params[:tag].presence, queue: params[:queue].presence),
+              class: "x", title: "Clear the class filter",
+              aria: { label: "Clear the class filter" } %>
+      </span>
+    <% end %>
+
     <% if @error_filter.present? %>
       <span class="rh-filter-chip">
         <span class="k">error</span>
@@ -28,5 +34,11 @@
               aria: { label: "Clear the error filter" } %>
       </span>
     <% end %>
+
+    <%# One × per chip removes one thing; this removes the lot. %>
+    <%= link_to "clear all",
+          url_for(only_path: true, class: nil, error: nil, tag: nil, queue: nil, page: nil,
+                  q: @query.presence),
+          class: "clear-all", title: "Clear every filter" %>
   </div>
 <% end %>

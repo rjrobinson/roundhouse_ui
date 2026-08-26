@@ -44,7 +44,7 @@ module RoundhouseUi
       # Actions column it sits in. Asking for --sm here was picking a scale step by
       # hand next to 30px siblings — the scale stopped arbitrary pixels, it could
       # not stop me choosing the wrong one of the two it offers.
-      link_to icon(:search), send(helper, **query),
+      link_to icon(:filter), send(helper, **query),
               class: "rh-btn rh-btn--icon", title: label,
               aria: { label: label }
     end

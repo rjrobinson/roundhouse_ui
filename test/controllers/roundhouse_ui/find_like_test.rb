@@ -152,7 +152,10 @@ module RoundhouseUi
       end
     end
 
-    def test_clearing_the_class_clears_both
+    def test_clearing_the_class_keeps_the_error
+      # This asserted the opposite, on the reasoning that an error filter alone was
+      # useless. It is not: "every Timeout::Error, whatever the class" is a real
+      # question, and a × that removes something you did not point at is wrong.
       with_dead do
         get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
 
@@ -160,7 +163,19 @@ module RoundhouseUi
                 markup[/href="([^"]*)"[^>]*title="Clear the class filter"/, 1]
         refute_nil clear
         refute_includes clear, "class=", "the class filter survived its own clear link"
-        refute_includes clear, "error=", "an error filter without a class matches nothing useful"
+        assert_includes clear, "error=Timeout", "clearing the class took the error with it"
+      end
+    end
+
+    def test_an_error_filter_stands_on_its_own
+      with_dead do
+        get "/roundhouse/dead", params: { error: "Timeout::Error" }
+
+        assert_equal %w[a1 a2 b1 c1], jids_shown,
+          "an error-only filter must select every class with that error"
+        assert_match "failing with Timeout::Error", filter_labels,
+          "an active filter that the page does not name is an invisible filter"
+        assert_match "rh-filter-chip", markup, "no chip, so no way to clear it"
       end
     end
 
@@ -184,6 +199,30 @@ module RoundhouseUi
         get "/roundhouse/dead"
         refute_match "rh-filter-chip", markup
       end
+    end
+    def test_a_clear_all_removes_every_filter_at_once
+      with_dead do
+        get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error", q: "90210" }
+
+        href = markup[/<a[^>]*class="clear-all"[^>]*href="([^"]*)"/, 1] ||
+               markup[/href="([^"]*)"[^>]*class="clear-all"/, 1]
+        refute_nil href, "no clear-all; two filters need a way out in one click"
+        refute_includes href, "class=", "clear all left the class filter behind"
+        refute_includes href, "error=", "clear all left the error filter behind"
+        refute_includes href, "tag=", "clear all left the tag filter behind"
+      end
+    end
+
+    def test_the_clear_control_is_a_real_target_not_a_glyph
+      # It was 13px at --faint with 1px of padding, and went unnoticed. The chip is
+      # the only way out of a filter the search box cannot show, so the way out has
+      # to be clickable-looking.
+      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
+      rule = css[/\.rh-filter-chip \.x \{([^}]*)\}/m, 1]
+      assert rule, "no rule for the chip's clear control"
+      assert_match(/width:\s*\d+px/, rule, "the clear control has no hit area")
+      assert_match(/height:\s*\d+px/, rule, "the clear control has no hit area")
+      refute_match(/color:var\(--faint\)/, rule, "--faint is the dimmest token; this went unnoticed at it")
     end
   end
 end
