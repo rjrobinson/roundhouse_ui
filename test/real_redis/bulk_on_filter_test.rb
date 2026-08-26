@@ -28,6 +28,17 @@ module RoundhouseUi
 
     def browser = @browser ||= Browser.new
 
+    # Sets the filter the way a request does: by PARSING a query, not by poking the
+    # ivars the predicate happens to read today. Poking them stopped working when
+    # wildcards moved the predicate onto the parse, and the failure mode was a bulk
+    # delete that found a filter in bulk_filter_present? and none in entry_selected?
+    # — so it took the whole set. One source, set one way.
+    def filtered(query)
+      b = browser
+      b.instance_variable_set(:@filter, FilterQuery.parse(query))
+      b
+    end
+
     def test_a_bulk_delete_takes_every_match_and_nothing_else
       30.times { |i| seed_retry(klass: "BillingWorker", jid: "bill#{i}", at: Time.now.to_f + i) }
       20.times { |i| seed_retry(klass: "MailerWorker", jid: "mail#{i}", at: Time.now.to_f + i) }
@@ -95,9 +106,7 @@ module RoundhouseUi
       seed_retry(klass: "BillingWorkerLegacy", jid: "legacy", error: "Timeout::Error")
       seed_retry(klass: "MailerWorker",        jid: "mailer", error: "Timeout::Error")
 
-      b = browser
-      b.instance_variable_set(:@class_filter, "BillingWorker")
-      b.instance_variable_set(:@error_filter, "Timeout::Error")
+      b = filtered("class=BillingWorker error=Timeout::Error")
       found = b.bulk_apply(Sidekiq::RetrySet.new, "", "delete")
 
       assert_equal 2, found.entries.size
@@ -110,11 +119,46 @@ module RoundhouseUi
       seed_retry(klass: "BillingWorker",       jid: "hit",    error: "Boom")
       seed_retry(klass: "BillingWorkerLegacy", jid: "legacy", error: "Boom")
 
-      b = browser
-      b.instance_variable_set(:@class_filter, "BillingWorker")
+      b = filtered("class=BillingWorker")
       b.bulk_apply(Sidekiq::RetrySet.new, "", "delete")
 
       assert_equal %w[legacy], Sidekiq::RetrySet.new.map(&:jid)
+    end
+
+    # The wildcard equivalent, against real sorted sets: a pattern scopes a destroy,
+    # so it has to take the family it names and stop there.
+    def test_a_wildcard_class_filter_takes_the_family_and_nothing_outside_it
+      seed_retry(klass: "Roundhouse::Alpha",  jid: "a1")
+      seed_retry(klass: "Roundhouse::Beta",   jid: "a2")
+      seed_retry(klass: "Other::Roundhouse",  jid: "tail")
+      seed_retry(klass: "Unrelated::Gamma",   jid: "no")
+
+      found = filtered("class=Roundhouse%").bulk_apply(Sidekiq::RetrySet.new, "", "delete")
+
+      assert_equal 2, found.entries.size
+      assert_equal %w[no tail], Sidekiq::RetrySet.new.map(&:jid).sort,
+        "a prefix pattern must be anchored at the start, not a substring"
+    end
+
+    def test_a_contains_pattern_reaches_both_ends
+      seed_retry(klass: "Roundhouse::Alpha", jid: "a1")
+      seed_retry(klass: "Other::Roundhouse", jid: "tail")
+      seed_retry(klass: "Unrelated::Gamma",  jid: "no")
+
+      filtered("class=%oundhouse%").bulk_apply(Sidekiq::RetrySet.new, "", "delete")
+
+      assert_equal %w[no], Sidekiq::RetrySet.new.map(&:jid)
+    end
+
+    # A pattern with no literals matches everything, so it must authorise nothing —
+    # otherwise it is an unfiltered bulk delete that renders as a pill.
+    def test_a_pattern_matching_everything_deletes_nothing
+      3.times { |i| seed_retry(klass: "W", jid: "j#{i}") }
+
+      found = filtered("class=%").bulk_apply(Sidekiq::RetrySet.new, "", "delete")
+
+      assert found.unfiltered, "class=% was treated as a filter"
+      assert_equal 3, Sidekiq::RetrySet.new.size, "class=% scoped a destroy over the whole set"
     end
   end
 end

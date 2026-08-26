@@ -135,7 +135,13 @@ module RoundhouseUi
 
       assert_equal before, Sidekiq::DeadSet.new.size,
         "an over-long query authorised a bulk delete"
-      assert_match(/needs a filter/i, flash[:alert].to_s)
+      # The refusal names its own reason now. Asserted as a property rather than a
+      # literal: what matters is that the operator is told a destroy was declined
+      # AND why, not that the sentence still reads "needs a filter" — which was the
+      # no-filter-at-all wording and was misleading for a refused one.
+      alert = flash[:alert].to_s
+      assert_match(/^Refused/, alert, "a declined destroy must say so first")
+      assert_match(/too long/, alert, "and must name the reason the operator can act on")
     end
   end
 end

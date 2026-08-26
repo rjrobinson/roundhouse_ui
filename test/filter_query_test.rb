@@ -18,6 +18,13 @@ module RoundhouseUi
       # the residue is a SLICE, so interior spacing survives
       "queue=default_low  alpha  beta"                  => { queue: "default_low", text: "alpha  beta" },
       "tag=squad:core"                                  => { tag: "squad:core", text: "" },
+      # LIKE-style wildcards. Round-tripped by the shared test below, so what the
+      # pill displays is what the next Enter applies.
+      "class=Roundhouse%"                               => { klass: "Roundhouse%", text: "" },
+      "class=%oundhouse%"                               => { klass: "%oundhouse%", text: "" },
+      "error=%Timeout"                                  => { error: "%Timeout", text: "" },
+      "class=Round%Worker queue=ai"                     => { klass: "Round%Worker", queue: "ai", text: "" },
+      "tag=squad:plat%"                                 => { tag: "squad:plat%", text: "" },
       %(tag="squad:eu west")                            => { tag: "squad:eu west", text: "" },
       # the common paste: a whole error message. SSL_connect fails the lowercase key
       # charset at S, so nothing is a facet and the residue is the whole string.
@@ -42,10 +49,56 @@ module RoundhouseUi
       "class=A class=B"    => /Two different values for class/,
       %(error="Net::Read)  => /Unclosed quote/,
       "-class=Foo"         => /Negation is not supported/,
-      "class=Bill*"        => /Wildcards are not supported in class=/,
-      "error=Time?ut"      => /Wildcards are not supported in error=/,
+      # `*` and `?` still refuse, and now teach the spelling that works.
+      "class=Bill*"        => /Use % for a wildcard, not \*/,
+      "error=Time?ut"      => /Use % for a wildcard/,
+      # A pattern with no literal characters matches every possible value. It is not
+      # a filter, but it renders as a pill that looks like one — the unfiltered-bulk
+      # hole wearing a facet's clothing.
+      "class=%"            => /matches everything, which is not a filter/,
+      "queue=%%"           => /matches everything/,
+      "class=a%b%c%d%e%f%g%h" => /at most 6 wildcards/,
       %(text="a" trailing) => /Text is given twice/
     }.freeze
+
+    # A known key with a value it cannot use. Dropped rather than refused, so a typo
+    # does not stop you browsing — and then flagged degraded, because what survived
+    # selects a SUPERSET of what was typed and must authorise no bulk action.
+    DEGRADED = {
+      "tag=platform"                => { to_s: "", ignored: 1 },
+      "tag=garbage queue=default"   => { to_s: "queue=default", ignored: 1 },
+      "tag=garbage stripe"          => { to_s: "stripe", ignored: 1 }
+    }.freeze
+
+    def test_a_known_key_with_an_unusable_value_is_dropped_not_refused
+      DEGRADED.each do |input, want|
+        q = parse(input)
+        refute q.invalid?, "#{input.inspect} was refused: #{q.message}"
+        assert q.degraded?, "#{input.inspect} dropped a facet without recording it"
+        assert_equal want[:to_s], q.to_s, "#{input.inspect} canonical form"
+        assert_equal want[:ignored], q.ignored.size
+        assert_match(/tag= takes key:value/, q.notes.join(" "))
+        # The dropped token must not survive as free text either: that would be a
+        # third meaning for one string, and the canonical form above says otherwise.
+        refute_includes q.text, "garbage"
+      end
+    end
+
+    def test_a_clean_query_is_never_degraded
+      [ "", "class=A", "tag=squad:core", "stripe", "tag=squad:core queue=ai x" ].each do |input|
+        refute parse(input).degraded?, input.inspect
+        assert_empty parse(input).notes, input.inspect
+      end
+    end
+
+    def test_a_degraded_query_still_round_trips
+      # It must, or the box would show one filter and the next Enter apply another.
+      DEGRADED.each_key do |input|
+        once = parse(input)
+        assert_equal once, parse(once.to_s), "#{input.inspect} -> #{once.to_s.inspect}"
+        refute parse(once.to_s).degraded?, "the cleaned form must be clean"
+      end
+    end
 
     def test_the_accepted_grammar
       ACCEPTED.each do |input, want|
@@ -97,6 +150,70 @@ module RoundhouseUi
       end
     end
 
+    # ── wildcards ─────────────────────────────────────────────────────────────
+    #
+    # `%` only, and `_` is deliberately LITERAL. SQL's single-character wildcard
+    # would turn queue=default_low into a pattern, and every name in this console is
+    # underscore-dense — a wildcard nobody typed, scoping a Delete.
+    PATTERNS = {
+      "Roundhouse%"  => { yes: %w[Roundhouse RoundhouseWorker], no: %w[Xoundhouse ARoundhouse] },
+      "%oundhouse%"  => { yes: %w[Roundhouse oundhouse XoundhouseY], no: %w[Round house] },
+      "%Worker"      => { yes: %w[MyWorker Worker], no: %w[WorkerX Work] },
+      "Round%Worker" => { yes: %w[RoundWorker RoundhouseWorker], no: %w[Round Worker RoundWorkerX] },
+      # One literal must not do double duty: A%A needs TWO As.
+      "A%A"          => { yes: %w[AA AxA], no: %w[A xA Ax] },
+      "default_low"  => { yes: %w[default_low], no: %w[defaultXlow default_lowest default] }
+    }.freeze
+
+    def test_the_pattern_decision_table
+      PATTERNS.each do |source, want|
+        pattern = FilterQuery::Pattern.for(source)
+        matcher = pattern || ->(v) { v == source }
+        want[:yes].each do |v|
+          assert (pattern ? pattern.match?(v) : v == source), "#{source.inspect} should match #{v.inspect}"
+        end
+        want[:no].each do |v|
+          refute (pattern ? pattern.match?(v) : v == source), "#{source.inspect} must NOT match #{v.inspect}"
+        end
+      end
+    end
+
+    def test_an_underscore_is_literal_not_a_wildcard
+      # The whole reason % was chosen over LIKE's full syntax.
+      assert_nil FilterQuery::Pattern.for("default_low"), "_ must not compile to a pattern"
+      q = parse("queue=default_low")
+      assert q.matches_facet?(:queue, "default_low")
+      refute q.matches_facet?(:queue, "defaultXlow")
+    end
+
+    def test_a_facet_without_a_wildcard_stays_exact
+      # `queue=default` selecting `default_low` is the failure the exact-match rule
+      # exists to prevent, and it feeds bulk_apply.
+      q = parse("queue=default")
+      assert q.matches_facet?(:queue, "default")
+      refute q.matches_facet?(:queue, "default_low")
+      refute q.wildcard?
+    end
+
+    def test_matches_facet_honours_the_wildcard
+      q = parse("class=Round%Worker")
+      assert q.wildcard?
+      assert q.matches_facet?(:klass, "RoundhouseWorker")
+      refute q.matches_facet?(:klass, "SomethingElse")
+      # An absent facet matches everything, so the predicate can be a flat conjunction.
+      assert q.matches_facet?(:error, "anything at all")
+    end
+
+    def test_a_wildcard_value_round_trips_verbatim
+      # The pill shows the pattern; the pattern is what gets applied. If these
+      # diverged the bar would display one scope and the Delete act on another.
+      %w[class=Roundhouse% class=%oundhouse% error=%Timeout% tag=squad:plat%].each do |raw|
+        once = parse(raw)
+        assert_equal raw, once.to_s
+        assert_equal once, parse(once.to_s)
+      end
+    end
+
     # ── bounds, checked before anything walks the input ───────────────────────
     def test_an_over_long_query_is_refused_not_truncated
       q = parse("x" * (FilterQuery::MAX_LENGTH + 1))
@@ -145,7 +262,6 @@ module RoundhouseUi
       assert_equal %w[squad core], parse("tag=squad:core").tag_pair
       assert_equal [ "squad", "eu west" ], parse(%(tag="squad:eu west")).tag_pair
       assert_nil parse("class=A").tag_pair
-      assert_nil parse("tag=nocolon").tag_pair, "a tag with no colon has no pair to match on"
     end
 
     def test_chips_lists_only_active_facets_in_a_stable_order

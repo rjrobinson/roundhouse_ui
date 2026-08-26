@@ -1,9 +1,9 @@
 <% content_for :title, "Errors" %>
 
-<form method="get" action="<%= errors_path %>" class="rh-search">
-  <input type="search" name="q" value="<%= @query %>" placeholder="filter by job class, error, or squad…">
-  <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
-</form>
+<%= render "roundhouse_ui/shared/search_bar", action: errors_path,
+      keys: RoundhouseUi::ErrorsController::FILTER_KEYS,
+      noun: "class, error or squad" %>
+<%= render "roundhouse_ui/shared/filter_error" %>
 
 <%# Counts come from the same scan that built the groups, so this costs no extra
     Redis work. Each chip narrows the list below rather than sending you elsewhere. %>
@@ -29,7 +29,7 @@
   <tbody>
     <% if @groups.empty? %>
       <tr><td colspan="<%= tag_column? ? 6 : 5 %>" class="rh-empty">
-        <%= @query.present? || @tag ? "No issues match the current filter." : "No failing jobs 🎉" %>
+        <%= empty_state(@query, @tag, noun: "issues", all_clear: "No failing jobs 🎉") %>
       </td></tr>
     <% else %>
       <%# Occurrences carry magnitude as well as a figure: 340 and 2 should not

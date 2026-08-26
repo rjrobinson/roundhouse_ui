@@ -25,7 +25,70 @@ All notable changes to this project are documented here. The format is based on
   duplicates, unterminated quotes, negation and wildcards in a facet. `text="…"` is
   the escape hatch for genuinely facet-shaped text.
 
-  Not yet wired into the controllers — that is the next commit.
+  **Now wired in**, and the whole filter travels as one `?q=` parameter — so a
+  filtered view is a URL you can bookmark, paste into Slack, and reopen. The box
+  shows exactly the string the URL carries, and parsing that string is what gets
+  applied: the page cannot display one scope while acting on another.
+
+  One parameter also retires a bug class rather than a bug. The filter was five
+  params hand-enumerated at six sites; the confirm form carried four of the five,
+  so a dry run listing two jobs POSTed a request that deleted five. There is no
+  longer a "some of the filters" for a form to carry.
+
+- **Search help, one hover away from the box.** The grammar refuses what it does
+  not understand rather than falling back to a substring search, which makes its
+  vocabulary something the box cannot be used without. A `?` beside every grammar
+  search field reveals the five keys, the exact-vs-substring distinction and the
+  `text="…"` escape hatch, with copy-pasteable examples.
+
+  Revealed on `:hover` **and** `:focus-within`, so it is reachable by keyboard and
+  present on touch, where hover does not exist. No JavaScript: a popover that needs
+  a script stops opening the day a nonce slips. Not rendered on the Queues index or
+  Errors pages, whose `q` is a plain substring — a panel promising `class=` there
+  would document behaviour those pages do not have. `search_help_test.rb` parses
+  every example in it, so the panel cannot drift into a page of instructions that
+  do not work.
+
+### Changed
+- **`?class=`, `?error=`, `?queue=` and `?tag=` are now read-only legacy shapes.**
+  Existing bookmarks and links keep working — they are folded into the query by
+  re-entering the parser, so nothing enters that the grammar would refuse. Every
+  link and form Roundhouse generates now emits canonical `?q=` instead. A legacy
+  param that contradicts `q=` (`?q=class=A&class=B`) refuses rather than silently
+  preferring one, because the winner would scope a Delete nobody chose.
+
+- **A search that is refused now says so, and no longer reads as good news.** A
+  refusal selects nothing, and `any_filter?` answers "may this authorise a bulk
+  action" — correctly *no* for a refusal. The heading and the empty-table caption
+  both reused that as "is anything filtered", so `clas=Foo` in the box rendered
+  "Dead set · 24 jobs" over an empty table captioned "Dead set is empty 🎉".
+  Display and authorisation are now separate predicates, and the parser's message
+  is shown above the table.
+
+- **A known key with an unusable value is dropped, not refused — and then no bulk
+  action is offered.** `?tag=garbage` browses forgivingly: the facet is dropped,
+  whatever else was typed still applies, and a banner names what was ignored. A
+  typo should not stop you looking.
+
+  What it must not do is quietly widen a destroy. `tag=garbage queue=default`
+  degrades to `queue=default`, which selects the *whole queue* — so the Delete
+  beneath it would take every dead job in it while the operator believed the tag
+  narrowed it too. That is the confirm-2-destroy-5 shape reached by a typo. So a
+  degraded query authorises no bulk action at all: browse and bulk still read one
+  identical filter (`entry_selected?` remains a pure conjunction — no divergence),
+  bulk simply declines to act on a filter that selects more than was asked for.
+
+- **Display no longer routes through the bulk-authorisation predicate.**
+  `any_filter?` answers "may this scope a destructive action", and correctly says no
+  for a refused *or* degraded query. The heading and the empty-table caption both
+  reused it as "is anything filtered", and lied twice: a typo rendered "Dead set ·
+  24 jobs" over a table captioned "Dead set is empty 🎉", and `tag=garbage queue=ai`
+  reported the whole set over rows narrowed to one queue. The heading now asks the
+  filter what survived parsing.
+
+- **Free text shaped like `user_id=123` is refused, not searched.** Lowercase
+  `key=` at the start of a query is now grammar. The refusal names the unknown key
+  and gives the escape hatch verbatim: `text="user_id=123"`.
 
 - **Demo workers and a capped load generator**, so the console can be seen doing
   something. `require "roundhouse_ui/demo"` in a development initializer, then

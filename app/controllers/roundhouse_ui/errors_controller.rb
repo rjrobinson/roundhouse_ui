@@ -3,8 +3,15 @@ module RoundhouseUi
   # (job class + error class) — so one bad deploy reads as a single issue with
   # a count, not five thousand identical rows. The aggregation Sidekiq Web lacks.
   class ErrorsController < ApplicationController
+    # The facets a GROUP can be narrowed by. No queue=: a klass|error group spans
+    # every queue its jobs were enqueued on, so there is nothing here for it to
+    # apply to — and a pill that filters nothing is the phantom filter the bar
+    # exists to prevent. The parser refuses it and says which page it works on.
+    FILTER_KEYS = %w[class error tag text].freeze
+
     def index
-      @query = params[:q].to_s.strip
+      @filter = FilterQuery.from_params(params, keys: FILTER_KEYS)
+      @query = @filter.text
       @scan_limit = ErrorGroups::DEFAULT_SCAN_LIMIT
       result = ErrorGroups.new(query: @query).call
       @groups, @scanned, @truncated = result.groups, result.scanned, result.truncated
@@ -17,13 +24,26 @@ module RoundhouseUi
       @tag_counts = tag_counts(@groups)
       @tag = tag_filter
       @groups = @groups.select { |g| Tags.match?(@group_tags[g[:klass]], *@tag) } if @tag
+
+      # class= and error= match EXACTLY, the same as on the job sets, so a funnel
+      # clicked there and a facet typed here mean one thing. Filtered in memory:
+      # grouping has already read the entries, so this costs no extra Redis work.
+      #
+      # A refused query selects nothing rather than everything — the same direction
+      # the job sets fail in. Errors has no destructive action, but "nothing matched"
+      # must not read as "no such failures exist", which is why the banner renders.
+      @groups = [] if @filter.invalid?
+      @groups = @groups.select { |g| @filter.matches_facet?(:klass, g[:klass]) }
+      @groups = @groups.select { |g| @filter.matches_facet?(:error, g[:error]) }
     end
 
     private
 
-    # `?tag=key:value`, shared shape with the job sets.
+    # `?tag=key:value`, read off the one parse like everywhere else rather than
+    # re-split from params — two readings of one filter is how a page comes to show
+    # one scope and act on another.
     def tag_filter
-      key, value = params[:tag].to_s.split(":", 2)
+      key, value = @filter.tag_pair
       return nil if key.blank? || value.blank?
 
       declared = Tags.filters

@@ -69,11 +69,86 @@ module RoundhouseUi
       end
     end
 
-    def test_a_malformed_tag_param_is_ignored_rather_than_matching_nothing
+    # A known key with an unusable value is DROPPED, not refused — a typo should not
+    # stop you browsing. What it must not do is quietly widen a destroy: the facet is
+    # gone for browse and bulk alike (one filter, no divergence), and bulk declines
+    # to act at all, because what survived selects a superset of what was typed.
+    def test_a_malformed_tag_is_ignored_for_browsing
       stub_method(Sidekiq::RetrySet, :new, @set) do
         get "/roundhouse/retries?tag=garbage"
         assert_response :success
-        assert_match "u1", @response.body, "a valueless tag param is not a filter"
+        body = @response.body.split("</style>").last.to_s
+
+        assert_match(/\bu1\b/, body, "an unusable tag must be dropped, not select nothing")
+        assert_match "Ignored", body, "a dropped filter must say it was dropped"
+        assert_match "tag= takes key:value", body
+      end
+    end
+
+    # The heading must describe the filter that SURVIVED, not the bulk gate. This is
+    # the second time display was routed through any_filter? and lied: `tag=garbage
+    # queue=mailers` applies the queue and narrows the table, but any_filter? answers
+    # "may this authorise a bulk action" — no, because it degraded — so the heading
+    # reported the whole set over a narrowed table.
+    def test_a_degraded_filter_still_reports_what_it_narrowed_to
+      mixed = FakeSet.new([
+        FakeEntry.new(klass: "AlphaJob", jid: "m1", queue: "mailers"),
+        FakeEntry.new(klass: "AlphaJob", jid: "d1", queue: "default")
+      ])
+      stub_method(Sidekiq::DeadSet, :new, mixed) do
+        get "/roundhouse/dead?q=tag%3Dgarbage+queue%3Dmailers"
+        body = @response.body.split("</style>").last.to_s
+
+        assert_match "1 of 2 jobs", body,
+          "the heading reported the whole set over a table narrowed by the surviving filter"
+        # The pill names it now, in the words you would type to reproduce it — the
+        # heading's prose restatement was one of the four renderings this replaced.
+        assert_match %r{<span class="k">queue</span>\s*<span class="v"[^>]*>mailers</span>}, body,
+          "and must name the filter it did apply"
+      end
+    end
+
+    # A dropped facet that leaves nothing behind is NOT a filter, and must not be
+    # described as one — the table shows every row, so "0 of N" would be wrong too.
+    def test_a_fully_dropped_filter_reports_the_whole_set
+      stub_method(Sidekiq::RetrySet, :new, @set) do
+        get "/roundhouse/retries?q=tag%3Dgarbage"
+        body = @response.body.split("</style>").last.to_s
+
+        # The exact heading, not a substring of it: "#{@set.size} jobs" also matches
+        # "4 of 4 jobs", so asserting the substring passed whether or not the fully
+        # dropped filter was reported as a filter. Vacuous, and it was mine.
+        heading = body[/<h2 class="rh-h2">(.*?)<\/h2>/m, 1].to_s.gsub(/<[^>]+>/, " ").squeeze(" ").strip
+        assert_equal "Retries · #{@set.size} jobs", heading,
+          "nothing survived the drop, so nothing is 'of' the set"
+        assert_match "Ignored", body, "the drop must still be reported"
+      end
+    end
+
+    # THE reason this is a drop and not a silent ignore. `tag=garbage queue=mailers`
+    # degrades to `queue=mailers`, which selects the whole queue — so a Delete offered
+    # here would destroy every dead job in it while the operator believed the tag
+    # narrowed it too. That is the confirm-2-destroy-5 shape reached by a typo.
+    def test_a_dropped_facet_authorises_no_bulk_action
+      mixed = FakeSet.new([
+        FakeEntry.new(klass: "AlphaJob", jid: "m1", queue: "mailers"),
+        FakeEntry.new(klass: "AlphaJob", jid: "d1", queue: "default")
+      ])
+      stub_method(Sidekiq::DeadSet, :new, mixed) do
+        get "/roundhouse/dead?q=tag%3Dgarbage+queue%3Dmailers"
+        assert_response :success
+        body = @response.body.split("</style>").last.to_s
+
+        assert_match(/\bm1\b/, body, "the surviving queue filter must still browse")
+        refute_match(/\bd1\b/, body)
+        refute_match "preview", body,
+          "a degraded filter must offer no bulk control — it selects wider than it says"
+
+        post "/roundhouse/dead/bulk_all", params: { op: "delete", q: "tag=garbage queue=mailers" }
+        assert_equal 2, Sidekiq::DeadSet.new.size,
+          "a degraded filter scoped a destroy to more than was typed"
+        assert_match(/Ignored/, flash[:alert].to_s,
+          "the refusal must name what was dropped, not claim there was no filter")
       end
     end
 
@@ -269,8 +344,14 @@ module RoundhouseUi
       stub_method(Sidekiq::DeadSet, :new, mixed) do
         get "/roundhouse/dead?queue=mailers"
         assert_response :success
-        assert_match 'name="queue" value="mailers"', @response.body,
-          "the bulk form must post the queue filter, or it acts wider than the page shows"
+
+        # The destructive control itself, not the search box: whatever this link
+        # carries is the scope the confirm page will offer to delete.
+        href = css_select("a.rh-btn-danger[href*='preview']").first&.[]("href")
+        refute_nil href, "no bulk delete control under an active queue filter"
+        assert_equal "queue=mailers",
+          FilterQuery.parse(Rack::Utils.parse_nested_query(URI(href).query)["q"]).to_s,
+          "the bulk control must carry the queue filter, or it acts wider than the page shows"
       end
     end
 
