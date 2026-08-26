@@ -167,6 +167,20 @@
     :root[data-theme="dark"] .rh-mark-on-dark { display:block; }
     :root[data-theme="light"] .rh-mark-on-light { display:block; }
     :root[data-theme="light"] .rh-mark-on-dark { display:none; }
+    /* Active structured filters, dismissible. They cannot live in the search box
+       (see shared/_active_filters), so they live beside it. */
+    .rh-active-filters { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin:0 0 10px 1px; }
+    .rh-filter-chip { display:inline-flex; align-items:center; gap:var(--ctl-gap);
+                      height:var(--ctl-h-sm); padding:0 var(--ctl-px-sm);
+                      font-size:var(--ctl-fs-sm); border:1px solid var(--line);
+                      border-radius:var(--ctl-r); background:var(--panel-2); color:var(--text); }
+    .rh-filter-chip .k { color:var(--faint); font-family:var(--mono); }
+    .rh-filter-chip .v { font-family:var(--mono); max-width:34ch; overflow:hidden;
+                         text-overflow:ellipsis; white-space:nowrap; }
+    .rh-filter-chip .x { color:var(--faint); text-decoration:none; font-size:13px; line-height:1;
+                         padding:0 1px; }
+    .rh-filter-chip .x:hover { color:var(--crit); }
+
     .rh-pill-link { text-decoration:none; border:1px solid transparent; }
     .rh-pill-link:hover { border-color:var(--accent); color:var(--text); }
     .rh-pill-link.is-on { border-color:var(--accent); color:var(--text); background:var(--panel-3); }

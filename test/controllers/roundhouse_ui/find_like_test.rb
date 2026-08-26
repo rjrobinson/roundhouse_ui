@@ -125,5 +125,65 @@ module RoundhouseUi
         assert_match "Find more W", markup
       end
     end
+    # The glass sets a filter you cannot see in the search box, so it needs a way
+    # out. Reported as "populate the search bar so we can clear that search" — the
+    # box itself is the wrong home for it, because ?q= is a substring match sitting
+    # directly above "delete all matching".
+    def test_the_active_filter_is_shown_and_can_be_cleared
+      with_dead do
+        get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
+
+        assert_match "rh-filter-chip", markup, "no chip shows the active filter"
+        assert_match "BillingWorker", markup
+        assert_match "Clear the class filter", markup
+        assert_match "Clear the error filter", markup
+      end
+    end
+
+    def test_clearing_the_error_keeps_the_class
+      with_dead do
+        get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
+
+        clear = markup[/href="([^"]*)"[^>]*class="x"[^>]*title="Clear the error filter"/, 1] ||
+                markup[/<a[^>]*title="Clear the error filter"[^>]*href="([^"]*)"/, 1]
+        refute_nil clear, "no clear link for the error half"
+        assert_includes clear, "class=BillingWorker", "clearing the error dropped the class too"
+        refute_includes clear, "error=", "clearing the error left it in the URL"
+      end
+    end
+
+    def test_clearing_the_class_clears_both
+      with_dead do
+        get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
+
+        clear = markup[/<a[^>]*title="Clear the class filter"[^>]*href="([^"]*)"/, 1] ||
+                markup[/href="([^"]*)"[^>]*title="Clear the class filter"/, 1]
+        refute_nil clear
+        refute_includes clear, "class=", "the class filter survived its own clear link"
+        refute_includes clear, "error=", "an error filter without a class matches nothing useful"
+      end
+    end
+
+    def test_searching_does_not_drop_the_glass_filter
+      # The form carries tag and queue as hidden inputs; without class and error it
+      # silently discarded the filter the moment you typed anything.
+      with_dead do
+        get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
+
+        form = markup[/<form[^>]*class="rh-search".*?<\/form>/m].to_s
+        refute_empty form
+        assert_match(/name="class" value="BillingWorker"/, form,
+          "a search would drop the class filter")
+        assert_match(/name="error" value="Timeout::Error"/, form,
+          "a search would drop the error filter")
+      end
+    end
+
+    def test_no_chip_when_nothing_is_filtered
+      with_dead do
+        get "/roundhouse/dead"
+        refute_match "rh-filter-chip", markup
+      end
+    end
   end
 end
