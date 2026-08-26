@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Demo workers and a capped load generator**, so the console can be seen doing
+  something. `require "roundhouse_ui/demo"` in a development initializer, then
+  `rake roundhouse_ui:demo:load[15]`. Six classes across six queues with different
+  durations and failure rates — one long enough to always be mid-flight on Busy,
+  one flaky enough to dominate Errors — and a rate that rises and falls so the
+  dashboard's trend and drain forecast have something to say.
+
+  Deliberately not loaded by `require "roundhouse_ui"`. Each worker refuses to run
+  outside development, the task refuses any other environment, and it refuses Redis
+  database 0 — by asking the connection where it is rather than reading
+  configuration. `rake roundhouse_ui:demo:clean` removes what it left.
+
 - **Find more like this.** Every row on Retries, Dead and Scheduled carries a 🔍
   that narrows the set to that job's class and, where the set records one, that
   job's error — the same pair the Errors page treats as one issue, so a row here
