@@ -96,6 +96,17 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **The Processed and Failed cards plotted a line that could only go up.** Both are
+  lifetime counters, so their sparkline was a monotonic ramp whose slope carried the
+  whole signal and whose level is what the eye reads — and on Failed, auto-scaled
+  around 131,000, a few hundred new failures rendered as a flat line with a step.
+  They now plot the rate: what arrived since the last poll. Busy threads and Backlog
+  are levels and keep plotting themselves, because differencing them would discard
+  the thing worth seeing.
+- **The Processed card's "/min" never updated.** The poll used
+  `querySelector('[data-stat="rate"]')`, and the header carries the same attribute —
+  so only the header was ever written and the card read `— / min` forever.
+
 - **The Actions column stopped wrapping.** Five controls in one right-aligned cell
   and `text-align:right` does not stop a cell breaking between inline-blocks, so
   Delete dropped onto a second line as soon as the "find more like this" glass and

@@ -707,7 +707,11 @@
               var dt = (now - lastT) / 1000;
               var dp = d.processed - lastProcessed;
               var rate = dt > 0 ? Math.max(0, dp / dt) : 0;
-              var re = document.querySelector('[data-stat="rate"]'); if (re) re.textContent = fmt(Math.round(rate * 60));
+              // querySelectorAll: the header and the Processed card both carry this
+              // attribute, and querySelector only ever matched the header — so the
+              // card read "— / min" forever.
+              var perMin = fmt(Math.round(rate * 60));
+              document.querySelectorAll('[data-stat="rate"]').forEach(function (el) { el.textContent = perMin; });
               var ne = document.getElementById("rh-chart-now"); if (ne) ne.textContent = Math.round(rate);
               // Accumulate into the current bucket; finalize it (one averaged point)
               // once the chosen interval has elapsed. Live "/s" still updates each poll.
@@ -898,7 +902,17 @@
       // the poll already returns these numbers, so a card can show direction
       // rather than only a value.
       var CARD_SERIES = { processed: "processed", failed: "failed", busy: "busy", backlog: null };
+      // Which of those are lifetime counters. Their trend is the RATE; plotting the
+      // counter itself draws a line that can only ever go up, whose slope carries
+      // the whole signal and whose level is what the eye actually reads. On Failed
+      // it is worse than useless: auto-scaled around 131,000, a few hundred new
+      // failures render as a flat line with a step at the start.
+      //
+      // Busy threads and Backlog are levels already — they rise and fall on their
+      // own, and differencing them would throw away the thing worth seeing.
+      var CARD_CUMULATIVE = { processed: true, failed: true };
       var cardHistory = {};
+      var cardPrev = {};
       var SEV_COLOUR = { crit: "--crit", warn: "--warn", ok: "--good" };
 
       function token(name) {
@@ -956,15 +970,31 @@
         return d[CARD_SERIES[key]];
       }
 
+      // The point a sparkline should plot for one poll. Pure, so test/js can lift it
+      // out of this file rather than keep a copy that drifts.
+      //   - a level plots as itself
+      //   - a counter plots what arrived since the last sample
+      //   - a counter's first sample plots nothing: there is no delta yet
+      // Clamped at zero because Sidekiq's counters can be reset underneath us, and
+      // a negative arrival rate is not a thing.
+      function cardPoint(key, value, previous) {
+        if (!CARD_CUMULATIVE[key]) return value;
+        if (previous == null || value == null) return null;
+        return Math.max(0, value - previous);
+      }
+
       var CARD_COLOUR = { processed: "--accent", failed: "--crit", busy: "--good", backlog: "--warn" };
 
       function paintCards(d) {
         document.querySelectorAll("[data-rh-card]").forEach(function (cv) {
           var key = cv.getAttribute("data-rh-card");
-          var v = cardValue(key, d);
-          if (v == null) return;
+          var raw = cardValue(key, d);
+          if (raw == null) return;
+          var point = cardPoint(key, raw, cardPrev[key]);
+          cardPrev[key] = raw;
+          if (point == null) return;
           var hist = cardHistory[key] || (cardHistory[key] = []);
-          hist.push(v);
+          hist.push(point);
           if (hist.length > SPARK_SAMPLES) hist.shift();
           if (hist.length >= 2) drawSpark(cv, hist, token(CARD_COLOUR[key] || "--accent"));
         });

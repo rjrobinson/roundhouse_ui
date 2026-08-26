@@ -22,6 +22,18 @@ function lift(name) {
   return erb.slice(start, i + 1);
 }
 
+// Same idea as lift(), for a `var NAME = { ... };` declaration. Written because
+// the card tests first hardcoded their own copy of CARD_CUMULATIVE — so emptying
+// it in the layout, which is precisely the bug being guarded against, changed
+// nothing here. A copy drifts; that is the whole reason lift() exists.
+function liftVar(name) {
+  const start = erb.indexOf("var " + name + " =");
+  assert.notStrictEqual(start, -1, "could not find var " + name + " in the layout");
+  const end = erb.indexOf(";", start);
+  assert.notStrictEqual(end, -1, "unterminated var " + name);
+  return erb.slice(start, end + 1);
+}
+
 // humanizeEta and rateLabel are pure; forecast reads STALLED_PER_MIN.
 const src = [
   "var STALLED_PER_MIN = 1;",
@@ -195,3 +207,56 @@ assert.strictEqual(severity(900, 0.005), "warn", "growth below the floor is stal
 
 console.log("table sort: 5 cases, all passing");
 console.log("severity stripe: 6 cases, all passing");
+
+// ── Card sparkline points ───────────────────────────────────────────────────────
+// "Processed" and "Failed" are lifetime counters. Plotting them gives a line that
+// can only go up, whose level the eye reads and whose slope is the actual signal.
+// Reported from a live console as "this is only ever go up".
+{
+  const cardSrc = [
+    liftVar("CARD_CUMULATIVE"),
+    lift("cardPoint"),
+    "module.exports = { cardPoint: cardPoint, CARD_CUMULATIVE: CARD_CUMULATIVE };"
+  ].join("\n");
+  const cardMod = { exports: {} };
+  new Function("module", cardSrc)(cardMod);
+  const { cardPoint, CARD_CUMULATIVE } = cardMod.exports;
+
+  // Without this, emptying CARD_CUMULATIVE in the layout makes every case below
+  // trivially true and the suite stays green against the reported bug.
+  assert.ok(CARD_CUMULATIVE.processed && CARD_CUMULATIVE.failed,
+    "processed and failed must be marked cumulative, or their cards plot a ramp again");
+
+  const cases = [
+    // key,         value,   previous, expected, why
+    [ "processed",  1000,    null,     null,  "a counter's first sample has no delta to plot" ],
+    [ "processed",  1000,    900,      100,   "a counter plots what arrived since the last poll" ],
+    [ "processed",  1000,    1000,     0,     "a quiet interval is a real zero, not a gap" ],
+    [ "processed",  50,      1000,     0,     "counters can be reset; a negative arrival rate is not a thing" ],
+    [ "failed",     131623,  131600,   23,    "same rule for failures" ],
+    [ "failed",     131623,  null,     null,  "and the same first-sample rule" ],
+    [ "busy",       5,       null,     5,     "busy is a level: it plots as itself, with no previous needed" ],
+    [ "busy",       5,       9,        5,     "a level is never differenced — that would discard the signal" ],
+    [ "backlog",    2373,    2000,     2373,  "backlog is a level too" ],
+    [ "backlog",    0,       500,      0,     "including when it drains to nothing" ]
+  ];
+
+  cases.forEach(function (c) {
+    const [ key, value, previous, expected, why ] = c;
+    assert.strictEqual(cardPoint(key, value, previous), expected,
+      `cardPoint(${key}, ${value}, ${previous}) should be ${expected} — ${why}`);
+  });
+
+  // The property behind all of it: a cumulative series is monotonic, so its raw
+  // history is monotonic, and a monotonic sparkline conveys nothing.
+  let prev = null;
+  const plotted = [ 900, 1000, 1000, 1240, 1250 ].map(function (v) {
+    const p = cardPoint("processed", v, prev); prev = v; return p;
+  }).filter(function (p) { return p !== null; });
+  assert.deepStrictEqual(plotted, [ 100, 0, 240, 10 ],
+    "a rising counter must plot as a series that rises AND falls");
+  assert.ok(Math.min.apply(null, plotted) < Math.max.apply(null, plotted),
+    "the plotted series has to vary, or the card is back to drawing a ramp");
+
+  console.log("card sparkline points: " + (cases.length + 2) + " cases, all passing");
+}
