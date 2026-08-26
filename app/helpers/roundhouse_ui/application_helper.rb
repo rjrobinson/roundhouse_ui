@@ -18,6 +18,33 @@ module RoundhouseUi
       ])
     end
 
+    # Where "find more like this" goes, per set.
+    LIKE_PATHS = { "dead" => :dead_set_path, "retry" => :retries_path,
+                   "scheduled" => :scheduled_path }.freeze
+
+    # "Find more like this": the same class, and where the set records one, the
+    # same error — the pair the Errors page already treats as one issue, so a row
+    # here and a row there mean the same thing.
+    #
+    # Structured filters rather than text typed into the search box, because this
+    # button's whole purpose is to reveal the "delete all matching" controls, and
+    # a substring would let those select jobs whose ARGUMENTS merely mention the
+    # class you clicked. Same reasoning as ?tag= and ?queue=.
+    def find_like_link(set, job)
+      helper = LIKE_PATHS[set.to_s]
+      klass = job_display_class(job)
+      return nil if helper.nil? || klass.blank?
+
+      error = job.item["error_class"].presence
+      label = error ? "Find more #{klass} failing with #{error}" : "Find more #{klass}"
+      query = { class: klass }
+      query[:error] = error if error
+
+      link_to icon(:search), send(helper, **query),
+              class: "rh-btn rh-btn--sm rh-btn--icon", title: label,
+              aria: { label: label }
+    end
+
     # Relative time answers "is this soon?", the clock time answers "does that
     # land inside the maintenance window?". Operators need both, so show both
     # rather than making them hover or do the arithmetic.

@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Find more like this.** Every row on Retries, Dead and Scheduled carries a 🔍
+  that narrows the set to that job's class and, where the set records one, that
+  job's error — the same pair the Errors page treats as one issue, so a row here
+  and a row there mean the same thing. One click turns "this row looks wrong" into
+  "here are all of them, and here are the bulk controls".
+
+  `?class=` and `?error=` are exact rather than substring. The button exists to
+  reveal `Delete all matching`, and a substring filter would also select jobs whose
+  *arguments* merely mention the class you clicked, invisibly. Same reasoning as
+  `?tag=` and `?queue=`.
+
 - **The per-row job actions are tested.** `find_job(jid)` opens `retries#destroy`,
   `retries#requeue`, `dead#destroy`, `dead#requeue`, every scheduled action and
   `jobs#show/edit/update`, and none of it had ever run: it issues `ZSCAN`, which the

@@ -8,6 +8,21 @@ module RoundhouseUi
     BULK_CAP = 1_000 # safety ceiling on a single match-set action
     Matched = Struct.new(:entries, :capped, keyword_init: true)
 
+    # Every filter, once per request, rather than re-derived in each action. The
+    # queue filter was already assigned in seven places across three controllers;
+    # class and error would have made that twenty-one, and a browse that read one
+    # filter while its bulk counterpart read another is the failure this whole
+    # file is arranged to prevent.
+    included do
+      before_action :load_filters
+    end
+
+    def load_filters
+      @queue_filter = queue_filter
+      @class_filter = class_filter
+      @error_filter = error_filter
+    end
+
     # Returns [entries_for_page, has_next?]. Scans only far enough to fill the
     # requested page plus one (to know if a next page exists) — never loads the
     # whole set, so a 50k dead set stays cheap to page through.
@@ -78,6 +93,8 @@ module RoundhouseUi
     # including when a tag value is what matched the free-text search.
     def entry_selected?(entry, query, tag, cache)
       return false if @queue_filter.present? && entry.queue.to_s != @queue_filter
+      return false if @class_filter.present? && RoundhouseUi.unwrapped_class(entry.klass, entry.item).to_s != @class_filter
+      return false if @error_filter.present? && entry.item["error_class"].to_s != @error_filter
 
       tags = entry_tags(entry, cache)
       return false if query.present? && !entry_matches?(entry, query, tags)
@@ -92,6 +109,23 @@ module RoundhouseUi
     # "default_low".
     def queue_filter
       params[:queue].to_s.strip.presence
+    end
+
+    # `?class=` and `?error=` — the pair behind "find more like this". Exact, and
+    # structured rather than typed into the search box for the same reason
+    # ?tag= and ?queue= are: this filter renders the "delete all matching"
+    # buttons directly beneath it, and a substring would let that select jobs
+    # whose ARGUMENTS merely mention the class you clicked.
+    #
+    # Class is compared unwrapped, so the filter means the same string the row
+    # displays and the same one the Errors page groups by — one definition of
+    # "the same problem" across the console.
+    def class_filter
+      params[:class].to_s.strip.presence
+    end
+
+    def error_filter
+      params[:error].to_s.strip.presence
     end
 
     def entry_tagged?(tags, (key, value))

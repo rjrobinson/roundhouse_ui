@@ -23,7 +23,8 @@
           <td><%= queue_pill(job.queue, link: true) %></td>
           <td class="r"><%= job_time(job.at) %></td>
           <td class="r">
-            <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
+            <%= find_like_link("scheduled", job) %>
+              <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
             <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "scheduled", jid: job.jid), class: "rh-btn" %><% end %>
             <%= button_to "Enqueue now", enqueue_scheduled_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
             <%= button_to "Delete", delete_scheduled_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>

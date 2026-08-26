@@ -7,7 +7,6 @@ module RoundhouseUi
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.scheduled_set.size
       @tag = tag_filter
-      @queue_filter = queue_filter
       @jobs, @has_next = browse(backend.scheduled_set, @query, @page, PER_PAGE, tag: @tag)
     end
 
