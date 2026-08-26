@@ -1,14 +1,9 @@
 <% content_for :title, "Queue #{@name}" %>
 
-<form method="get" action="<%= queue_path(@name) %>" class="rh-search">
-  <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, or arg value…">
-  <%# Every active filter except q. This page browses a job set through the same
-      concern as the others, so it has the same filters to lose. %>
-  <% active_filters.except(:q).each do |key, value| %>
-    <input type="hidden" name="<%= key %>" value="<%= value %>">
-  <% end %>
-</form>
+<%= render "roundhouse_ui/shared/search_bar", action: queue_path(@name),
+      noun: "class, jid or arguments" %>
 
+<%= render "roundhouse_ui/shared/filter_error" %>
 <%= render "roundhouse_ui/shared/tag_filter" %>
 
 <h2 class="rh-h2">
@@ -35,7 +30,7 @@
   <tbody>
     <% if @jobs.empty? %>
       <tr><td colspan="<%= tag_column? ? 4 : 3 %>" class="rh-empty">
-        <%= any_filter?(@query, @tag) ? "Nothing on “#{@name}” #{filter_description(@query, @tag)}." : "Nothing waiting on “#{@name}”." %>
+        <%= empty_state(@query, @tag, noun: "jobs on “#{@name}”", all_clear: "Nothing waiting on “#{@name}”.") %>
       </td></tr>
     <% else %>
       <% @jobs.each do |job| %>

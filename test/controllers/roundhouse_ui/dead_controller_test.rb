@@ -186,8 +186,14 @@ module RoundhouseUi
     # request that deleted five. The test and the six hand-enumerating call sites
     # had the same bug: a hardcoded list nobody updates.
     #
-    # It is driven by FILTER_KEYS now. Add a sixth filter and this fails until the
-    # form carries it.
+    # The filter is one parameter now, so "carried four of the five" is not a shape
+    # this form can take. What is asserted instead is the property the old test was
+    # a proxy for, and it is stronger: the q the POST will filter on reconstructs
+    # the IDENTICAL FilterQuery the dry run browsed with. Not a key list — the
+    # actual value, compared as a parsed query.
+    #
+    # Sent in the legacy five-param shape on purpose: that is what a bookmark or an
+    # older link looks like, so this covers the compatibility read at the same time.
     def test_the_confirm_form_carries_every_filter
       # A live tag resolver, so the tag filter actually selects rather than
       # excluding everything and leaving nothing to assert against.
@@ -196,6 +202,8 @@ module RoundhouseUi
       # renders "Nothing to do" and no form, and the test would pass on absence.
       sent = { op: "delete", q: "Stripe", queue: "default", tag: "squad:core",
                class: "ChargeCustomerJob", error: "Stripe::RateLimitError" }
+      expected = FilterQuery.from_params(sent)
+      refute expected.invalid?, "the fixture filter must itself be representable"
 
       stub_method(Sidekiq::DeadSet, :new, @set) do
         get "/roundhouse/dead/preview", params: sent
@@ -206,11 +214,14 @@ module RoundhouseUi
                   .to_h { |i| [ i["name"], i["value"] ] }
         assert_equal "delete", carried["op"]
 
-        missing = JobSetBrowsing::FILTER_KEYS.reject { |key| carried[key.to_s] == sent[key].to_s }
-        assert_empty missing,
-          "the confirm form drops #{missing.join(', ')}. Whatever it does not carry, " \
-          "the POST will not filter on — so the dry run you approved and the jobs " \
-          "that actually get destroyed are different sets. It carried: #{carried.keys.inspect}"
+        assert_equal expected, FilterQuery.parse(carried["q"]),
+          "the confirm form posts #{carried['q'].inspect}, but the dry run above it " \
+          "listed jobs matching #{expected.to_s.inspect}. Whatever the POST does not " \
+          "carry it will not filter on, so the set you approved and the set that gets " \
+          "destroyed are different. It carried: #{carried.keys.inspect}"
+        # Every facet must actually be IN that one value — an empty q would compare
+        # equal to an empty expectation and this test would pass on nothing at all.
+        assert_equal %w[class error queue tag], expected.chips.map { |k, _| k.to_s }.sort
       end
     end
 

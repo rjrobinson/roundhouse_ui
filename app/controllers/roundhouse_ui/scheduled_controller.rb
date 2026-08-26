@@ -3,10 +3,8 @@ module RoundhouseUi
     include JobSetBrowsing
 
     def index
-      @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.scheduled_set.size
-      @tag = tag_filter
       @jobs, @has_next = browse(backend.scheduled_set, @query, @page, PER_PAGE, tag: @tag)
     end
 

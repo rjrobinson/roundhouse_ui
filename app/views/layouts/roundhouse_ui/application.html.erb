@@ -450,9 +450,101 @@
     .rh-btn-danger:hover { border-color:var(--crit); background:color-mix(in srgb, var(--crit) 10%, var(--panel-2)); }
     .rh-inline { display:inline; margin:0; }
 
-    .rh-search { margin-bottom:16px; }
-    .rh-search input { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; color:var(--text); font:13px var(--mono); }
-    .rh-search input:focus { outline:none; border-color:var(--accent); }
+    .rh-search { margin-bottom:16px; position:relative; display:flex; align-items:flex-start; gap:8px; }
+
+    /* Input group, the old Bootstrap way: the bar and its help button are ONE
+       control, sharing a border, with the meeting corners squared and a single
+       divider between them. align-items:stretch is what makes it hold up — the bar
+       grows taller as pills wrap, and the button has to grow with it or the group
+       comes apart at exactly the moment it has the most in it. */
+    .rh-group { flex:1; min-width:0; display:flex; align-items:stretch; }
+    .rh-group .rh-bar { flex:1; min-width:0; border-radius:var(--ctl-r-lg) 0 0 var(--ctl-r-lg); border-right:0; }
+    .rh-group .rh-help { display:flex; }
+    .rh-group .rh-help > button {
+      height:auto; width:auto; align-self:stretch;
+      padding:0 var(--ctl-px-md); border-radius:0 var(--ctl-r-lg) var(--ctl-r-lg) 0;
+    }
+    /* The whole group lights up together. Highlighting only the half that holds the
+       caret is what makes two adjacent controls read as two controls. */
+    .rh-group:focus-within .rh-bar,
+    .rh-group:focus-within .rh-help > button { border-color:var(--accent); }
+    .rh-group .rh-help > button:hover { background:var(--panel-2); }
+    /* Plain box, still used where q is a substring (Queues index, Errors). */
+    .rh-search > input[type="search"] { flex:1; min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; color:var(--text); font:13px var(--mono); }
+    .rh-search > input[type="search"]:focus { outline:none; border-color:var(--accent); }
+
+    /* The filter bar: pills and the input are one control, because they are one
+       value. The border lives here, not on the input. */
+    .rh-bar {
+      flex:1; min-width:0; display:flex; align-items:center; flex-wrap:wrap; gap:6px;
+      background:var(--panel); border:1px solid var(--line); border-radius:var(--ctl-r-lg);
+      padding:6px 10px; min-height:42px; cursor:text; position:relative;
+    }
+    .rh-bar:focus-within { border-color:var(--accent); }
+    .rh-bar > svg { flex:0 0 auto; width:var(--ctl-icon-md); height:var(--ctl-icon-md); color:var(--faint); }
+    .rh-bar input[type="search"] {
+      flex:1 1 9rem; min-width:7rem; background:none; border:0; outline:none;
+      color:var(--text); font:13px var(--mono); padding:5px 2px;
+      -webkit-appearance:none; appearance:none;
+    }
+    .rh-bar input[type="search"]::-webkit-search-cancel-button { display:none; }
+    .rh-bar input::placeholder { color:var(--faint); }
+    .rh-bar-clear { flex:0 0 auto; font:var(--ctl-fs-sm)/1 var(--sans); color:var(--muted); text-decoration:none; padding:0 4px; }
+    .rh-bar-clear:hover { color:var(--crit); text-decoration:underline; }
+
+    /* A facet pill. Height from the control scale, like every other control. */
+    .rh-pillf {
+      display:inline-flex; align-items:center; height:var(--ctl-h-sm);
+      border:1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+      border-radius:var(--ctl-r); background:color-mix(in srgb, var(--accent) 10%, transparent);
+      font:var(--ctl-fs-sm)/1 var(--mono); white-space:nowrap; overflow:hidden; max-width:26rem;
+    }
+    .rh-pillf .k { padding:0 5px; height:100%; display:inline-flex; align-items:center; color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); }
+    .rh-pillf .v { padding:0 6px; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
+    .rh-pillf .x { flex:0 0 auto; width:16px; height:100%; display:inline-flex; align-items:center; justify-content:center; color:var(--muted); text-decoration:none; }
+    .rh-pillf .x:hover { color:var(--crit); background:color-mix(in srgb, var(--crit) 16%, transparent); }
+
+    /* Typeahead. Positioned against .rh-bar, which is the positioned ancestor. */
+    .rh-ac {
+      position:absolute; left:8px; top:calc(100% + 5px); z-index:38; min-width:17rem; max-width:min(34rem,90vw);
+      background:var(--panel); border:1px solid var(--line); border-radius:9px;
+      box-shadow:0 14px 40px rgba(0,0,0,.45); padding:4px; max-height:17rem; overflow-y:auto;
+    }
+    .rh-ac[hidden] { display:none; }
+    .rh-ac-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:6px 9px; border-radius:6px; font:var(--ctl-fs-md)/1.3 var(--mono); color:var(--text); cursor:pointer; }
+    .rh-ac-row[aria-selected="true"], .rh-ac-row:hover { background:var(--panel-3); }
+    .rh-ac-row .rh-ac-why { font:var(--ctl-fs-sm)/1 var(--sans); color:var(--faint); }
+    .rh-ac-grp { padding:6px 9px 3px; font:600 10px var(--sans); letter-spacing:.09em; text-transform:uppercase; color:var(--faint); }
+
+    /* Search help. Revealed on hover, as asked — and on :focus-within too, so it is
+       reachable by keyboard and on touch, where there is no hover at all. Pure CSS:
+       a popover that needs JS to open is a popover that does not open under a strict
+       CSP if the nonce ever slips. */
+    .rh-help { position:relative; flex:0 0 auto; }
+    .rh-help > button {
+      height:var(--ctl-h-md); width:var(--ctl-h-md); padding:0;
+      display:inline-flex; align-items:center; justify-content:center;
+      background:var(--panel); border:1px solid var(--line); border-radius:var(--ctl-r);
+      color:var(--muted); font:600 var(--ctl-fs-md)/1 var(--sans); cursor:help;
+    }
+    .rh-help > button:hover, .rh-help:focus-within > button { color:var(--text); border-color:var(--accent); }
+    .rh-help-panel {
+      position:absolute; right:0; top:calc(100% + 6px); z-index:40; width:min(30rem, 88vw);
+      background:var(--panel); border:1px solid var(--line); border-radius:10px;
+      padding:14px 16px; box-shadow:0 16px 44px rgba(0,0,0,.45);
+      opacity:0; visibility:hidden; transform:translateY(-3px);
+      transition:opacity .12s ease, transform .12s ease, visibility .12s;
+    }
+    .rh-help:hover .rh-help-panel, .rh-help:focus-within .rh-help-panel {
+      opacity:1; visibility:visible; transform:none;
+    }
+    @media (prefers-reduced-motion: reduce) { .rh-help-panel { transition:none; } }
+    .rh-help-panel h4 { margin:0 0 8px; font:600 12px var(--sans); color:var(--text); }
+    .rh-help-panel dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:5px 12px; align-items:baseline; }
+    .rh-help-panel dt { font:12px var(--mono); color:var(--accent); white-space:nowrap; }
+    .rh-help-panel dd { margin:0; font-size:12px; color:var(--muted); }
+    .rh-help-panel .rh-help-note { margin:11px 0 0; padding-top:10px; border-top:1px solid var(--line-soft); font-size:11.5px; color:var(--faint); }
+    .rh-help-panel code { font:11.5px var(--mono); color:var(--text); background:var(--panel-2); padding:1px 4px; border-radius:3px; }
     .rh-bulkbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
     .rh-note { color:var(--faint); font-size:12px; margin-top:14px; }
     .rh-warn { background:rgba(226,165,63,.12); border:1px solid rgba(226,165,63,.4); color:var(--warn); border-radius:10px; padding:11px 14px; margin-bottom:18px; font-size:13px; }
@@ -1341,6 +1433,186 @@
         if (!e.target || e.target.id !== "rh-all") return;
         document.querySelectorAll(".rh-check").forEach(function (cb) { cb.checked = e.target.checked; });
       });
+      // ── Filter bar: Tab completes, Enter applies ──────────────────────────
+      //
+      // Tab completes a key or a value WITHOUT submitting. Enter submits, and the
+      // pill appears because the server rendered it from the filter that is now in
+      // force. A pill therefore exists if and only if its filter is applied.
+      //
+      // That ordering is the point. A pill drawn on Tab, before the request, would
+      // show a filter that is not applied — the invisible-filter bug inverted, and
+      // this bar sits directly above "delete all matching". Nothing here holds
+      // filter state: the box is a string, the URL is the truth.
+      //
+      // Delegated from document for the same reason as the select-all above: a
+      // Turbo visit replaces <body>, discarding elements and their listeners, and a
+      // re-inserted body script would carry a nonce this page's CSP rejects.
+      var acItems = [], acSel = 0;
+
+      function acBox() { return document.querySelector(".rh-bar input[type=search]"); }
+      function acMenu(make) {
+        var bar = document.querySelector(".rh-bar");
+        if (!bar) return null;
+        var m = bar.querySelector(".rh-ac");
+        if (!m && make) {
+          m = document.createElement("div");
+          m.className = "rh-ac";
+          m.setAttribute("role", "listbox");
+          m.hidden = true;
+          bar.appendChild(m);
+        }
+        return m;
+      }
+      function acHide() {
+        var m = acMenu(false);
+        if (m) { m.hidden = true; m.innerHTML = ""; }
+        acItems = []; acSel = 0;
+      }
+      function acData(box, attr, fallback) {
+        try { return JSON.parse(box.getAttribute(attr) || fallback); } catch (e) { return JSON.parse(fallback); }
+      }
+      // The typed text splits into "everything already settled" and the last token,
+      // which is the only thing being completed.
+      function acSplit(value) {
+        var caretless = value.replace(/^\s+/, "");
+        var cut = caretless.lastIndexOf(" ");
+        return { head: cut === -1 ? "" : caretless.slice(0, cut + 1), token: cut === -1 ? caretless : caretless.slice(cut + 1) };
+      }
+      function acSuggest(box, token) {
+        var keys = (box.getAttribute("data-rh-filter-keys") || "").split(",").filter(Boolean);
+        var values = acData(box, "data-rh-filter-values", "{}");
+        var eq = token.indexOf("=");
+        if (eq === -1) {
+          if (!token) return [];
+          return keys.filter(function (k) { return k.indexOf(token) === 0 && k !== token; })
+                     .map(function (k) { return { insert: k + "=", label: k + "=", why: "filter" }; });
+        }
+        var key = token.slice(0, eq), typed = token.slice(eq + 1).toLowerCase();
+        return (values[key] || [])
+          .filter(function (v) { return v.toLowerCase().indexOf(typed) === 0 && v !== token.slice(eq + 1); })
+          .slice(0, 12)
+          .map(function (v) { return { insert: key + "=" + (/\s/.test(v) ? '"' + v + '"' : v), label: v, why: key }; });
+      }
+      function acRender(list) {
+        var m = acMenu(true);
+        if (!m) return;
+        acItems = list; acSel = 0;
+        if (!list.length) { acHide(); return; }
+        m.innerHTML = "";
+        list.forEach(function (s, i) {
+          var row = document.createElement("div");
+          row.className = "rh-ac-row";
+          row.setAttribute("role", "option");
+          row.setAttribute("aria-selected", i === 0 ? "true" : "false");
+          row.setAttribute("data-rh-ac-i", String(i));
+          var label = document.createElement("span");
+          label.textContent = s.label;
+          var why = document.createElement("span");
+          why.className = "rh-ac-why";
+          why.textContent = s.why;
+          row.appendChild(label); row.appendChild(why);
+          m.appendChild(row);
+        });
+        m.hidden = false;
+      }
+      function acMark() {
+        var m = acMenu(false);
+        if (!m) return;
+        Array.prototype.forEach.call(m.children, function (c, i) {
+          c.setAttribute("aria-selected", i === acSel ? "true" : "false");
+        });
+      }
+      function acRefresh() {
+        var box = acBox();
+        if (!box) return;
+        acRender(acSuggest(box, acSplit(box.value).token));
+      }
+      // Completing leaves a trailing space, so the next keystroke starts a new token
+      // rather than extending a finished facet. Then re-suggest: after `class=` that
+      // offers values, and after a complete value it offers nothing, which is what
+      // lets Enter fall through to submitting instead of re-completing forever.
+      function acAccept(box, s) {
+        box.value = acSplit(box.value).head + s.insert + (s.insert.slice(-1) === "=" ? "" : " ");
+        acHide();
+        acRefresh();
+      }
+
+      document.addEventListener("input", function (e) {
+        if (!e.target.matches || !e.target.matches(".rh-bar input[type=search]")) return;
+        acRefresh();
+      });
+      // Focusing an EMPTY box offers the keys straight away. Reported as "not
+      // completing the tag, nor the typeahead": with nothing typed there was nothing
+      // to suggest, so Tab had no target and fell through to the next tab stop — the
+      // help button — which reads as the bar rejecting you. Opening on focus makes
+      // the vocabulary discoverable without hovering help, and means Tab always has
+      // something to do the moment the caret is in the box.
+      document.addEventListener("focusin", function (e) {
+        if (!e.target.matches || !e.target.matches(".rh-bar input[type=search]")) return;
+        if (e.target.value === "") {
+          var keys = (e.target.getAttribute("data-rh-filter-keys") || "").split(",").filter(Boolean);
+          acRender(keys.filter(function (k) { return k !== "text"; }).map(function (k) {
+            return { insert: k + "=", label: k + "=", why: "filter" };
+          }));
+          return;
+        }
+        acRefresh();
+      });
+      document.addEventListener("keydown", function (e) {
+        var box = e.target;
+        if (!box.matches || !box.matches(".rh-bar input[type=search]")) return;
+
+        if (e.key === "Escape" && acItems.length) { e.preventDefault(); acHide(); return; }
+        if (e.key === "ArrowDown" && acItems.length) { e.preventDefault(); acSel = (acSel + 1) % acItems.length; acMark(); return; }
+        if (e.key === "ArrowUp" && acItems.length) { e.preventDefault(); acSel = (acSel - 1 + acItems.length) % acItems.length; acMark(); return; }
+
+        // Tab completes and stays put. Only when there is something to complete —
+        // otherwise it must move focus, or the bar becomes a keyboard trap.
+        if (e.key === "Tab" && !e.shiftKey && acItems.length) {
+          e.preventDefault();
+          acAccept(box, acItems[acSel]);
+          return;
+        }
+        if (e.key === "Enter") {
+          // A highlighted KEY completion is mid-facet: finish it and wait. Anything
+          // else submits, and the server decides what the pills say.
+          if (acItems.length && acItems[acSel].insert.slice(-1) === "=") {
+            e.preventDefault();
+            acAccept(box, acItems[acSel]);
+            return;
+          }
+          if (acItems.length) { acAccept(box, acItems[acSel]); }
+          acHide();
+          return; // let the form submit
+        }
+        // Backspace on an empty box removes the last pill by NAVIGATING to the
+        // without-that-facet URL the server already rendered. No client-side filter
+        // state to fall out of step with the server's.
+        if (e.key === "Backspace" && box.value === "") {
+          var xs = document.querySelectorAll(".rh-pillf .x");
+          if (xs.length) { e.preventDefault(); xs[xs.length - 1].click(); }
+        }
+      });
+      document.addEventListener("mousedown", function (e) {
+        var row = e.target.closest && e.target.closest(".rh-ac-row");
+        var box = acBox();
+        if (row && box) {
+          e.preventDefault();
+          acSel = parseInt(row.getAttribute("data-rh-ac-i"), 10) || 0;
+          acAccept(box, acItems[acSel]);
+          box.focus();
+          return;
+        }
+        if (!e.target.closest || !e.target.closest(".rh-bar")) acHide();
+      });
+      // Clicking the bar's padding should focus the box, the way a single control does.
+      document.addEventListener("click", function (e) {
+        if (e.target.classList && e.target.classList.contains("rh-bar")) {
+          var box = acBox();
+          if (box) box.focus();
+        }
+      });
+
       document.addEventListener("DOMContentLoaded", function () { startOnce(); syncTheme(); syncWidth(); setActiveNav(); restoreChartInterval(); wireChart(); });
       document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
     })();

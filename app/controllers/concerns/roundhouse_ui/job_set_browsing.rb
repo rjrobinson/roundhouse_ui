@@ -10,9 +10,17 @@ module RoundhouseUi
     # both, so the needle is a free multiplier on someone else's CPU. Longer than
     # any error message anyone searches for, and checked before any comparison
     # runs (the same ordering as MAX_JOB_CLASS_NAME in lib/roundhouse_ui.rb).
-    MAX_QUERY_LENGTH = 500
+    # The parser owns the bound now — one definition, checked before any character
+    # of the input is inspected. Kept as a name because tests and the read-only
+    # guard refer to it.
+    MAX_QUERY_LENGTH = FilterQuery::MAX_LENGTH
     BULK_CAP = 1_000 # safety ceiling on a single match-set action
-    Matched = Struct.new(:entries, :capped, :unfiltered, keyword_init: true)
+    # `unfiltered` means "this action was not authorised". `reason` says why, in the
+    # words the operator should read — it was duplicated verbatim in two controllers.
+    Matched = Struct.new(:entries, :capped, :unfiltered, :reason, keyword_init: true)
+
+    NO_FILTER = "Refused: a bulk action needs a filter. Without one it would act on " \
+                "every job in the set, which is not what this control is for.".freeze
 
     # Every filter, once per request, rather than re-derived in each action. The
     # queue filter was already assigned in seven places across three controllers;
@@ -21,6 +29,13 @@ module RoundhouseUi
     # file is arranged to prevent.
     # Every filter this concern understands. One list, so "all of them" is a thing
     # the code can say.
+    #
+    # Read from all five, written back as one. `?q=` is now the whole filter —
+    # `q=class=EmbeddingWorker error=KeyError stripe` — so a link, a form and a
+    # bookmark carry a single value that either travels or doesn't. It used to be
+    # five, and "the confirm form carried four of the five" is precisely how a dry
+    # run listing two jobs deleted five. The other four survive as a read-only
+    # legacy shape (FilterQuery.from_params), because somebody has them bookmarked.
     FILTER_KEYS = %i[q tag queue class error].freeze
 
     included do
@@ -40,26 +55,32 @@ module RoundhouseUi
     # disagree about what matching means". They could, because they were handed
     # different filters.
     def active_filters
-      {
-        q: params[:q].to_s.strip.presence,
-        tag: params[:tag].presence,
-        queue: @queue_filter,
-        class: @class_filter,
-        error: @error_filter
-      }.compact
+      { q: filter.to_s.presence }.compact
     end
 
+    # One parse per request, and everything else reads off it. The ivars below are
+    # kept because entry_selected? and TagsHelper are written against them; they are
+    # now views onto @filter rather than five independent reads of params, so
+    # "the browse read one filter while its bulk counterpart read another" is no
+    # longer a shape this code can take.
     def load_filters
-      @query_refused = params[:q].to_s.length > MAX_QUERY_LENGTH
-      @queue_filter = queue_filter
-      @class_filter = class_filter
-      @error_filter = error_filter
+      @filter = FilterQuery.from_params(params)
+      @query = @filter.text
+      @tag = @filter.tag_pair
     end
+
+    # The parsed filter, never nil. entry_selected? is reachable without going
+    # through load_filters — the real-Redis tests drive bulk_apply directly, and so
+    # could a future action — and a NoMethodError inside the scan predicate is a 500
+    # on a page that was only browsing. FilterQuery.none matches everything, which is
+    # the same thing "no filter" has always meant here; bulk stays gated because
+    # bulk_filter_present? finds nothing to narrow on.
+    def filter = @filter ||= FilterQuery.none
 
     # A refused query selects nothing, rather than being truncated to something
     # shorter that would select MORE. Truncation is the tempting fix and the wrong
     # one: it silently widens, and this predicate drives Delete.
-    def query_refused? = @query_refused.present?
+    def query_refused? = filter.invalid?
 
     # Returns [entries_for_page, has_next?]. Scans only far enough to fill the
     # requested page plus one (to know if a next page exists) — never loads the
@@ -68,12 +89,7 @@ module RoundhouseUi
     # parsed once per request. Deliberately structured rather than folded into
     # the free-text query: substring search feeding bulk_apply would silently
     # widen destructive bulk actions.
-    def tag_filter
-      key, value = params[:tag].to_s.split(":", 2)
-      return nil if key.blank? || value.blank?
-
-      [ key, value ]
-    end
+    def tag_filter = filter.tag_pair
 
     def browse(set, query, page, per = PER_PAGE, tag: nil)
       start = (page - 1) * per
@@ -109,9 +125,30 @@ module RoundhouseUi
     # the view and the route disagreeing is exactly how the hole below happened.
     def bulk_filter_present?(query, tag)
       return false if query_refused?
+      # A DEGRADED query dropped a facet it could not use. Browse proceeds on what
+      # survived — that is the point of dropping rather than refusing — but what
+      # survived selects a SUPERSET of what was typed. `tag=garbage queue=default`
+      # becomes `queue=default`, so a Delete here would take the whole queue while
+      # the operator believed the tag narrowed it too. Browse and bulk still read
+      # one identical filter; bulk just declines to act on a widened one.
+      return false if filter.degraded?
 
-      query.present? || !tag.nil? || @queue_filter.present? ||
-        @class_filter.present? || @error_filter.present?
+      # Reads the SAME parse entry_selected? reads. It used to read @class_filter and
+      # friends while the predicate read the FilterQuery, and the two diverged the
+      # moment wildcards moved the predicate over: a class-filtered bulk delete found
+      # a filter here, found none in the predicate, and took every row in the set.
+      # Caught by test_the_class_filter_alone_still_spares_a_longer_name. Those ivars
+      # are gone now, so the two cannot be given different answers.
+      query.present? || !tag.nil? || filter.any_facets?
+    end
+
+    # Why a bulk action was not authorised, in the words to show the operator.
+    def bulk_refusal_reason
+      return "Refused: that search was not understood, so it selects nothing. #{filter.message}" if query_refused?
+      return "Refused: #{filter.notes.join(' ')} Fix the search and the bulk actions come back — " \
+             "acting now would touch every job the dropped filter would have excluded." if filter.degraded?
+
+      NO_FILTER
     end
 
     def bulk_matches(set, query, cap = BULK_CAP, tag: nil)
@@ -126,7 +163,9 @@ module RoundhouseUi
       # view while the route stayed open. The guard belongs here, at the one place
       # both the dry run and the action pass through, not in a before_action that
       # the next destructive action can forget to add.
-      return Matched.new(entries: [], capped: false, unfiltered: true) unless bulk_filter_present?(query, tag)
+      unless bulk_filter_present?(query, tag)
+        return Matched.new(entries: [], capped: false, unfiltered: true, reason: bulk_refusal_reason)
+      end
 
       entries = []
       capped = false
@@ -156,9 +195,13 @@ module RoundhouseUi
     # including when a tag value is what matched the free-text search.
     def entry_selected?(entry, query, tag, cache)
       return false if query_refused?
-      return false if @queue_filter.present? && entry.queue.to_s != @queue_filter
-      return false if @class_filter.present? && RoundhouseUi.unwrapped_class(entry.klass, entry.item).to_s != @class_filter
-      return false if @error_filter.present? && entry.item["error_class"].to_s != @error_filter
+      # Compared through the filter, not with ==, so `class=Roundhouse%` narrows here
+      # exactly as it does on the dry run and the bulk action — all three read this
+      # one predicate. Without a `%` it is still a plain equality: `queue=default`
+      # must never also select `default_low`.
+      return false unless filter.matches_facet?(:queue, entry.queue)
+      return false unless filter.matches_facet?(:klass, RoundhouseUi.unwrapped_class(entry.klass, entry.item))
+      return false unless filter.matches_facet?(:error, entry.item["error_class"])
 
       tags = entry_tags(entry, cache)
       return false if query.present? && !entry_matches?(entry, query, tags)
@@ -171,9 +214,7 @@ module RoundhouseUi
     # the palette narrows to that queue. Exact rather than substring because
     # this feeds bulk_apply too, and "default" must never also select
     # "default_low".
-    def queue_filter
-      params[:queue].to_s.strip.presence
-    end
+    def queue_filter = filter.queue
 
     # `?class=` and `?error=` — the pair behind "find more like this". Exact, and
     # structured rather than typed into the search box for the same reason
@@ -184,19 +225,21 @@ module RoundhouseUi
     # Class is compared unwrapped, so the filter means the same string the row
     # displays and the same one the Errors page groups by — one definition of
     # "the same problem" across the console.
-    def class_filter
-      params[:class].to_s.strip.presence
-    end
+    def class_filter = filter.klass
 
-    def error_filter
-      params[:error].to_s.strip.presence
-    end
+    def error_filter = filter.error
 
     def entry_tagged?(tags, (key, value))
       # A declared vocabulary is authoritative: filtering on a key the host
       # never declared matches nothing rather than everything.
       declared = Tags.filters
       return false if declared && !declared.key?(key)
+
+      # `tag=squad:plat%` wildcards the VALUE only. The key stays exact, because it
+      # is checked against the declared vocabulary above and a wildcarded key would
+      # walk straight past that check.
+      pattern = FilterQuery::Pattern.for(value)
+      return pattern.match?(tags[key.to_s]) if pattern
 
       Tags.match?(tags, key, value)
     end

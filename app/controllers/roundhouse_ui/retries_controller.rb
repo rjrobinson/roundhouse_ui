@@ -5,10 +5,8 @@ module RoundhouseUi
     guard_in_read_only :preview
 
     def index
-      @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.retry_set.size
-      @tag = tag_filter
       @jobs, @has_next = browse(backend.retry_set, @query, @page, PER_PAGE, tag: @tag)
     end
 
@@ -28,7 +26,7 @@ module RoundhouseUi
     # Smart bulk: retry/delete EVERY job matching the current filter, capped for
     # safety. Offered only when a filter is active.
     def bulk_all
-      found = bulk_apply(backend.retry_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
+      found = bulk_apply(backend.retry_set, @query, params[:op], BULK_CAP, tag: @tag)
 
       # An unfiltered bulk_all selected every entry and reported it as a match.
       # The comment above claimed this was "only offered when a filter is active" —
@@ -36,9 +34,7 @@ module RoundhouseUi
       # refuses at the chokepoint, and this says so out loud rather than reporting
       # "Deleted 0 matching job(s)", which would read like an empty set.
       if found.unfiltered
-        return redirect_to retries_path,
-          alert: "Refused: a bulk action needs a filter. Without one it would act on " \
-                 "every job in the set, which is not what this control is for."
+        return redirect_to retries_path, alert: found.reason
       end
 
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
@@ -50,12 +46,17 @@ module RoundhouseUi
     # A dry run: the count tells you how many match, this tells you which (#37).
     def preview
       @op = params[:op] == "delete" ? "delete" : "retry"
-      @query = params[:q].to_s.strip
-      @tag = tag_filter
       @matched = bulk_matches(backend.retry_set, @query, JobSetBrowsing::BULK_CAP, tag: @tag)
       @confirm_path = bulk_all_retries_path
       @back_path = retries_path
-      @set = "retries"
+      # "retry", not "retries". bulk_preview renders job_path(set: @set) per row, and
+      # routes constrain set to /dead|retry|scheduled/ — so this 500'd the dry run
+      # before every bulk delete on this page, but ONLY when at least one job
+      # matched, because the template touches job_path inside the row loop. An empty
+      # preview rendered fine, which is why nothing noticed. Copied from
+      # dead_controller with the noun substituted; see also the concern this pair
+      # should share.
+      @set = "retry"
       @noun = "retry"
       render "roundhouse_ui/shared/bulk_preview"
     end

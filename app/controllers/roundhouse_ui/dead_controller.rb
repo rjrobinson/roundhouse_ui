@@ -5,10 +5,8 @@ module RoundhouseUi
     guard_in_read_only :preview
 
     def index
-      @query = params[:q].to_s.strip
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.dead_set.size
-      @tag = tag_filter
       @jobs, @has_next = browse(backend.dead_set, @query, @page, PER_PAGE, tag: @tag)
     end
 
@@ -41,7 +39,7 @@ module RoundhouseUi
     # selected/visible ones), capped for safety. Only offered when a filter is
     # active, so it can't become "retry the entire dead set" by accident.
     def bulk_all
-      found = bulk_apply(backend.dead_set, params[:q].to_s.strip, params[:op], BULK_CAP, tag: tag_filter)
+      found = bulk_apply(backend.dead_set, @query, params[:op], BULK_CAP, tag: @tag)
 
       # An unfiltered bulk_all selected every entry and reported it as a match.
       # The comment above claimed this was "only offered when a filter is active" —
@@ -49,9 +47,7 @@ module RoundhouseUi
       # refuses at the chokepoint, and this says so out loud rather than reporting
       # "Deleted 0 matching job(s)", which would read like an empty set.
       if found.unfiltered
-        return redirect_to dead_set_path,
-          alert: "Refused: a bulk action needs a filter. Without one it would act on " \
-                 "every job in the set, which is not what this control is for."
+        return redirect_to dead_set_path, alert: found.reason
       end
 
       verb = params[:op] == "delete" ? "Deleted" : "Re-enqueued"
@@ -63,8 +59,6 @@ module RoundhouseUi
     # A dry run: the count tells you how many match, this tells you which (#37).
     def preview
       @op = params[:op] == "delete" ? "delete" : "retry"
-      @query = params[:q].to_s.strip
-      @tag = tag_filter
       @matched = bulk_matches(backend.dead_set, @query, JobSetBrowsing::BULK_CAP, tag: @tag)
       @confirm_path = bulk_all_dead_path
       @back_path = dead_set_path

@@ -1,17 +1,10 @@
 <% content_for :title, "Dead set" %>
 
-<form method="get" action="<%= dead_set_path %>" class="rh-search">
-  <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, error, or arg value…">
-  <%# Every active filter except q, which the box itself carries. Enumerated by
-      hand this dropped whatever was added last — and a form that quietly loses a
-      filter is how a search stopped narrowing what it said it narrowed. %>
-  <% active_filters.except(:q).each do |key, value| %>
-    <input type="hidden" name="<%= key %>" value="<%= value %>">
-  <% end %>
-</form>
+<%= render "roundhouse_ui/shared/search_bar", action: dead_set_path,
+      noun: "class, jid, error or arguments" %>
 
+<%= render "roundhouse_ui/shared/filter_error" %>
 <%= render "roundhouse_ui/shared/tag_filter" %>
-<%= render "roundhouse_ui/shared/active_filters" %>
 
 <%= set_heading("Dead set", showing: @jobs.size, total: @total, query: @query, tag: @tag) %>
 
@@ -52,7 +45,7 @@
     <thead><tr><th style="width:28px"><input type="checkbox" id="rh-all" aria-label="select all"></th><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th class="r">Died</th><th class="r">Actions</th></tr></thead>
     <tbody>
       <% if @jobs.empty? %>
-        <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= any_filter?(@query, @tag) ? "No dead jobs #{filter_description(@query, @tag)}." : "Dead set is empty 🎉" %></td></tr>
+        <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= empty_state(@query, @tag, noun: "dead jobs", all_clear: "Dead set is empty 🎉") %></td></tr>
       <% else %>
         <% @jobs.each do |job| %>
           <tr>

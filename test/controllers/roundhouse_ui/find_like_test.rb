@@ -53,7 +53,9 @@ module RoundhouseUi
       with_dead do
         get "/roundhouse/dead"
 
-        assert_match "class=BillingWorker&amp;error=Timeout%3A%3AError", markup,
+        # One parameter now: q= carries the whole filter, so `=` rides inside a
+        # value and arrives percent-encoded.
+        assert_match "q=class%3DBillingWorker+error%3DTimeout%3A%3AError", markup,
           "the glass must carry both halves of the fingerprint"
         assert_match "Find more BillingWorker failing with Timeout::Error", markup
       end
@@ -120,8 +122,8 @@ module RoundhouseUi
       stub_method(Sidekiq::ScheduledSet, :new, Set.new([ Entry.new(klass: "W", jid: "s1") ])) do
         get "/roundhouse/scheduled"
 
-        assert_match "class=W", markup
-        refute_match "error=", markup
+        assert_match "q=class%3DW", markup
+        refute_match "error%3D", markup
         assert_match "Find more W", markup
       end
     end
@@ -133,10 +135,10 @@ module RoundhouseUi
       with_dead do
         get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
 
-        assert_match "rh-filter-chip", markup, "no chip shows the active filter"
+        assert_match %q(class="rh-pillf"), markup, "no chip shows the active filter"
         assert_match "BillingWorker", markup
-        assert_match "Clear the class filter", markup
-        assert_match "Clear the error filter", markup
+        assert_match "Remove the class filter", markup
+        assert_match "Remove the error filter", markup
       end
     end
 
@@ -144,11 +146,11 @@ module RoundhouseUi
       with_dead do
         get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
 
-        clear = markup[/href="([^"]*)"[^>]*class="x"[^>]*title="Clear the error filter"/, 1] ||
-                markup[/<a[^>]*title="Clear the error filter"[^>]*href="([^"]*)"/, 1]
+        clear = markup[/href="([^"]*)"[^>]*class="x"[^>]*title="Remove the error filter"/, 1] ||
+                markup[/<a[^>]*title="Remove the error filter"[^>]*href="([^"]*)"/, 1]
         refute_nil clear, "no clear link for the error half"
-        assert_includes clear, "class=BillingWorker", "clearing the error dropped the class too"
-        refute_includes clear, "error=", "clearing the error left it in the URL"
+        assert_includes clear, "class%3DBillingWorker", "clearing the error dropped the class too"
+        refute_includes clear, "error%3D", "clearing the error left it in the URL"
       end
     end
 
@@ -159,11 +161,11 @@ module RoundhouseUi
       with_dead do
         get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
 
-        clear = markup[/<a[^>]*title="Clear the class filter"[^>]*href="([^"]*)"/, 1] ||
-                markup[/href="([^"]*)"[^>]*title="Clear the class filter"/, 1]
+        clear = markup[/<a[^>]*title="Remove the class filter"[^>]*href="([^"]*)"/, 1] ||
+                markup[/href="([^"]*)"[^>]*title="Remove the class filter"/, 1]
         refute_nil clear
-        refute_includes clear, "class=", "the class filter survived its own clear link"
-        assert_includes clear, "error=Timeout", "clearing the class took the error with it"
+        refute_includes clear, "class%3D", "the class filter survived its own clear link"
+        assert_includes clear, "error%3DTimeout", "clearing the class took the error with it"
       end
     end
 
@@ -175,37 +177,64 @@ module RoundhouseUi
           "an error-only filter must select every class with that error"
         assert_match "failing with Timeout::Error", filter_labels,
           "an active filter that the page does not name is an invisible filter"
-        assert_match "rh-filter-chip", markup, "no chip, so no way to clear it"
+        assert_match %q(class="rh-pillf"), markup, "no chip, so no way to clear it"
       end
     end
 
     def test_searching_does_not_drop_the_glass_filter
-      # The form carries tag and queue as hidden inputs; without class and error it
-      # silently discarded the filter the moment you typed anything.
+      # The form used to carry tag and queue as hidden inputs and not class or error,
+      # so typing anything silently discarded the glass's filter.
+      #
+      # Asserted as the property rather than the shape: the bar now shows facets as
+      # pills and leaves the visible input holding only the free text, so what
+      # matters is that SUBMITTING it — every field it carries, fed back through the
+      # one parse point — reconstructs the identical filter. A dropped pill, a
+      # missing qf, or a mislabelled field all fail this.
       with_dead do
         get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error" }
+        expected = RoundhouseUi::FilterQuery.from_params({ class: "BillingWorker", error: "Timeout::Error" })
 
-        form = markup[/<form[^>]*class="rh-search".*?<\/form>/m].to_s
+        form = markup[/<form.*?class="rh-search".*?<\/form>/m].to_s
         refute_empty form
-        assert_match(/name="class" value="BillingWorker"/, form,
-          "a search would drop the class filter")
-        assert_match(/name="error" value="Timeout::Error"/, form,
-          "a search would drop the error filter")
+        fields = form.scan(/<input[^>]*name="(q|qf)"[^>]*value="([^"]*)"/)
+                     .to_h { |name, value| [ name.to_sym, CGI.unescapeHTML(value) ] }
+
+        assert_equal expected, RoundhouseUi::FilterQuery.from_params(fields),
+          "submitting the bar unchanged produced #{RoundhouseUi::FilterQuery.from_params(fields).to_s.inspect} " \
+          "instead of #{expected.to_s.inspect} — a search would drop part of the filter"
+        # And the facets must be VISIBLE while they are in force, or the bar is back
+        # to holding a filter you cannot see.
+        assert_equal 2, markup.scan(/class="rh-pillf"/).size, "both facets need a pill"
+      end
+    end
+
+    def test_typing_into_a_filtered_bar_narrows_rather_than_replaces
+      # The visible input holds only the text, so a facet must survive typing in it.
+      with_dead do
+        get "/roundhouse/dead", params: { q: "class=BillingWorker", qf: "", page: nil }
+        form = markup[/<form.*?class="rh-search".*?<\/form>/m].to_s
+        qf = form[/name="qf" value="([^"]*)"/, 1]
+        assert_equal "class=BillingWorker", CGI.unescapeHTML(qf.to_s)
+
+        # Simulate the submit: the facet companion plus what was typed.
+        combined = RoundhouseUi::FilterQuery.from_params({ qf: qf, q: "stripe" })
+        assert_equal "class=BillingWorker stripe", combined.to_s
+        refute combined.invalid?
       end
     end
 
     def test_no_chip_when_nothing_is_filtered
       with_dead do
         get "/roundhouse/dead"
-        refute_match "rh-filter-chip", markup
+        refute_match %q(class="rh-pillf"), markup
       end
     end
     def test_a_clear_all_removes_every_filter_at_once
       with_dead do
         get "/roundhouse/dead", params: { class: "BillingWorker", error: "Timeout::Error", q: "90210" }
 
-        href = markup[/<a[^>]*class="clear-all"[^>]*href="([^"]*)"/, 1] ||
-               markup[/href="([^"]*)"[^>]*class="clear-all"/, 1]
+        href = markup[/<a[^>]*class="rh-bar-clear"[^>]*href="([^"]*)"/, 1] ||
+               markup[/href="([^"]*)"[^>]*class="rh-bar-clear"/, 1]
         refute_nil href, "no clear-all; two filters need a way out in one click"
         refute_includes href, "class=", "clear all left the class filter behind"
         refute_includes href, "error=", "clear all left the error filter behind"

@@ -1,0 +1,55 @@
+<%# One control, and the only place the filter is stated.
+
+    It replaced four: this box (free text only), the squad chip row, a "Filtered to
+    … ×" strip, and the heading saying it a third time in prose. Four renderings of
+    one value, in four vocabularies, with two different "clear"s three rows apart.
+
+    Every active facet is a pill, server-rendered from what is ACTUALLY applied —
+    so a pill cannot show a filter that is not in force. That direction matters:
+    this bar sits above "delete all matching", and a pill that appeared before its
+    filter did would be the invisible-filter bug inverted. Each × links to the
+    without-that-one URL, so removing one facet never removes another.
+
+    The visible input holds only the free text; the facets ride in the hidden `qf`
+    beside it and are rejoined at the single parse point. One field per role, no
+    field that can carry "some of the filters". %>
+<% filter = @filter || RoundhouseUi::FilterQuery.none %>
+<% keys = local_assigns.fetch(:keys, RoundhouseUi::FilterQuery::KEYS) %>
+<%# The placeholder is BUILT from `keys` (see filter_placeholder), so a hand-written
+    one is not honoured. Raising beats ignoring it: five stale hand-written hints is
+    what this replaced, and a sixth that silently did nothing would be worse. %>
+<% raise ArgumentError, "search_bar builds its own placeholder from keys; pass noun: instead" if local_assigns.key?(:placeholder) %>
+<form method="get" action="<%= action %>" class="rh-search" role="search">
+  <%# Bar and help are one input group: flush, one shared border, one focus ring. %>
+  <div class="rh-group">
+  <div class="rh-bar">
+    <%= icon(:search) %>
+    <% filter.chips.each do |key, value| %>
+      <span class="rh-pillf">
+        <span class="k"><%= key %></span>
+        <span class="v" title="<%= value %>"><%= value %></span>
+        <%= link_to "×", filter_url(key => nil, page: nil),
+              class: "x", title: "Remove the #{key} filter",
+              aria: { label: "Remove the #{key} filter" } %>
+      </span>
+    <% end %>
+    <input type="search" name="q" value="<%= filter.invalid? ? filter.raw : filter.text %>"
+           placeholder="<%= filter.any_facets? ? "narrow further…" : filter_placeholder(keys, noun: local_assigns.fetch(:noun, "text")) %>"
+           autocomplete="off" spellcheck="false"
+           data-rh-filter-keys="<%= keys.join(",") %>"
+           data-rh-filter-values="<%= filter_vocabulary.to_json %>"
+           aria-label="Filter and search">
+    <%# The facets the pills stand for. Serialized once, from the parsed filter —
+        never enumerated per key, which is how the confirm form came to carry four
+        of five and destroy more than its dry run displayed. %>
+    <% if filter.any_facets? %>
+      <input type="hidden" name="qf" value="<%= filter.facet_parts.join(" ") %>">
+    <% end %>
+    <% if filter.any? %>
+      <%= link_to "clear", filter_url(q: nil, page: nil), class: "rh-bar-clear",
+            title: "Clear every filter" %>
+    <% end %>
+  </div>
+  <%= render "roundhouse_ui/shared/search_help", keys: keys %>
+  </div>
+</form>
