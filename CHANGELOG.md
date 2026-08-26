@@ -96,6 +96,27 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **Search no longer confirms values the UI redacts.** `redact_args` masked
+  `api_token` everywhere it was displayed, but the search box matched the **raw**
+  argument — so `q=sk_live_S` found the row and `q=sk_live_X` did not, and a secret
+  could be read out one character at a time. A sixteen-character token falls in a
+  couple of hundred queries, to someone who can see the console and not the secrets,
+  which is the whole population `redact_args` exists for. The same needle scoped a
+  dry run, so the oracle worked through the confirm screen too.
+
+  Arguments are now searched exactly as they are displayed — redacted. With nothing
+  configured for redaction, behaviour is unchanged.
+
+- **A query is bounded, and an over-long one is refused rather than truncated.** A
+  megabyte of `q` against twenty thousand entries took five seconds; the substring
+  scan is linear in both, so the needle was a free multiplier on the server's CPU.
+  Queries over 500 characters now select nothing and cannot authorise a bulk action.
+  Refused, not truncated: a shorter needle matches *more*, and this predicate drives
+  Delete.
+
+  Argument matching also moved behind the cheap fields, so an entry only pays to
+  stringify its arguments when nothing else has already matched.
+
 - **A dry run of two jobs could confirm the deletion of five.** The bulk-preview
   confirm form carried `op`, `q`, `tag` and `queue` — and not `class` or `error`. So
   previewing `?op=delete&q=stripe&class=BillingWorker` listed 2 jobs, and the POST it

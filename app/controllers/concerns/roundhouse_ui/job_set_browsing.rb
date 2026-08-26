@@ -5,6 +5,12 @@ module RoundhouseUi
     extend ActiveSupport::Concern
 
     PER_PAGE = 25
+    # The longest needle worth honouring. A megabyte of `q` against twenty thousand
+    # entries took five seconds in one request — the substring scan is linear in
+    # both, so the needle is a free multiplier on someone else's CPU. Longer than
+    # any error message anyone searches for, and checked before any comparison
+    # runs (the same ordering as MAX_JOB_CLASS_NAME in lib/roundhouse_ui.rb).
+    MAX_QUERY_LENGTH = 500
     BULK_CAP = 1_000 # safety ceiling on a single match-set action
     Matched = Struct.new(:entries, :capped, :unfiltered, keyword_init: true)
 
@@ -44,10 +50,16 @@ module RoundhouseUi
     end
 
     def load_filters
+      @query_refused = params[:q].to_s.length > MAX_QUERY_LENGTH
       @queue_filter = queue_filter
       @class_filter = class_filter
       @error_filter = error_filter
     end
+
+    # A refused query selects nothing, rather than being truncated to something
+    # shorter that would select MORE. Truncation is the tempting fix and the wrong
+    # one: it silently widens, and this predicate drives Delete.
+    def query_refused? = @query_refused.present?
 
     # Returns [entries_for_page, has_next?]. Scans only far enough to fill the
     # requested page plus one (to know if a next page exists) — never loads the
@@ -96,6 +108,8 @@ module RoundhouseUi
     # scope". tags_helper's any_filter? delegates here rather than recomputing it —
     # the view and the route disagreeing is exactly how the hole below happened.
     def bulk_filter_present?(query, tag)
+      return false if query_refused?
+
       query.present? || !tag.nil? || @queue_filter.present? ||
         @class_filter.present? || @error_filter.present?
     end
@@ -141,6 +155,7 @@ module RoundhouseUi
     # rows an operator sees are exactly the rows a bulk action will touch —
     # including when a tag value is what matched the free-text search.
     def entry_selected?(entry, query, tag, cache)
+      return false if query_refused?
       return false if @queue_filter.present? && entry.queue.to_s != @queue_filter
       return false if @class_filter.present? && RoundhouseUi.unwrapped_class(entry.klass, entry.item).to_s != @class_filter
       return false if @error_filter.present? && entry.item["error_class"].to_s != @error_filter
@@ -217,9 +232,23 @@ module RoundhouseUi
       # that used to select thousands would quietly select none. Appending only
       # ever widens, and the real class name starts working.
       item = entry.item
-      [ entry.klass, RoundhouseUi.unwrapped_class(entry.klass, item), entry.jid,
-        item["error_class"], item["error_message"], entry.args.to_s, *tags.values ]
-        .any? { |hay| hay.to_s.downcase.include?(needle) }
+      cheap = [ entry.klass, RoundhouseUi.unwrapped_class(entry.klass, item), entry.jid,
+                item["error_class"], item["error_message"], *tags.values ]
+      return true if cheap.any? { |hay| hay.to_s.downcase.include?(needle) }
+
+      # Arguments are searched REDACTED — exactly as they are displayed.
+      #
+      # Searching the raw values turned this box into an oracle. The UI masks
+      # api_token, but `q=sk_live_S` matched and `q=sk_live_X` did not, so a secret
+      # could be read out one character at a time by someone who can see the console
+      # and not the secrets — which is the whole population redact_args exists for.
+      # A sixteen-character token falls in a couple of hundred queries, and the same
+      # needle scopes a bulk delete, so the oracle worked through the dry run too.
+      #
+      # Also computed last, and only if the cheap fields missed. It used to be built
+      # eagerly into the array above, so every entry paid for stringifying its
+      # arguments whether or not anything else had already matched.
+      Redaction.apply(entry.args).to_s.downcase.include?(needle)
     end
   end
 end
