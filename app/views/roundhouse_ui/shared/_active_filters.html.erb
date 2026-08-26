@@ -1,0 +1,32 @@
+<%# The structured filters, shown where you can see them and remove them.
+    The glass sets ?class= and ?error=, which match exactly. They are deliberately
+    NOT written into the search box: ?q= is a substring match, and this sits
+    directly above "delete all matching", so a class name in the search box would
+    quietly widen that button to jobs whose ARGUMENTS merely mention the class.
+    A chip shows the same thing and can be dismissed, without changing what the
+    filter selects. %>
+<% if @class_filter.present? %>
+  <div class="rh-active-filters">
+    <span class="rh-sub">Filtered to</span>
+    <span class="rh-filter-chip">
+      <span class="k">class</span>
+      <span class="v" title="<%= @class_filter %>"><%= @class_filter %></span>
+      <%= link_to "×",
+            url_for(only_path: true, class: nil, error: nil, page: nil,
+                    q: @query.presence, tag: params[:tag].presence, queue: params[:queue].presence),
+            class: "x", title: "Clear the class filter",
+            aria: { label: "Clear the class filter" } %>
+    </span>
+    <% if @error_filter.present? %>
+      <span class="rh-filter-chip">
+        <span class="k">error</span>
+        <span class="v" title="<%= @error_filter %>"><%= @error_filter %></span>
+        <%= link_to "×",
+              url_for(only_path: true, error: nil, page: nil, class: @class_filter,
+                      q: @query.presence, tag: params[:tag].presence, queue: params[:queue].presence),
+              class: "x", title: "Clear the error filter",
+              aria: { label: "Clear the error filter" } %>
+      </span>
+    <% end %>
+  </div>
+<% end %>
