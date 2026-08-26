@@ -97,5 +97,55 @@ module RoundhouseUi
         assert_operator actions[1].size, :>=, 3, "expected the Actions cell, with several controls"
       end
     end
+    # Five controls in one right-aligned cell wrapped: Delete dropped to a second
+    # line as soon as the glass and Edit both appeared. text-align:right does not
+    # stop a cell breaking between inline-blocks, so the cell has to say so.
+    def test_the_actions_cell_is_marked_and_told_not_to_wrap
+      with_all_sets do
+        %w[/roundhouse/retries /roundhouse/dead /roundhouse/scheduled].each do |path|
+          get path
+          busiest = cells_with_controls.max_by { |_body, controls| controls.size }
+          refute_nil busiest, "#{path}: no cell with controls"
+          assert_operator busiest[1].size, :>=, 3, "#{path}: expected the Actions cell"
+
+          cell_tag = markup[/<td\b[^>]*>#{Regexp.escape(busiest[0][0, 60])}/m]
+          assert_match(/rh-cell-actions/, cell_tag.to_s,
+            "#{path}: the Actions cell is not marked rh-cell-actions, so nothing " \
+            "stops it wrapping between controls")
+        end
+      end
+    end
+
+    def test_the_actions_class_actually_prevents_wrapping
+      css = File.read(RoundhouseUi::Engine.root.join("app/views/layouts/roundhouse_ui/application.html.erb"))
+      rule = css[/\.rh-table td\.rh-cell-actions \{([^}]*)\}/, 1]
+      assert rule, "rh-cell-actions has no rule; marking the cell achieves nothing"
+      assert_match(/white-space:\s*nowrap/, rule)
+    end
+
+    # The dashboard drew a full vendor lockup on every row — five stacked
+    # wordmarks. One legend, and a compact icon per row, as on the Errors page.
+    def test_the_dashboard_panel_carries_one_legend_not_a_lockup_per_row
+      RoundhouseUi.observability = Observability::DatadogAdapter.new(site: "datadoghq.com", service: "sidekiq")
+      with_all_sets do
+        get "/roundhouse"
+
+        rows = markup.scan(/<div class="rh-insight-row">(.*?)<\/div>\s*<\/div>/m).flatten
+        refute_empty rows, "no insight rows rendered, so this asserts nothing"
+
+        # The mark class, counted inside the rows only. Precise beats fuzzy: an
+        # earlier version of this counted <svg xmlns> across a regex-guessed slice
+        # of the panel and passed against the very regression it names.
+        marked = rows.count { |row| row.include?("rh-mark-dd") }
+        assert_equal 0, marked,
+          "#{marked} of #{rows.size} rows draw a vendor lockup. One legend above the " \
+          "list, a compact icon in the row — five stacked wordmarks read as five logos."
+
+        legend = markup[/rh-trace-legend.*?<\/div>/m].to_s
+        assert_includes legend, "rh-mark-dd", "the legend that replaces them is missing"
+      end
+    ensure
+      RoundhouseUi.observability = nil
+    end
   end
 end

@@ -42,7 +42,7 @@
           <%# `since` is the last failure, so the ring shows how far through the
               backoff this job is, not only when it next fires. %>
           <td><span class="rh-next"><%= countdown(job.at, since: job.item["failed_at"] && Time.at(job.item["failed_at"])) %></span></td>
-          <td class="r">
+          <td class="r rh-cell-actions">
             <%= find_like_link("retry", job) %>
               <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
             <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "retry", jid: job.jid), class: "rh-btn" %><% end %>

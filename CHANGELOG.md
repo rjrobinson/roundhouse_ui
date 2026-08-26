@@ -96,6 +96,17 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **The Actions column stopped wrapping.** Five controls in one right-aligned cell
+  and `text-align:right` does not stop a cell breaking between inline-blocks, so
+  Delete dropped onto a second line as soon as the "find more like this" glass and
+  Edit both appeared. The cell is marked and told not to wrap; auto table layout
+  gives the width back to the error-message column, which has it to spare.
+- **The dashboard's top-failing panel drew a vendor lockup on every row** — five
+  stacked wordmarks. One legend above the list and a compact icon in the row, the
+  same treatment the Errors page already uses. Its dividers also moved from
+  `--line-soft`, which is for separating cells inside a table and disappears
+  between list entries, so five rows read as one block of text.
+
 - **Every bulk action on the Dead set was impossible.** Retry and Delete on the
   selected rows failed with `ActionController::InvalidAuthenticityToken` while
   submitting a token that looked entirely valid.

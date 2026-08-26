@@ -82,6 +82,14 @@
     table.rh-table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line-soft); border-radius:12px; overflow:hidden; }
     .rh-table th { text-align:left; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:8px 14px; border-bottom:1px solid var(--line-soft); }
     .rh-table th.r, .rh-table td.r { text-align:right; }
+
+    /* The Actions cell holds up to five controls, and text-align:right alone lets
+       it break between them — Delete dropped onto a second line the moment the
+       "find more like this" glass and Edit both appeared. The column takes the
+       width it needs instead; auto table layout gives it back to the error
+       message column, which has it to spare. */
+    .rh-table td.rh-cell-actions { white-space:nowrap; }
+    .rh-table td.rh-cell-actions > * { vertical-align:middle; }
     .rh-table td { padding:8px 14px; border-bottom:1px solid var(--line-soft); }
     .rh-table tr:last-child td { border-bottom:none; }
     .rh-mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
@@ -457,10 +465,18 @@
     @media(min-width:760px){ .rh-insights { grid-template-columns:1fr 1fr; } }
     .rh-insight { padding:6px 0; }
     .rh-insight-h { display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; padding:13px 16px 10px; }
-    .rh-insight-row { display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--line-soft); }
+    /* One divider you can actually see, and room to breathe. --line-soft is for
+       separating a cell from its neighbour inside a table; between two entries in
+       a list it disappears and the rows read as one block of text. */
+    .rh-insight-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line); }
+    .rh-insight-row:first-of-type { border-top:1px solid var(--line-soft); }
+    /* The error is subordinate to the class, not a second heading. */
+    .rh-insight-row .rh-err { display:block; margin-top:3px; }
     .rh-insight-row .rh-insight-main { flex:1; min-width:0; font-size:13px; }
     .rh-insight-row .rh-pill { font-variant-numeric:tabular-nums; }
     .rh-insight .rh-empty { padding:18px 16px; }
+    .rh-insight-legend .rh-trace-legend { margin:0 16px 8px; }
+    .rh-insight-legend:empty { display:none; }
 
     /* collapsible disclosure (large args, full backtrace) */
     .rh-disclose summary { cursor:pointer; font:12.5px var(--sans); color:var(--accent); padding:6px 0; list-style:none; }

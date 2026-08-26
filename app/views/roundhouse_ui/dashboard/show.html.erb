@@ -63,12 +63,15 @@
 <div class="rh-insights">
   <div class="rh-panel rh-insight">
     <div class="rh-insight-h">Top failing job classes <%= link_to "all errors →", errors_path, class: "rh-sub" %></div>
+    <%# One legend, not one vendor lockup per row. Five stacked wordmarks read as
+        five logos; the same legend-plus-icon treatment the Errors page uses. %>
+    <div class="rh-insight-legend"><%= trace_legend(@top_errors) %></div>
     <% if @top_errors.empty? %>
       <div class="rh-empty">No failing jobs 🎉</div>
     <% else %>
       <% @top_errors.each do |g| %>
         <div class="rh-insight-row">
-          <div class="rh-insight-main"><%= link_to g[:klass], errors_path(q: g[:klass]), class: "rh-joblink" %> <%= tag_badges(tags_for_class(g[:klass])) %> <%= error_trace_link(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></div>
+          <div class="rh-insight-main"><%= link_to g[:klass], errors_path(q: g[:klass]), class: "rh-joblink" %> <%= tag_badges(tags_for_class(g[:klass])) %> <%= error_trace_icon(klass: g[:klass], error: g[:error]) %><br><span class="rh-err"><%= g[:error] %></span></div>
           <span class="rh-pill"><%= number_with_delimiter g[:count] %></span>
         </div>
       <% end %>

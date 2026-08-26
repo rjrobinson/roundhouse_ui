@@ -60,7 +60,7 @@
               <% if job.item["error_message"].present? %><br><span class="rh-sub" title="<%= job.item["error_message"] %>"><%= truncate(job.item["error_message"], length: 90) %></span><% end %>
             </td>
             <td class="r"><%= job_time(job.at, overdue: "#{time_ago_in_words(job.at)} ago") %></td>
-            <td class="r">
+            <td class="r rh-cell-actions">
               <%= find_like_link("dead", job) %>
               <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
               <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "dead", jid: job.jid), class: "rh-btn" %><% end %>
