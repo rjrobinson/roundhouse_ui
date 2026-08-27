@@ -9,7 +9,51 @@ permissions:
   id-token: write   # required for RubyGems trusted publishing (OIDC)
 
 jobs:
+  # A published gem version cannot be replaced, only yanked. So the suite runs here
+  # too rather than trusting that it ran on the merge commit — a release can be cut
+  # from any ref, including one CI never saw.
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        ports: [ "6379:6379" ]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - run: bundle exec rubocop
+
+      - name: Run tests against a real Redis
+        env:
+          RAILS_ENV: test
+          ROUNDHOUSE_TEST_REDIS_URL: redis://localhost:6379/15
+          ROUNDHOUSE_REQUIRE_REAL_REDIS: "1"
+        run: bin/rails test
+
+      - name: Refuse to publish a version the changelog does not mention
+        run: |
+          version=$(ruby -e 'require "./lib/roundhouse_ui/version"; print RoundhouseUi::VERSION')
+          echo "gem version: $version"
+          grep -q "\[$version\]" CHANGELOG.md || {
+            echo "CHANGELOG.md has no [$version] section"; exit 1;
+          }
+          case "${GITHUB_REF_NAME}" in
+            "v$version"|"$version") ;;
+            *) echo "tag ${GITHUB_REF_NAME} does not match gem version $version"; exit 1 ;;
+          esac
+
   push:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
