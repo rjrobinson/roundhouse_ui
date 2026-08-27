@@ -356,7 +356,11 @@ module RoundhouseUi
           # drops to `queue=default`, which selects the whole queue, and the Delete
           # beneath it would then be scoped wider than what was typed. Dropping a
           # facet can only ever widen, so a degraded query authorises nothing.
-          if key == "tag" && !value.include?(":")
+          # Both halves must be non-empty. `tag=squad:` has a colon, so a
+          # colon-only check let it through: the pill rendered, tag_pair came back nil,
+          # and entry_selected?'s `return true if tag.nil?` selected everything — with
+          # bulk authorised, because any_facets? was true.
+          if key == "tag" && value.split(":", 2).reject(&:empty?).size != 2
             @ignored << [ "#{key}=#{value}", "tag= takes key:value, like tag=squad:core" ]
             next
           end

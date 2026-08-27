@@ -62,7 +62,7 @@ RoundhouseUi.job_tags = ->(klass:, item:) { { squad: :growth } }  # Hash or nil
   `item: nil` so an args-reading resolver in the wrong mode fails
   deterministically (rescued → no tags) instead of poisoning the cache with
   first-job-wins values. `RoundhouseUi.job_tags_per_job = true` opts into
-  per-job resolution (full `item`, no caching, host pays the per-entry cost).
+  per-job resolution (full `item`, memoized per jid rather than per class, host pays the per-entry cost).
 - **Normalization + redaction:** resolver output is normalized to string
   keys/values and passed through `Redaction.apply`, so existing `redact_args`
   patterns mask tag values by key with no new code. (Key-based only — a tag
@@ -70,8 +70,9 @@ RoundhouseUi.job_tags = ->(klass:, item:) { { squad: :growth } }  # Hash or nil
   remains #20's separate issue.)
 - **Failure contract:** everything rescued; failures log a warning and resolve
   to no tags.
-- **Filterable vocabulary — convention plus override.** Filtering (`?tag=`,
-  applied *identically* in `browse` and `bulk_apply` — no see-N-act-on-M split)
+- **Filterable vocabulary — convention plus override.** Filtering (the `tag=` facet
+  inside the single `?q=` string, applied *identically* in `browse` and `bulk_apply`
+  — no see-N-act-on-M split; bare `?tag=` still works as a legacy shape)
   needs a known set of keys/values for the filter UI. Convention: discover the
   vocabulary from tags resolved during the scan the page already performs
   (zero config, shows what exists). Override: `RoundhouseUi.tag_filters =
@@ -88,10 +89,13 @@ job detail; (3) tag annotation on error groups — resolved per *group* at rende
 fingerprint change and no per-entry cost; (4) structured `?tag=` filter.
 
 ## Risks / Consequences
-- **Free-text search stays tag-blind** (deliberate): substring search entering
-  `bulk_apply`'s match set would silently widen destructive bulk actions; the
-  structured param is the only tag filter, and it is consistent across view
-  and bulk.
+- **Free-text search is now tag-aware — this decision was reversed.** Originally
+  free text stayed tag-blind, because a substring entering `bulk_apply`'s match set
+  would silently widen destructive bulk actions. Tag values are now part of the
+  substring haystack, so typing a squad name finds its jobs. That is safe only
+  because `browse` and `bulk_apply` run the identical predicate: the hazard was
+  always the see-N-act-on-M split, not the substring itself. The structured `tag=`
+  facet remains the exact filter.
 - Per-job mode makes a 1,000-entry scan cost 1,000 host calls; the flag makes
   that a conscious choice, but a slow resolver is still a slow page.
 - Tags resolve from *current* code: a renamed/deleted job class loses its tags
@@ -100,9 +104,10 @@ fingerprint change and no per-entry cost; (4) structured `?tag=` filter.
   collector à la `DurationCollector`, out of scope here.
 - APM parity (replacing `owner_trace.rb`) is out of scope; if built later it
   should consume the same resolver, not grow a second convention.
-- Pre-existing, surfaced here: `entry_matches?` searches the *wrapper* class
-  name for ActiveJob-on-Sidekiq hosts. Same root cause as our unwrapping;
-  fixing it is separate work.
+- ~~Pre-existing: `entry_matches?` searches the *wrapper* class name for
+  ActiveJob-on-Sidekiq hosts.~~ **Resolved** (#30): it searches the wrapper name and
+  the unwrapped name — added, not substituted, so a habitual "JobWrapper" query keeps
+  working.
 
 ## Revisit when
 - Someone needs **per-job tags in group fingerprints** (group-by-tenant) — that

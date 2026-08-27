@@ -6,10 +6,9 @@ module RoundhouseUi
     # backend (Solid Queue) can supply duck-typed equivalents without touching
     # controllers or views.
     #
-    # Deliberately thin for now: each method returns the same Sidekiq object the
-    # controllers used before, so this refactor changes no behavior. The contract
-    # (what a "set" / "entry" must respond to) will be firmed up as the Solid
-    # Queue backend is built against it.
+    # Mostly thin — most methods return the Sidekiq object the controllers used before
+    # the port was extracted. The exceptions are the batched reads (queue_summaries)
+    # and the capability list, which the Solid Queue backend firmed up.
     class Sidekiq
       def name = "Sidekiq"
 

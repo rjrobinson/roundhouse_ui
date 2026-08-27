@@ -68,10 +68,8 @@ module RoundhouseUi
     # same error — the pair the Errors page already treats as one issue, so a row
     # here and a row there mean the same thing.
     #
-    # Structured filters rather than text typed into the search box, because this
-    # button's whole purpose is to reveal the "delete all matching" controls, and
-    # a substring would let those select jobs whose ARGUMENTS merely mention the
-    # class you clicked. Same reasoning as ?tag= and ?queue=.
+    # Emitted as exact class=/error= facets in ?q= — the same string you could type.
+    # No %, because this button reveals "delete all matching".
     def find_like_link(set, job)
       helper = LIKE_PATHS[set.to_s]
       klass = job_display_class(job)

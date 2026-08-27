@@ -83,7 +83,7 @@ running both at once is [#17](https://github.com/rjrobinson/roundhouse_ui/issues
 
 Roundhouse ships no authentication, so mount it behind yours. `read_only`
 disables every mutating action, `redact_args` masks sensitive arguments, and
-`job_class_namespaces` limits which classes the UI will touch —
+`job_class_namespaces` bounds which constants a job payload can make Roundhouse resolve —
 see [Security](#security).
 
 > Gem name is `roundhouse_ui`; the brand and mount path are **Roundhouse**.
@@ -146,11 +146,22 @@ initializer:
 RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
 ```
 
-The UI adapts to each backend's capabilities — on Solid Queue, queue **pause is
-native** (no fetcher, no warning), and the **Retries / Redis / Capsules / Workers**
-sections hide (Solid Queue has no distinct retry set, isn't Redis-backed, and
-processes are a follow-up). Dashboard, Queues, Scheduled, Dead, Busy, and the
-grouped Errors view all work on both. See
+The UI adapts to each backend's capabilities. On Solid Queue, queue **pause is
+native** (no fetcher, no warning), and these hide — and refuse at the route, not just
+in the view:
+
+| Hidden on Solid Queue | Why |
+|---|---|
+| Retries | no distinct retry set |
+| Redis pressure | not Redis-backed |
+| Capsules, Workers | processes are a follow-up |
+| Snapshots | reads Sidekiq's queues through Redis |
+| Audit log | needs Redis |
+| Enqueue and Edit | no `push` |
+| Scheduled → "Enqueue now" | no `add_to_queue` |
+
+Dashboard, Queues, Scheduled, Dead, Busy and the grouped Errors view all work on both,
+as do pause, resume, purge, delete, bulk-on-a-filter and Retry. See
 [docs/adr/0001](docs/adr/0001-backend-port-multi-queue.md).
 
 > Running **both** Sidekiq and Solid Queue in one app (e.g. mid-migration)? That's
@@ -240,11 +251,12 @@ here is required to mount Roundhouse.
 | `redact_args` | `[]` | **Any app whose job args carry secrets or PII** — args render in full on the job page. Matches keys case-insensitively as substrings, and walks nested hashes/arrays. | Args are all IDs and enum values. |
 | `actor_resolver` | `"anonymous"` | You want the audit log to name *who* did something. One line: `->(c) { c.current_user&.email }`. | Single-operator app, or you already audit at another layer. |
 | `allow_job_editing` | `false` | Development and debugging. **Sharp tool** — a bad edit creates an unrunnable job, and it lets the UI enqueue arbitrary classes. | Production, unless you specifically want that power and have `read_only` off anyway. |
-| `observability` | no-op | You run an APM and want per-job deep links out to it. Ships a Datadog adapter; duck-type `job_url`/`queue_url`/`error_url` for anything else. | No APM, or you'd rather not add links that only some people can open. |
+| `observability` | no-op | You run an APM and want per-job deep links out to it. Ships a Datadog adapter; duck-type `job_url` and `label` for anything else — `error_url`, `icon` and `wordmark?` are optional. | No APM, or you'd rather not add links that only some people can open. |
 | `snapshot_store` | Redis | Your snapshots are large or need to outlive Redis (S3/disk). Duck-type `write`/`read`/`delete`/`ids`. | Redis is fine — which it usually is for occasional queue snapshots. |
 | `show_sidekiq_failures` | `false` | You use the `sidekiq-failures` gem **and** run jobs with `retry: false` — those never enter Sidekiq's retry/dead sets, so this is the only way to see them. | You don't have the gem (it's a no-op then anyway). |
 | `poll_interval` | `5` | **Raise it** if dashboard polling shows up in your traces — every poll re-runs your app's auth and routing on the mount, so a busy console adds real load. Lower it only for a livelier demo. | Default is fine for most apps. |
 | `collect_durations` | `false` | You want "slowest job classes" on Metrics, which Sidekiq doesn't track. **Also requires installing the `DurationCollector` middleware** — the flag alone shows nothing. Costs one pipelined Redis round-trip per job. | You already get per-job timing from your APM. |
+| `backend` | Sidekiq | You run Solid Queue, or you want to point the UI at your own adapter. `RoundhouseUi::Backends::SolidQueue.new`, or duck-type the port. See [Backends](#backends). | You run Sidekiq — it is the default. |
 | `job_tags` | `nil` | You already know which team, tenant or product area owns a job — usually as a constant on the class — and want that visible and filterable in the UI. See [Job tags](#job-tags). | Every job belongs to the same team. |
 | `job_tags_per_job` | `false` | **Only** when `job_tags` reads the payload (tagging by tenant, account, …). Costs one resolver call per row rather than one per class. | Tags derive from the job class, which is the common case. |
 | `tag_filters` | `nil` | You want stable filter dropdowns instead of ones that only list what happens to be on screen — and want filtering on an unknown key to match nothing. | The `?tag=` URL is enough. |
@@ -603,8 +615,13 @@ literal characters matches everything.
 
 Each active facet shows as a pill in the bar with its own ×. Tab completes a key or
 value; Enter applies. The `?` beside the box lists the vocabulary for that page — Errors
-has no `queue=` (a class+error group spans every queue) and the Queues index has no
-`class=`.
+has no `queue=` (a class+error group spans every queue), and the Queues index honours
+only `queue=` and free text, because a queue is not a job.
+
+One documented exception to "refused whole": a `tag=` that is not `key:value` is
+**dropped** rather than refused, so a typo doesn't stop you browsing. The drop is named
+in a banner above the table and the bulk controls are withdrawn until you fix it —
+what survived the drop selects a superset of what you asked for.
 
 Arguments are searched **as they are displayed**, i.e. redacted. Searching the raw values
 would turn the box into an oracle for the secrets `redact_args` exists to hide.
@@ -637,7 +654,7 @@ yourself if you want the family rather than the class — see [Search](#search).
 
 The core depends on nothing — it asks the configured adapter for a URL and renders a link
 only if one comes back. A Datadog adapter ships in the box; write your own by duck-typing
-`job_url` / `queue_url` / `label`:
+`job_url` and `label` (`error_url`, `icon` and `wordmark?` are optional):
 
 ```ruby
 RoundhouseUi.observability = RoundhouseUi::Observability::DatadogAdapter.new(site: "datadoghq.com", service: "sidekiq")

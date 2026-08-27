@@ -66,6 +66,12 @@ module RoundhouseUi
     # selects a SUPERSET of what was typed and must authorise no bulk action.
     DEGRADED = {
       "tag=platform"                => { to_s: "", ignored: 1 },
+      # A colon is not enough — both halves must be there. `tag=squad:` rendered a
+      # pill, left tag_pair nil so entry_selected? selected everything, and reported
+      # any_facets? true so the bulk controls stayed live.
+      "tag=squad:"                  => { to_s: "", ignored: 1 },
+      "tag=:core"                   => { to_s: "", ignored: 1 },
+      "tag=:"                       => { to_s: "", ignored: 1 },
       "tag=garbage queue=default"   => { to_s: "queue=default", ignored: 1 },
       "tag=garbage stripe"          => { to_s: "stripe", ignored: 1 }
     }.freeze

@@ -181,6 +181,17 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **`tag=squad:` selected everything and left the bulk controls live.** The parser only
+  checked for a colon, so a tag with an empty half parsed clean: the pill rendered,
+  `tag_pair` came back nil, and `entry_selected?`'s `return true if tag.nil?` matched
+  every entry — with `any_facets?` true, so "delete all matching" stayed offered. Both
+  halves must now be non-empty; the facet is dropped and bulk withdrawn, like any other
+  unusable value.
+
+- **Errors failed open on an undeclared tag key.** `?tag=nosuchkey:x` returned nil from
+  `tag_filter`, so no filter applied and every issue listed while the bar showed a tag
+  pill. The job sets fail closed and the README promises both do; Errors now does.
+
 - **Retry never worked on Solid Queue.** `Entry#retry` was written as an endless def
   with a trailing `if`, which Ruby evaluates when the class body loads — against a
   nil class-level ivar — so the method was never defined and every Retry raised

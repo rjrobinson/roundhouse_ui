@@ -1,5 +1,5 @@
 module RoundhouseUi
-  # The dashboard reads straight from Sidekiq's API — no database, no models.
+  # The dashboard reads through the backend port — no models of ours, no storage of ours.
   # Everything here comes out of Redis via Sidekiq::Stats / Sidekiq::Queue.
   class DashboardController < ApplicationController
     def show

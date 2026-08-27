@@ -1,5 +1,5 @@
 module RoundhouseUi
-  # What's executing right now, from Sidekiq::WorkSet — the live in-flight jobs
+  # What's executing right now, via the backend port — the live in-flight jobs
   # Sidekiq Web calls "Busy". Surfaces long-running (possibly hung) jobs, which
   # the stock UI makes you eyeball.
   class BusyController < ApplicationController

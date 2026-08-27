@@ -99,7 +99,7 @@ Every pull request runs:
 | --- | --- |
 | `lint` | `bin/rubocop` is clean (rubocop-rails-omakase) |
 | `test (sidekiq ~> 6.5 / ~> 7.0 / ~> 8.0)` | the code resolves and passes on every supported Sidekiq |
-| `test (solid_queue ~> 1.0 / ~> 1.5)` | the Solid Queue backend works on each supported version |
+| `test (solid_queue ~> 1.0.0 / ~> 1.7.0)` | the Solid Queue backend works on each supported version |
 
 All of it must be green. A few things worth knowing before CI tells you the hard way:
 

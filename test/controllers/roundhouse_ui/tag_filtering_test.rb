@@ -125,6 +125,29 @@ module RoundhouseUi
       end
     end
 
+    # `tag=squad:` has a colon, so a colon-only check let it through: pill rendered,
+    # tag_pair nil, entry_selected? selected everything — and any_facets? was true, so
+    # the bulk controls stayed live over the whole set.
+    def test_a_half_empty_tag_selects_nothing_and_authorises_no_bulk
+      mixed = FakeSet.new([
+        FakeEntry.new(klass: "AlphaJob", jid: "m1", queue: "mailers"),
+        FakeEntry.new(klass: "AlphaJob", jid: "d1", queue: "default")
+      ])
+      stub_method(Sidekiq::DeadSet, :new, mixed) do
+        %w[squad: :core :].each do |bad|
+          get "/roundhouse/dead", params: { q: "tag=#{bad}" }
+          assert_response :success
+          body = @response.body.split("</style>").last.to_s
+          assert_match "Ignored", body, "tag=#{bad} was accepted as a filter"
+          refute_match "preview", body, "tag=#{bad} left the bulk controls live"
+        end
+
+        post "/roundhouse/dead/bulk_all", params: { op: "delete", q: "tag=squad: queue=mailers" }
+        assert_equal 2, Sidekiq::DeadSet.new.size,
+          "a half-empty tag scoped a destroy to the surviving queue filter"
+      end
+    end
+
     # THE reason this is a drop and not a silent ignore. `tag=garbage queue=mailers`
     # degrades to `queue=mailers`, which selects the whole queue — so a Delete offered
     # here would destroy every dead job in it while the operator believed the tag
@@ -547,6 +570,35 @@ module RoundhouseUi
           assert_response :success
           assert_match "growth", @response.body
           assert_match "core", @response.body
+        end
+      end
+    end
+
+    # Errors failed OPEN on an undeclared key: tag_filter returned nil, so no filter
+    # applied and every issue listed while the bar showed a tag pill. The job sets
+    # fail closed, and the README promises they both do.
+    def test_errors_fails_closed_on_a_tag_key_nobody_declared
+      RoundhouseUi.tag_filters = { squad: %w[growth core] }
+      stub_method(Sidekiq::RetrySet, :new, @set) do
+        stub_method(Sidekiq::DeadSet, :new, FakeSet.new([])) do
+          get "/roundhouse/errors", params: { tag: "nosuchkey:whatever" }
+          assert_response :success
+          body = @response.body.split("</style>").last.to_s
+
+          refute_match "AlphaJob", body, "an undeclared tag key listed every issue"
+          refute_match "BetaJob", body
+        end
+      end
+    end
+
+    def test_errors_still_filters_on_a_declared_key
+      RoundhouseUi.tag_filters = { squad: %w[growth core] }
+      stub_method(Sidekiq::RetrySet, :new, @set) do
+        stub_method(Sidekiq::DeadSet, :new, FakeSet.new([])) do
+          get "/roundhouse/errors", params: { tag: "squad:growth" }
+          assert_response :success
+          body = @response.body.split("</style>").last.to_s
+          assert_match "AlphaJob", body, "the declared key must still select"
         end
       end
     end
