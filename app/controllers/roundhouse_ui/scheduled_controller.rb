@@ -2,6 +2,9 @@ module RoundhouseUi
   class ScheduledController < ApplicationController
     include JobSetBrowsing
 
+    # add_to_queue is unimplemented outside Sidekiq.
+    requires_capability :enqueue_now, only: %i[enqueue]
+
     def index
       @page  = [ params[:page].to_i, 1 ].max
       @total = backend.scheduled_set.size

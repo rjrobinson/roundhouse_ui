@@ -61,7 +61,7 @@
             <td class="r rh-cell-actions">
               <%= find_like_link("dead", job) %>
               <%= trace_icon(klass: job_display_class(job), jid: job.jid, queue: job.queue) %>
-              <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: "dead", jid: job.jid), class: "rh-btn" %><% end %>
+              <% if job_editing? %><%= link_to "Edit", edit_job_path(set: "dead", jid: job.jid), class: "rh-btn" %><% end %>
               <%= button_to "Retry", retry_dead_job_path(job.jid), method: :post, class: "rh-btn", form_class: "rh-inline" %>
               <%= button_to "Delete", delete_dead_job_path(job.jid), method: :post, class: "rh-btn rh-btn-danger", form_class: "rh-inline", data: { turbo_confirm: "Delete #{job.jid}?" } %>
             </td>

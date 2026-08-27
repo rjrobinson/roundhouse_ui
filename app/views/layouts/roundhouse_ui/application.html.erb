@@ -1303,10 +1303,10 @@
         <% if defined?(Sidekiq::Capsule) && RoundhouseUi.backend.supports?(:capsules) %>{ label: "Capsules", path: "<%= capsules_path %>", ico: "capsules" },<% end %>
         <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Redis", path: "<%= redis_info_path %>", ico: "redis" },<% end %>
         <% if RoundhouseUi::Recurring.any? %>{ label: "Recurring", path: "<%= recurring_path %>", ico: "scheduled" },<% end %>
-        { label: "Snapshots", path: "<%= snapshots_path %>", ico: "snapshots" },
-        { label: "Audit log", path: "<%= audit_log_path %>", ico: "audit" },
+        <% if RoundhouseUi.backend.supports?(:snapshots) %>{ label: "Snapshots", path: "<%= snapshots_path %>", ico: "snapshots" },<% end %>
+        <% if RoundhouseUi.backend.supports?(:redis) %>{ label: "Audit log", path: "<%= audit_log_path %>", ico: "audit" },<% end %>
         { label: "Settings", path: "<%= settings_path %>", ico: "settings" },
-        <% if RoundhouseUi.allow_job_editing %>{ label: "Enqueue job", path: "<%= new_job_path %>", ico: "enqueue" },<% end %>
+        <% if job_editing? %>{ label: "Enqueue job", path: "<%= new_job_path %>", ico: "enqueue" },<% end %>
         { label: "Toggle theme", action: "theme", ico: "busy" },
         { label: "Toggle full width", action: "width", ico: "width" }
       ];
@@ -1641,7 +1641,7 @@
         <% end %>
         <%= nav_link "Errors", errors_path, icon: :errors %>
         <%= nav_link "Dead", dead_set_path, icon: :dead, badge: "dead", badge_class: "crit", badge_title: "Jobs that exhausted their retries" %>
-        <% if RoundhouseUi.allow_job_editing %>
+        <% if job_editing? %>
           <%= nav_link "Enqueue job", new_job_path, icon: :enqueue %>
         <% end %>
       </nav>
@@ -1654,9 +1654,9 @@
         <% if RoundhouseUi.backend.supports?(:redis) %>
           <%= nav_link "Redis", redis_info_path, icon: :redis %>
         <% end %>
-        <%= nav_link "Snapshots", snapshots_path, icon: :snapshots %>
+        <% if RoundhouseUi.backend.supports?(:snapshots) %><%= nav_link "Snapshots", snapshots_path, icon: :snapshots %><% end %>
         <% if RoundhouseUi::Recurring.any? %><%= nav_link "Recurring", recurring_path, icon: :scheduled %><% end %>
-        <%= nav_link "Audit log", audit_log_path, icon: :audit %>
+        <% if RoundhouseUi.backend.supports?(:redis) %><%= nav_link "Audit log", audit_log_path, icon: :audit %><% end %>
           <%= nav_link "Settings", settings_path, icon: :settings %>
       </nav>
     </aside>

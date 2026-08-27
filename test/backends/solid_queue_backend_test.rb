@@ -13,7 +13,7 @@ module RoundhouseUi
 
       def make_job(klass: "HardJob", queue: "default", args: [ 1, "x" ], scheduled_at: nil)
         job = ::SolidQueue::Job.create!(class_name: klass, queue_name: queue,
-                                        arguments: { "arguments" => args }.to_json,
+                                        arguments: { "arguments" => args },
                                         scheduled_at: scheduled_at)
         # Solid Queue auto-dispatches an execution on create; drop it so each
         # test sets up exactly the execution state it's asserting on.

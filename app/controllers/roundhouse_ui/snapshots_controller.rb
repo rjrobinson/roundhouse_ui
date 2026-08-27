@@ -1,5 +1,9 @@
 module RoundhouseUi
   class SnapshotsController < ApplicationController
+    # Snapshots read Sidekiq's queues through Redis. On a backend without either they
+    # captured zero jobs and said "Snapshot saved" — beside a Purge telling you to
+    # snapshot first.
+    requires_capability :snapshots, only: %i[index show restore destroy create]
     def index
       @snapshots = RoundhouseUi::Snapshots.all
     end

@@ -44,6 +44,6 @@
 <% end %>
 
 <div class="rh-pager">
-  <% if RoundhouseUi.allow_job_editing %><%= link_to "Edit", edit_job_path(set: @set, jid: @entry.jid), class: "rh-btn rh-btn-primary" %><% end %>
+  <% if job_editing? %><%= link_to "Edit", edit_job_path(set: @set, jid: @entry.jid), class: "rh-btn rh-btn-primary" %><% end %>
   <%= link_to "← Back", { "dead" => dead_set_path, "retry" => retries_path, "scheduled" => scheduled_path }[@set] || root_path, class: "rh-btn" %>
 </div>

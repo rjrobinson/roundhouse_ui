@@ -45,6 +45,18 @@ module RoundhouseUi
 
     before_action :require_writable!, if: :read_only_guarded_action?
 
+    # Capability gating, same shape as the read-only guard above. A control the
+    # backend cannot deliver is hidden in the view AND refused at the route —
+    # hiding the button while leaving the route open is how an ungated bulk_all
+    # emptied a set once already.
+    class_attribute :capability_gates, default: {}.freeze, instance_writer: false
+
+    def self.requires_capability(capability, only:)
+      self.capability_gates = capability_gates.merge(capability => Array(only).map(&:to_s)).freeze
+    end
+
+    before_action :require_capability!, unless: -> { self.class.capability_gates.empty? }
+
     # Record every state-changing (POST) action. Actions halted by a
     # before_action (e.g. read-only mode) never reach here, so we only log what
     # actually ran.
@@ -78,6 +90,16 @@ module RoundhouseUi
       return false if self.class.read_only_exempt_actions.include?(action_name)
 
       request.post? || self.class.read_only_extra_actions.include?(action_name)
+    end
+
+    def require_capability!
+      missing = self.class.capability_gates.find do |capability, actions|
+        actions.include?(action_name) && !backend.supports?(capability)
+      end
+      return if missing.nil?
+
+      redirect_to root_path,
+        alert: "#{missing.first.to_s.tr('_', ' ').capitalize} is not available on this backend."
     end
 
     def require_writable!

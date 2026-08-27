@@ -179,6 +179,36 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **Retry never worked on Solid Queue.** `Entry#retry` was written as an endless def
+  with a trailing `if`, which Ruby evaluates when the class body loads — against a
+  nil class-level ivar — so the method was never defined and every Retry raised
+  `NoMethodError`. Per-row Retry, bulk Retry and bulk-retry-on-a-filter were all
+  affected. `SolidQueue::FailedExecution#retry` exists, so this now works rather
+  than being gated.
+
+- **Editing a job could destroy it.** `update` deleted the entry and then pushed the
+  replacement. On a backend whose `push` raises — Solid Queue's raises
+  `NotImplementedError`, a `ScriptError` that neither `rescue ArgumentError` nor a
+  bare `rescue` catches — the job was gone with no audit record. It pushes first now.
+
+- **Solid Queue test fixtures stored `arguments` double-encoded.** `SolidQueue::Job`
+  declares `serialize :arguments, coder: JSON`, so passing `.to_json` stored a String
+  where Solid Queue stores a Hash — a shape it never writes, and one that breaks its
+  own retry path.
+
+### Changed
+- **Controls the backend cannot deliver are now gated, in the view and at the route.**
+  `requires_capability` mirrors the read-only guard: hiding a button while leaving the
+  route open is how an ungated bulk action emptied a set once already. New
+  capabilities `:enqueue`, `:enqueue_now`, `:snapshots` and `:retry_job`; Audit gates
+  on the existing `:redis`.
+
+  On Solid Queue this hides and refuses: Snapshots (which captured zero jobs while
+  reporting success, beside a Purge telling you to snapshot first), the Audit log
+  (which needs Redis), Enqueue/Edit, and Scheduled's "Enqueue now" — `add_to_queue`
+  is unimplemented. Job editing reads one `job_editing?` predicate instead of six
+  bare config checks, so the capability cannot be added to five of them.
+
 - **Search no longer confirms values the UI redacts.** `redact_args` masked
   `api_token` everywhere it was displayed, but the search box matched the **raw**
   argument — so `q=sk_live_S` found the row and `q=sk_live_X` did not, and a secret
