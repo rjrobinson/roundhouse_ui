@@ -37,8 +37,12 @@ Sidekiq seriously enough to want this, you are running it seriously enough to bu
 
 ## Support this project
 
-If Roundhouse saved you an incident, [buy me a coffee](https://buymeacoffee.com/rjrobinson).
-Buy Sidekiq Pro first.
+If Roundhouse saved you an incident, [buy me a coffee](https://buymeacoffee.com/rjrobinson)
+— buy Sidekiq Pro first.
+
+I'd rather hear the story, though. Tell me what broke and what you were trying to find
+out: [@_AwesomeRob](https://x.com/_AwesomeRob) on X, or open an
+[issue](https://github.com/rjrobinson/roundhouse_ui/issues).
 
 ## Why
 
