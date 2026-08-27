@@ -9,10 +9,8 @@ module RoundhouseUi
   # consumed without stopping the worker process.
   #
   # When Sidekiq Pro is loaded we defer to *its* registry instead (see .native?).
-  # Pro reopens Sidekiq::Queue with pause!/unpause!/paused? and prepends pause
-  # support onto Sidekiq::BasicFetch, so pausing is already enforced with no
-  # Roundhouse fetcher installed — and Pro's key ("paused") is not ours
-  # ("roundhouse:paused"), so writing our own set there would do nothing.
+  # Under Pro we defer to its own pause API (see .native?), so pausing is enforced
+  # with no Roundhouse fetcher installed. Pro's key is not ours.
   module Pause
     KEY        = "roundhouse:paused"
     FETCH_FLAG = "roundhouse:fetch_alive" # liveness beacon set by the fetcher
@@ -28,10 +26,8 @@ module RoundhouseUi
       defined?(::Sidekiq::Queue) && ::Sidekiq::Queue.method_defined?(:pause!)
     end
 
-    # Under Pro, go through Sidekiq::Queue#pause! rather than writing PRO_KEY
-    # ourselves: Pro's fetchers read that set once at startup and afterwards only
-    # update on the "pro:config" pubsub message that pause! publishes. A bare
-    # SADD would leave running workers pulling the queue until they restarted.
+    # Under Pro, always go through Sidekiq::Queue#pause! — writing PRO_KEY directly
+    # does not reach already-running workers.
     def pause!(queue)
       return ::Sidekiq::Queue.new(queue.to_s).pause! if native?
 
@@ -82,9 +78,8 @@ module RoundhouseUi
     # True when a RoundhouseUi::Fetch has reported in recently — i.e. pausing
     # will take effect. When false, the UI warns instead of pretending.
     #
-    # Under Pro no beacon is needed: Pro prepends pause support onto
-    # Sidekiq::BasicFetch (and SuperFetch honors it too), so any Pro worker
-    # enforces pauses whether or not our fetcher is installed.
+    # Under Pro no beacon is needed: any Pro worker enforces pauses whether or not
+    # our fetcher is installed.
     def fetch_installed?
       return true if native?
 

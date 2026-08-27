@@ -255,10 +255,8 @@ Roundhouse detects whether a fetcher has reported in).
 
 ### Sidekiq Pro / Enterprise — nothing to install
 
-Pro ships its own enforced pause, and Roundhouse uses it automatically. Pro reopens
-`Sidekiq::Queue` with `pause!`/`unpause!` and *prepends* pause support onto
-`Sidekiq::BasicFetch` (`super_fetch` honors it too), so **any Pro worker enforces
-pauses** whether or not a fetch strategy is configured.
+Pro ships its own enforced pause, and Roundhouse uses it automatically — **any Pro
+worker enforces pauses** whether or not a fetch strategy is configured.
 
 When Roundhouse detects Pro it delegates pause/resume to `Sidekiq::Queue#pause!`,
 reads paused state from Pro's registry, advertises `native_pause`, and drops the
@@ -270,9 +268,12 @@ reads paused state from Pro's registry, advertises `native_pause`, and drops the
   feature you already have.
 
 Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
-Redis key directly: Pro's fetchers read that set once at startup and afterwards
-only update on the `pro:config` pubsub message `pause!` publishes, so a raw write
-would leave running workers pulling the queue until they restarted.
+Redis key directly — a raw write does not reach already-running workers.
+
+Pro's own behaviour here is described from its public API, and Roundhouse has no Pro
+dependency and runs no Pro in CI. Treat it as our integration contract, not as Pro
+documentation; [Sidekiq's own docs](https://github.com/sidekiq/sidekiq/wiki) are
+authoritative.
 
 ## Icons and motion
 

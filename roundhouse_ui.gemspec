@@ -9,7 +9,9 @@ Gem::Specification.new do |spec|
   spec.summary     = "Roundhouse — a real-time ops UI for Sidekiq and Solid Queue."
   spec.description = "Mountable Rails engine for Sidekiq or Solid Queue: grouped errors, argument " \
                      "search, filter-scoped bulk actions, enforced pause, snapshots, audit " \
-                     "log. Mounts alongside or instead of Sidekiq::Web."
+                     "log. Mounts alongside or instead of Sidekiq::Web. Not affiliated with " \
+                     "or endorsed by Contributed Systems LLC; Sidekiq, Sidekiq Pro and Sidekiq " \
+                     "Enterprise are their trademarks."
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.1"
 
