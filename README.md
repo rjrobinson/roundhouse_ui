@@ -42,7 +42,7 @@ RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
 ## What you get
 
 - **Grouped errors** — failures fingerprinted by class + error, so one bad deploy is one row with a count, not thousands.
-- **Search across the retry, dead and scheduled sets** — by class, JID, error, or argument value.
+- **One filter bar** — `class=BillingWorker error=Timeout::Error stripe` in a single box. Facets match exactly, `%` wildcards, free text searches class, JID, error and redacted arguments. The whole filter is one `?q=` parameter, so a filtered view is a URL you can bookmark and share.
 - **Bulk retry or delete scoped to a filter** — every job matching your search, not just the page you can see.
 - **Enforced pause** — a paused queue actually stops being worked, on OSS Sidekiq too.
 - **Snapshot → restore** — back a queue up before you purge it, and put it back if you were wrong.
@@ -72,6 +72,7 @@ see [Security](#security).
 [Pausing queues](#pausing-queues) ·
 [Snapshots](#snapshots) ·
 [Cancelling jobs](#cancelling-jobs) ·
+[Search](#search) ·
 [Bulk actions on a filter](#bulk-actions-on-a-filter) ·
 [Slowest job classes](#slowest-job-classes)
 
@@ -456,10 +457,10 @@ wrapper is unwrapped before your resolver sees it. See
 
 ### Filtering
 
-`?tag=key:value` filters Retries, Dead and Scheduled — for example
-`/roundhouse/retries?tag=squad:growth`. It combines with the search box, survives
-pagination, and **applies to bulk actions too**, so "delete all matching" acts on exactly
-the rows shown and never more.
+Type `tag=squad:growth` into the search box on Retries, Dead, Scheduled, a queue's job
+list, or Errors. It combines with every other filter, survives pagination, and **applies
+to bulk actions too**, so "delete all matching" acts on exactly the rows shown and never
+more. `?tag=squad:growth` still works as a URL — see [Search](#search).
 
 Declare a vocabulary to get stable dropdowns instead of relying on the URL:
 
@@ -541,6 +542,41 @@ end
 
 It's two cheap Redis writes per job (a counter + a summed-ms float) into a single hash,
 pipelined into **one round-trip**, and a job failure never propagates from the collector.
+
+## Search
+
+One box per page, and everything in it travels as a single `?q=` parameter:
+
+```
+/roundhouse/dead?q=class%3DBillingWorker+error%3DTimeout%3A%3AError+stripe
+```
+
+| | |
+|---|---|
+| `class=` | exact job class (the real class, not the ActiveJob wrapper) |
+| `error=` | exact error class |
+| `queue=` | exact queue name |
+| `tag=` | a declared tag, as `key:value` |
+| `%` | wildcard — `class=Roundhouse%`, `class=%Worker`, `class=%oundhouse%` |
+| anything else | substring across class, JID, error message and **redacted** arguments |
+
+Facets match exactly unless you use `%`, so `queue=default` never also selects
+`default_low`. `_` is a literal, not a wildcard. Quote values with spaces
+(`error="Net::ReadTimeout with body"`), and use `text="account_id=1234"` for free text
+that looks like a filter.
+
+Anything the parser does not understand is **refused whole**, with the offending token
+named — never dropped and never silently widened, because this box sits directly above
+"delete all matching". `class=%` is refused for the same reason: a pattern with no
+literal characters matches everything.
+
+Each active facet shows as a pill in the bar with its own ×. Tab completes a key or
+value; Enter applies. The `?` beside the box lists the vocabulary for that page — Errors
+has no `queue=` (a class+error group spans every queue) and the Queues index has no
+`class=`.
+
+Arguments are searched **as they are displayed**, i.e. redacted. Searching the raw values
+would turn the box into an oracle for the secrets `redact_args` exists to hide.
 
 ## Bulk actions on a filter
 
