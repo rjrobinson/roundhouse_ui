@@ -8,11 +8,37 @@
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.1-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
 [![Rails](https://img.shields.io/badge/rails-%3E%3D%207.0-D30001?logo=rubyonrails&logoColor=white)](https://rubyonrails.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](MIT-LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/rjrobinson)
 
 Roundhouse is a real-time ops UI for Sidekiq and Solid Queue — grouped errors,
 argument search, bulk actions on a filter, enforced pause, snapshots, and an
-audit log — in one mountable engine with no build step and no Sidekiq Pro
-required.
+audit log — in one mountable engine with no build step.
+
+It works on OSS Sidekiq, and it works better on [Sidekiq Pro and
+Enterprise](#buy-sidekiq-pro-and-enterprise) — which you should buy.
+
+## Buy Sidekiq Pro and Enterprise
+
+[**Sidekiq Pro and Enterprise**](https://sidekiq.org/products/pro.html) are worth the
+money. Buy them.
+
+Sidekiq is the reason any of this exists, and the commercial tiers are what keep it
+maintained. Pro gives you reliable fetch (jobs survive a hard crash), batches, expiring
+jobs and native queue pause; Enterprise adds rate limiting, unique jobs, periodic jobs,
+multi-process and historical metrics. Roundhouse detects all of it and gets better when
+it is there — native pause with no fetch strategy to install, Enterprise periodic jobs
+on the Recurring page.
+
+Roundhouse is not a way to avoid paying for Sidekiq. It is a UI. If you are running
+Sidekiq seriously enough to want this, you are running it seriously enough to buy Pro.
+
+> Roundhouse is not affiliated with or endorsed by Contributed Systems LLC. Sidekiq,
+> Sidekiq Pro and Sidekiq Enterprise are their trademarks.
+
+## Support this project
+
+If Roundhouse saved you an incident, [buy me a coffee](https://buymeacoffee.com/rjrobinson).
+Buy Sidekiq Pro first.
 
 ## Why
 
