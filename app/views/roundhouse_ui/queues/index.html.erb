@@ -5,7 +5,7 @@
       noun: "queue names" %>
 <%= render "roundhouse_ui/shared/filter_error" %>
 
-<% if RoundhouseUi.allow_job_editing %>
+<% if job_editing? %>
   <div class="rh-toolbar"><%= link_to "+ Enqueue job", new_job_path, class: "rh-btn rh-btn-primary" %></div>
 <% end %>
 
@@ -77,7 +77,7 @@
                 <%= button_to "Pause", pause_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
               <% end %>
             <% end %>
-            <%= button_to "Snapshot", snapshot_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %>
+            <% if RoundhouseUi.backend.supports?(:snapshots) %><%= button_to "Snapshot", snapshot_queue_path(q.name), method: :post, class: "rh-btn", form_class: "rh-inline" %><% end %>
             <%= button_to "Purge", purge_queue_path(q.name),
                   method: :post,
                   class: "rh-btn rh-btn-danger",

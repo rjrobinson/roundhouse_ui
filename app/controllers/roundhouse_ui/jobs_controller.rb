@@ -5,6 +5,8 @@ module RoundhouseUi
   # Sidekiq has no in-place edit: a job in a set is keyed by its payload, so an
   # "edit" is delete-the-old + push-the-modified.
   class JobsController < ApplicationController
+    # backend.push is Sidekiq-only; without it Edit had nothing to re-enqueue into.
+    requires_capability :enqueue, only: %i[new create edit update]
     REDIRECTS = { "dead" => :dead_set_path, "retry" => :retries_path, "scheduled" => :scheduled_path }.freeze
 
     before_action :require_editing_enabled!, except: :show
@@ -50,8 +52,10 @@ module RoundhouseUi
       klass = params[:job_class].presence || entry.item["class"]
       queue = params[:queue].presence || entry.queue
 
-      entry.delete
+      # Push BEFORE delete. Reversed, a backend that cannot push (Solid Queue raises
+      # NotImplementedError) left the job deleted and gone.
       backend.push("class" => klass, "queue" => queue, "args" => args)
+      entry.delete
       redirect_to send(REDIRECTS[params[:set]]), notice: "Edited & re-enqueued #{klass} → #{queue}."
     rescue ArgumentError => e
       @action_path = job_path(set: params[:set], jid: params[:jid])

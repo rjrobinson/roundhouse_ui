@@ -24,6 +24,12 @@ module RoundhouseUi
     # Never enumerate filter params by hand in a view. That is what let the pager
     # drop the class filter on page two, and the confirm form drop it between the
     # dry run and the deletion.
+    # Editing needs BOTH the host's opt-in and a backend that can push. Six views
+    # read the config flag directly; only this reads the capability too.
+    def job_editing?
+      RoundhouseUi.allow_job_editing && RoundhouseUi.backend.supports?(:enqueue)
+    end
+
     # Override keys that name a facet, and the FilterQuery field each one sets.
     # Anything not listed here is transport (page, op) and passes straight through.
     FACET_OVERRIDES = { class: :klass, error: :error, queue: :queue, tag: :tag }.freeze

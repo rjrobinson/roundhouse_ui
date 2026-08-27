@@ -6,6 +6,7 @@ module RoundhouseUi
     # that stays guarded. This was previously expressed by omission from an `only:`
     # list, which is indistinguishable from having forgotten.
     allow_in_read_only :snapshot
+    requires_capability :snapshots, only: %i[snapshot]
 
     # A queue is not a job, so class= and error= have nothing to apply to here.
     # queue= narrows the LIST to one queue by exact name; free text stays a substring

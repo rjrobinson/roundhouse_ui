@@ -14,7 +14,10 @@ module RoundhouseUi
 
       # No retries/redis/capsules/workers (deferred); pause is native (no fetcher
       # warning). dead/scheduled/busy are supported.
-      CAPABILITIES = %i[dead scheduled busy native_pause].freeze
+      # retry_job: SolidQueue::FailedExecution#retry exists, so dead-set retry works.
+      # Absent on purpose: :enqueue and :enqueue_now (push and add_to_queue are not
+      # implemented), :snapshots and :redis (both need Redis).
+      CAPABILITIES = %i[dead scheduled busy native_pause retry_job].freeze
       def supports?(capability) = CAPABILITIES.include?(capability)
 
       def stats
@@ -143,7 +146,14 @@ module RoundhouseUi
           }
         end
 
-        def retry = @execution.retry if @execution.respond_to?(:retry)
+        # Guarded at CALL time. As a trailing `if` on an endless def this was evaluated
+        # when the class body loaded, against a nil class-level ivar — so the method
+        # was never defined and every Retry raised NoMethodError.
+        def retry
+          raise NotImplementedError, "this entry cannot be retried" unless @execution.respond_to?(:retry)
+
+          @execution.retry
+        end
         # discard removes the job row along with the execution and takes the
         # row lock while it does; destroy drops only the execution, leaving an
         # orphaned solid_queue_jobs row that nothing will ever pick up again.

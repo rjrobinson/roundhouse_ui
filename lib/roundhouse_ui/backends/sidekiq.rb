@@ -18,7 +18,8 @@ module RoundhouseUi
       # fetcher), so :native_pause is withheld and the "not enforced" warning
       # applies — but Sidekiq Pro ships its own enforced pause, so there it is
       # advertised and the warning drops away.
-      CAPABILITIES = %i[retries dead scheduled busy workers redis capsules cancel history].freeze
+      CAPABILITIES = %i[retries dead scheduled busy workers redis capsules cancel history
+                        retry_job enqueue enqueue_now snapshots].freeze
 
       # Process-local, deliberately: this is a cheap staleness gate, not shared
       # state. Every process reaches its own conclusion within CONCURRENCY_TTL.
