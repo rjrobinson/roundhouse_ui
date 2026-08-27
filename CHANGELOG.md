@@ -136,7 +136,6 @@ All notable changes to this project are documented here. The format is based on
   being settled against #17 and #41, and pinning it now would freeze it before it is
   right.
 
-### Changed
 - **The Busy page's Cancel button is now off by default**, behind
   `cancel_enabled`. Cancellation only does anything once you install
   `CancelMiddleware` or have long-running jobs poll
