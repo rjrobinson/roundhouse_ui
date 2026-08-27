@@ -8,11 +8,41 @@
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.1-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
 [![Rails](https://img.shields.io/badge/rails-%3E%3D%207.0-D30001?logo=rubyonrails&logoColor=white)](https://rubyonrails.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](MIT-LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/rjrobinson)
 
 Roundhouse is a real-time ops UI for Sidekiq and Solid Queue — grouped errors,
 argument search, bulk actions on a filter, enforced pause, snapshots, and an
-audit log — in one mountable engine with no build step and no Sidekiq Pro
-required.
+audit log — in one mountable engine with no build step.
+
+It works on OSS Sidekiq, and it works better on [Sidekiq Pro and
+Enterprise](#buy-sidekiq-pro-and-enterprise) — which you should buy.
+
+## Buy Sidekiq Pro and Enterprise
+
+[**Sidekiq Pro and Enterprise**](https://sidekiq.org/products/pro.html) are worth the
+money. Buy them.
+
+Sidekiq is the reason any of this exists, and the commercial tiers are what keep it
+maintained. Pro gives you reliable fetch (jobs survive a hard crash), batches, expiring
+jobs and native queue pause; Enterprise adds rate limiting, unique jobs, periodic jobs,
+multi-process and historical metrics. Roundhouse detects all of it and gets better when
+it is there — native pause with no fetch strategy to install, Enterprise periodic jobs
+on the Recurring page.
+
+Roundhouse is not a way to avoid paying for Sidekiq. It is a UI. If you are running
+Sidekiq seriously enough to want this, you are running it seriously enough to buy Pro.
+
+> Roundhouse is not affiliated with or endorsed by Contributed Systems LLC. Sidekiq,
+> Sidekiq Pro and Sidekiq Enterprise are their trademarks.
+
+## Support this project
+
+If Roundhouse saved you an incident, [buy me a coffee](https://buymeacoffee.com/rjrobinson)
+— buy Sidekiq Pro first.
+
+I'd rather hear the story, though. Tell me what broke and what you were trying to find
+out: [@_AwesomeRob](https://x.com/_AwesomeRob) on X, or open an
+[issue](https://github.com/rjrobinson/roundhouse_ui/issues).
 
 ## Why
 
@@ -42,7 +72,7 @@ RoundhouseUi.backend = RoundhouseUi::Backends::SolidQueue.new
 ## What you get
 
 - **Grouped errors** — failures fingerprinted by class + error, so one bad deploy is one row with a count, not thousands.
-- **Search across the retry, dead and scheduled sets** — by class, JID, error, or argument value.
+- **One filter bar** — `class=BillingWorker error=Timeout::Error stripe` in a single box. Facets match exactly, `%` wildcards, free text searches class, JID, error and redacted arguments. The whole filter is one `?q=` parameter, so a filtered view is a URL you can bookmark and share.
 - **Bulk retry or delete scoped to a filter** — every job matching your search, not just the page you can see.
 - **Enforced pause** — a paused queue actually stops being worked, on OSS Sidekiq too.
 - **Snapshot → restore** — back a queue up before you purge it, and put it back if you were wrong.
@@ -72,6 +102,7 @@ see [Security](#security).
 [Pausing queues](#pausing-queues) ·
 [Snapshots](#snapshots) ·
 [Cancelling jobs](#cancelling-jobs) ·
+[Search](#search) ·
 [Bulk actions on a filter](#bulk-actions-on-a-filter) ·
 [Slowest job classes](#slowest-job-classes)
 
@@ -254,10 +285,8 @@ Roundhouse detects whether a fetcher has reported in).
 
 ### Sidekiq Pro / Enterprise — nothing to install
 
-Pro ships its own enforced pause, and Roundhouse uses it automatically. Pro reopens
-`Sidekiq::Queue` with `pause!`/`unpause!` and *prepends* pause support onto
-`Sidekiq::BasicFetch` (`super_fetch` honors it too), so **any Pro worker enforces
-pauses** whether or not a fetch strategy is configured.
+Pro ships its own enforced pause, and Roundhouse uses it automatically — **any Pro
+worker enforces pauses** whether or not a fetch strategy is configured.
 
 When Roundhouse detects Pro it delegates pause/resume to `Sidekiq::Queue#pause!`,
 reads paused state from Pro's registry, advertises `native_pause`, and drops the
@@ -269,9 +298,12 @@ reads paused state from Pro's registry, advertises `native_pause`, and drops the
   feature you already have.
 
 Roundhouse always goes through `Sidekiq::Queue#pause!` rather than writing Pro's
-Redis key directly: Pro's fetchers read that set once at startup and afterwards
-only update on the `pro:config` pubsub message `pause!` publishes, so a raw write
-would leave running workers pulling the queue until they restarted.
+Redis key directly — a raw write does not reach already-running workers.
+
+Pro's own behaviour here is described from its public API, and Roundhouse has no Pro
+dependency and runs no Pro in CI. Treat it as our integration contract, not as Pro
+documentation; [Sidekiq's own docs](https://github.com/sidekiq/sidekiq/wiki) are
+authoritative.
 
 ## Icons and motion
 
@@ -456,10 +488,10 @@ wrapper is unwrapped before your resolver sees it. See
 
 ### Filtering
 
-`?tag=key:value` filters Retries, Dead and Scheduled — for example
-`/roundhouse/retries?tag=squad:growth`. It combines with the search box, survives
-pagination, and **applies to bulk actions too**, so "delete all matching" acts on exactly
-the rows shown and never more.
+Type `tag=squad:growth` into the search box on Retries, Dead, Scheduled, a queue's job
+list, or Errors. It combines with every other filter, survives pagination, and **applies
+to bulk actions too**, so "delete all matching" acts on exactly the rows shown and never
+more. `?tag=squad:growth` still works as a URL — see [Search](#search).
 
 Declare a vocabulary to get stable dropdowns instead of relying on the URL:
 
@@ -541,6 +573,41 @@ end
 
 It's two cheap Redis writes per job (a counter + a summed-ms float) into a single hash,
 pipelined into **one round-trip**, and a job failure never propagates from the collector.
+
+## Search
+
+One box per page, and everything in it travels as a single `?q=` parameter:
+
+```
+/roundhouse/dead?q=class%3DBillingWorker+error%3DTimeout%3A%3AError+stripe
+```
+
+| | |
+|---|---|
+| `class=` | exact job class (the real class, not the ActiveJob wrapper) |
+| `error=` | exact error class |
+| `queue=` | exact queue name |
+| `tag=` | a declared tag, as `key:value` |
+| `%` | wildcard — `class=Roundhouse%`, `class=%Worker`, `class=%oundhouse%` |
+| anything else | substring across class, JID, error message and **redacted** arguments |
+
+Facets match exactly unless you use `%`, so `queue=default` never also selects
+`default_low`. `_` is a literal, not a wildcard. Quote values with spaces
+(`error="Net::ReadTimeout with body"`), and use `text="account_id=1234"` for free text
+that looks like a filter.
+
+Anything the parser does not understand is **refused whole**, with the offending token
+named — never dropped and never silently widened, because this box sits directly above
+"delete all matching". `class=%` is refused for the same reason: a pattern with no
+literal characters matches everything.
+
+Each active facet shows as a pill in the bar with its own ×. Tab completes a key or
+value; Enter applies. The `?` beside the box lists the vocabulary for that page — Errors
+has no `queue=` (a class+error group spans every queue) and the Queues index has no
+`class=`.
+
+Arguments are searched **as they are displayed**, i.e. redacted. Searching the raw values
+would turn the box into an oracle for the secrets `redact_args` exists to hide.
 
 ## Bulk actions on a filter
 
