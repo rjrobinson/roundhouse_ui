@@ -23,7 +23,7 @@ module RoundhouseUi
       @group_tags = @groups.to_h { |g| [ g[:klass], Tags.for(klass: g[:klass], item: {}, cache: tag_cache) ] }
       @tag_counts = tag_counts(@groups)
       @tag = tag_filter
-      @groups = @groups.select { |g| Tags.match?(@group_tags[g[:klass]], *@tag) } if @tag
+      @groups = @groups.select { |g| group_tagged?(g, *@tag) } if @tag
 
       # class= and error= match EXACTLY, the same as on the job sets, so a funnel
       # clicked there and a facet typed here mean one thing. Filtered in memory:
@@ -42,14 +42,16 @@ module RoundhouseUi
     # `?tag=key:value`, read off the one parse like everywhere else rather than
     # re-split from params — two readings of one filter is how a page comes to show
     # one scope and act on another.
-    def tag_filter
-      key, value = @filter.tag_pair
-      return nil if key.blank? || value.blank?
+    def tag_filter = @filter.tag_pair
 
+    # Fail CLOSED on an undeclared key, like the job sets do. Returning nil here meant
+    # no filter applied, so `?tag=nosuchkey` listed every issue while the bar showed a
+    # tag pill — the README promises the opposite.
+    def group_tagged?(group, key, value)
       declared = Tags.filters
-      return nil if declared && !declared.key?(key)
+      return false if declared && !declared.key?(key)
 
-      [ key, value ]
+      Tags.match?(@group_tags[group[:klass]], key, value)
     end
 
     # { "squad" => { "core" => 4, "training" => 5 } } — the counts behind the

@@ -85,10 +85,9 @@ module RoundhouseUi
     # Returns [entries_for_page, has_next?]. Scans only far enough to fill the
     # requested page plus one (to know if a next page exists) — never loads the
     # whole set, so a 50k dead set stays cheap to page through.
-    # `?tag=key:value` — an exact match against a host-defined tag (ADR 0002),
-    # parsed once per request. Deliberately structured rather than folded into
-    # the free-text query: substring search feeding bulk_apply would silently
-    # widen destructive bulk actions.
+    # `tag=key:value` inside ?q= — exact, against a host-defined tag (ADR 0002).
+    # Tag values are also in the free-text haystack; safe only because browse and
+    # bulk_apply share this one predicate.
     def tag_filter = filter.tag_pair
 
     def browse(set, query, page, per = PER_PAGE, tag: nil)
@@ -216,11 +215,10 @@ module RoundhouseUi
     # "default_low".
     def queue_filter = filter.queue
 
-    # `?class=` and `?error=` — the pair behind "find more like this". Exact, and
-    # structured rather than typed into the search box for the same reason
-    # ?tag= and ?queue= are: this filter renders the "delete all matching"
-    # buttons directly beneath it, and a substring would let that select jobs
-    # whose ARGUMENTS merely mention the class you clicked.
+    # `class=` and `error=` — the pair behind "find more like this", and typeable.
+    # Exact unless you add a %: these render the "delete all matching" buttons
+    # beneath them, and a bare substring would select jobs whose ARGUMENTS merely
+    # mention the class.
     #
     # Class is compared unwrapped, so the filter means the same string the row
     # displays and the same one the Errors page groups by — one definition of

@@ -122,11 +122,9 @@ module RoundhouseUi
     # load. Default 5s; raise it if polling shows up in your traces.
     attr_accessor :poll_interval
 
-    # Queue pause/resume is only enforced when RoundhouseUi::Fetch is installed
-    # as the server's fetch strategy. If you run reliable fetch (Sidekiq
-    # Pro/Enterprise super_fetch) you can't also run our fetcher, so pause can't
-    # be enforced — set this to false to hide the pause controls and the
-    # "not enforced" warning entirely. Default: true.
+    # On OSS Sidekiq, pause is enforced only with RoundhouseUi::Fetch installed as the
+    # server's fetch strategy; the UI warns until it is. Sidekiq Pro and Solid Queue
+    # enforce it natively with no fetcher, so leave this on there. Default: true.
     attr_accessor :pause_enabled
 
     # Cancellation only does something if the host opted into it — either by

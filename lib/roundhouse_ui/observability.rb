@@ -13,7 +13,8 @@ module RoundhouseUi
   # your spans say something else silently matches nothing. Omit it if unsure; the
   # term is left out entirely when nil.
   #
-  # Write your own (Honeycomb, Sentry, …) by duck-typing job_url/queue_url/label.
+  # Write your own (Honeycomb, Sentry, …) by duck-typing job_url and label.
+  # error_url, icon and wordmark? are optional; queue_url is unused by the UI.
   module Observability
     # Default: no links anywhere.
     class NullAdapter

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-27
+
 ### Added
 - **A faceted search grammar** (`RoundhouseUi::FilterQuery`), the parser behind
   typing `class=Billing::SyncWorker error=Timeout::Error stripe` into the one search
@@ -179,6 +181,23 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **The dashboard 500'd on solid_queue 1.0.0 as soon as a queue existed.** It read
+  `backend.queues` and called `#latency` on the raw objects; older `SolidQueue::Queue`
+  has no such method. It now uses `queue_summaries`, which is ours, batched and uniform
+  across backends. The existing Solid Queue dashboard test passed only because it seeded
+  no queues, so `select` never invoked the block.
+
+- **`tag=squad:` selected everything and left the bulk controls live.** The parser only
+  checked for a colon, so a tag with an empty half parsed clean: the pill rendered,
+  `tag_pair` came back nil, and `entry_selected?`'s `return true if tag.nil?` matched
+  every entry — with `any_facets?` true, so "delete all matching" stayed offered. Both
+  halves must now be non-empty; the facet is dropped and bulk withdrawn, like any other
+  unusable value.
+
+- **Errors failed open on an undeclared tag key.** `?tag=nosuchkey:x` returned nil from
+  `tag_filter`, so no filter applied and every issue listed while the bar showed a tag
+  pill. The job sets fail closed and the README promises both do; Errors now does.
+
 - **Retry never worked on Solid Queue.** `Entry#retry` was written as an endless def
   with a trailing `if`, which Ruby evaluates when the class body loads — against a
   nil class-level ivar — so the method was never defined and every Retry raised
@@ -569,6 +588,7 @@ All notable changes to this project are documented here. The format is based on
 - Argument redaction (`RoundhouseUi.redact_args`).
 - `⌘K` command palette, light/dark themes, `read_only` mode, and a self-contained CSP.
 
+[0.11.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.11.0
 [0.10.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.10.0
 [0.9.1]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.1
 [0.9.0]: https://github.com/rjrobinson/roundhouse_ui/releases/tag/v0.9.0

@@ -20,8 +20,8 @@ module RoundhouseUi
     #
     # `klass`/`item` come from the backend entry (entry.klass / entry.item);
     # the ActiveJob adapter wrapper is unwrapped here, so resolvers always see
-    # the real job class. Pass a Hash as `cache` to memoize per class across a
-    # request — unused (and unneeded) in per-job mode.
+    # the real job class. Pass a Hash as `cache` to memoize across a
+    # request — keyed by class normally, by jid in per-job mode.
     def for(klass:, item:, cache: nil)
       resolver = RoundhouseUi.job_tags
       return EMPTY unless resolver
