@@ -40,8 +40,12 @@ module RoundhouseUi
       query = { class: klass }
       query[:error] = error if error
 
+      # No size modifier: it takes the page scale, like every other control in the
+      # Actions column it sits in. Asking for --sm here was picking a scale step by
+      # hand next to 30px siblings — the scale stopped arbitrary pixels, it could
+      # not stop me choosing the wrong one of the two it offers.
       link_to icon(:search), send(helper, **query),
-              class: "rh-btn rh-btn--sm rh-btn--icon", title: label,
+              class: "rh-btn rh-btn--icon", title: label,
               aria: { label: label }
     end
 

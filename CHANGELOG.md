@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Demo workers and a capped load generator**, so the console can be seen doing
+  something. `require "roundhouse_ui/demo"` in a development initializer, then
+  `rake roundhouse_ui:demo:load[15]`. Six classes across six queues with different
+  durations and failure rates — one long enough to always be mid-flight on Busy,
+  one flaky enough to dominate Errors — and a rate that rises and falls so the
+  dashboard's trend and drain forecast have something to say.
+
+  Deliberately not loaded by `require "roundhouse_ui"`. Each worker refuses to run
+  outside development, the task refuses any other environment, and it refuses Redis
+  database 0 — by asking the connection where it is rather than reading
+  configuration. `rake roundhouse_ui:demo:clean` removes what it left.
+
 - **Find more like this.** Every row on Retries, Dead and Scheduled carries a 🔍
   that narrows the set to that job's class and, where the set records one, that
   job's error — the same pair the Errors page treats as one issue, so a row here
@@ -84,6 +96,28 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **The Processed and Failed cards plotted a line that could only go up.** Both are
+  lifetime counters, so their sparkline was a monotonic ramp whose slope carried the
+  whole signal and whose level is what the eye reads — and on Failed, auto-scaled
+  around 131,000, a few hundred new failures rendered as a flat line with a step.
+  They now plot the rate: what arrived since the last poll. Busy threads and Backlog
+  are levels and keep plotting themselves, because differencing them would discard
+  the thing worth seeing.
+- **The Processed card's "/min" never updated.** The poll used
+  `querySelector('[data-stat="rate"]')`, and the header carries the same attribute —
+  so only the header was ever written and the card read `— / min` forever.
+
+- **The Actions column stopped wrapping.** Five controls in one right-aligned cell
+  and `text-align:right` does not stop a cell breaking between inline-blocks, so
+  Delete dropped onto a second line as soon as the "find more like this" glass and
+  Edit both appeared. The cell is marked and told not to wrap; auto table layout
+  gives the width back to the error-message column, which has it to spare.
+- **The dashboard's top-failing panel drew a vendor lockup on every row** — five
+  stacked wordmarks. One legend above the list and a compact icon in the row, the
+  same treatment the Errors page already uses. Its dividers also moved from
+  `--line-soft`, which is for separating cells inside a table and disappears
+  between list entries, so five rows read as one block of text.
+
 - **Every bulk action on the Dead set was impossible.** Retry and Delete on the
   selected rows failed with `ActionController::InvalidAuthenticityToken` while
   submitting a token that looked entirely valid.

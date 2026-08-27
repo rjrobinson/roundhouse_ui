@@ -753,6 +753,32 @@ unreachable Redis would skip them silently and the coverage would be imaginary.
 The dummy app under `test/dummy` mounts the engine at `/roundhouse`; point it at a local
 Redis and run `bin/rails server` to click around.
 
+## Seeing it work
+
+The gem ships workers that do real work and really fail, so a console has
+something to show. They are not loaded by `require "roundhouse_ui"` — ask for them
+explicitly, in an initializer you would not ship:
+
+```ruby
+# config/initializers/roundhouse.rb
+require "roundhouse_ui/demo" if Rails.env.development?
+```
+
+```bash
+bin/rails roundhouse_ui:demo:load[15]   # enqueue for 15 minutes, hard cap 20
+bin/rails roundhouse_ui:demo:clean      # remove everything it left behind
+```
+
+Six classes across six queues with different durations and failure rates — one
+long enough to always be mid-flight on **Busy**, one flaky enough to dominate
+**Errors** — so throughput moves, retries accumulate, and jobs reach the dead set
+on their own. The rate rises and falls, so the dashboard's trend and drain
+forecast have something to say.
+
+Each worker refuses to run outside development, the task refuses any environment
+but development, and it refuses Redis database 0 — checked by asking the
+connection where it is, not by reading configuration.
+
 ## Roadmap
 
 - Solid Queue: Workers view + enqueue, and the multi-DB (separate queue database) case.
