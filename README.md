@@ -1,5 +1,5 @@
 # Roundhouse
-<img width="4460" height="3152" alt="CleanShot 2026-07-01 at 09 42 17@2x" src="https://github.com/user-attachments/assets/3484709b-9c4f-449e-8776-53ad2de4781f" />
+<img width="4446" height="3022" alt="CleanShot 2026-08-27 at 07 43 42@2x" src="https://github.com/user-attachments/assets/cc737416-bf90-4303-85a9-0dcd1316939d" />
 
 <!-- TODO: demo GIF -->
 
