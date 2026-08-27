@@ -18,6 +18,42 @@ module RoundhouseUi
       ])
     end
 
+    # A URL that keeps every active filter, naming only what changes. Pass a key
+    # as nil to clear just that one.
+    #
+    # Never enumerate filter params by hand in a view. That is what let the pager
+    # drop the class filter on page two, and the confirm form drop it between the
+    # dry run and the deletion.
+    # Override keys that name a facet, and the FilterQuery field each one sets.
+    # Anything not listed here is transport (page, op) and passes straight through.
+    FACET_OVERRIDES = { class: :klass, error: :error, queue: :queue, tag: :tag }.freeze
+
+    def filter_params(overrides = {})
+      return overrides.compact unless respond_to?(:active_filters)
+
+      # A facet override edits the QUERY, it does not add a parameter. The filter
+      # now travels as one `?q=` string, so `filter_url(class: nil)` had to stop
+      # meaning "send class=nil alongside q" — which would have left the class
+      # sitting inside q, untouched, while the link claimed to clear it. Every ×
+      # in the console is one of these calls.
+      query = @filter || FilterQuery.none
+      transport = {}
+      overrides.each do |key, value|
+        # `q:` replaces the whole query — the one override that is not a facet edit.
+        # Left in transport it would have emitted a second q beside the real one.
+        next query = FilterQuery.parse(value) if key == :q
+
+        field = FACET_OVERRIDES[key]
+        field ? query = query.merge(field => value) : transport[key] = value
+      end
+
+      { q: query.to_s.presence }.compact.merge(transport.compact)
+    end
+
+    def filter_url(overrides = {})
+      url_for(filter_params(overrides).merge(only_path: true))
+    end
+
     # Where "find more like this" goes, per set.
     LIKE_PATHS = { "dead" => :dead_set_path, "retry" => :retries_path,
                    "scheduled" => :scheduled_path }.freeze
@@ -37,14 +73,22 @@ module RoundhouseUi
 
       error = job.item["error_class"].presence
       label = error ? "Find more #{klass} failing with #{error}" : "Find more #{klass}"
-      query = { class: klass }
-      query[:error] = error if error
+      # Built through from_params, not build: build does not validate, so a class
+      # name carrying a quote would produce a link whose own q= the next request
+      # refuses — a control that visibly does nothing. No representable filter,
+      # no button.
+      # Braced: from_params takes a keyword now, so a bare `class:` would be read as
+      # one and leave the positional hash empty.
+      filter = FilterQuery.from_params({ class: klass, error: error })
+      return nil if filter.invalid?
+
+      query = { q: filter.to_s }
 
       # No size modifier: it takes the page scale, like every other control in the
       # Actions column it sits in. Asking for --sm here was picking a scale step by
       # hand next to 30px siblings — the scale stopped arbitrary pixels, it could
       # not stop me choosing the wrong one of the two it offers.
-      link_to icon(:search), send(helper, **query),
+      link_to icon(:filter), send(helper, **query),
               class: "rh-btn rh-btn--icon", title: label,
               aria: { label: label }
     end
@@ -62,19 +106,87 @@ module RoundhouseUi
       ], " · ")
     end
 
+    # The placeholder, BUILT from the facets the page honours rather than written out
+    # per page. Five pages had five hand-written strings — "search class, jid, error,
+    # or arg value…", "filter by job class, error, or squad…", "filter queues by
+    # name…" — none of which mentioned that `class=` was a thing you could type. A
+    # hand-written hint next to a grammar is a hint that goes stale the day the
+    # grammar changes, and it went stale the day the grammar shipped.
+    def filter_placeholder(keys = FilterQuery::KEYS, noun: "text")
+      facets = keys.reject { |k| k == "text" }
+      facets -= [ "tag" ] unless RoundhouseUi.job_tags
+      return "search #{noun}…" if facets.empty?
+
+      "#{facets.map { |k| "#{k}=" }.join(" ")} or just type to search #{noun}"
+    end
+
+    # What the bar can complete. Keys always; tag values from the host's DECLARED
+    # vocabulary and queue names from the set the page already knows about — both
+    # free, no extra scan.
+    #
+    # `class=` and `error=` values are deliberately absent: enumerating them means
+    # reading every entry in the set on every render, and the whole reason browse
+    # reads only one page is that a 50k dead set must stay cheap to open. Type them;
+    # the funnel on each row fills them in for you.
+    def filter_vocabulary
+      vocab = {}
+      declared = RoundhouseUi::Tags.filters
+      if declared.present?
+        pairs = declared.flat_map { |key, values| Array(values).map { |v| "#{key}:#{v}" } }
+        vocab["tag"] = pairs if pairs.any?
+      end
+      names = Array(@queues).map { |q| q.respond_to?(:name) ? q.name.to_s : q.to_s }.reject(&:empty?)
+      names = [ @name.to_s ] if names.empty? && @name.present?
+      vocab["queue"] = names.uniq.sort if names.any?
+      vocab
+    end
+
+    # Is the page showing a SUBSET of the set? A different question from
+    # any_filter?, which asks whether a filter may authorise a bulk action — and
+    # answers no for a refused query, deliberately and correctly.
+    #
+    # Reusing the authorisation predicate for display made a refusal render as
+    # "nothing is filtered". Every typo now refuses, where once only a 500-character
+    # query did, so `clas=Foo` in the box produced the heading "Dead set · 24 jobs"
+    # and the cell "Dead set is empty 🎉" — above twenty-four dead jobs, with a
+    # tick of congratulation. Found by looking at the running page; no test asked.
+    # Asks the FILTER, never the bulk gate. Routing display through any_filter?
+    # produced the same bug twice: a refused query rendered as "nothing filtered"
+    # (heading "Dead set · 24 jobs" over "Dead set is empty 🎉"), and then a degraded
+    # one did too — `tag=garbage queue=ai` drops the tag, applies the queue, and
+    # still claimed the whole set. any_filter? answers "may this authorise a bulk
+    # action" and correctly says no in both cases; it is not a display predicate and
+    # is no longer used as one.
+    def filtered_view?(query, tag)
+      return true if @filter&.invalid? # selects nothing, which is a subset
+      return @filter.any? if @filter   # whatever SURVIVED parsing, dropped facets and all
+
+      any_filter?(query, tag)
+    end
+
+    # What an empty table says. Three cases, not two: the search was refused, the
+    # surviving filter matched nothing, or the set really is empty. Only the third
+    # gets the 🎉 — it used to get it in all three.
+    def empty_state(query, tag, all_clear:, noun: "jobs")
+      return "Nothing matched — the search above was not understood." if @filter&.invalid?
+      return "No #{noun} #{filter_description(query, tag)}." if filtered_view?(query, tag)
+
+      all_clear
+    end
+
     # Set heading that tells the truth under a filter. It used to always print
     # the whole-set size, so "Dead set · 19 jobs" sat above four filtered rows.
     def set_heading(label, showing:, total:, query: nil, tag: nil)
-      filtered = any_filter?(query, tag)
+      filtered = filtered_view?(query, tag)
       count = filtered ? "#{number_with_delimiter showing} of #{number_with_delimiter total}" : number_with_delimiter(total)
-      content_tag(:h2, class: "rh-h2") do
-        safe_join([
-          "#{label} · #{count} jobs",
-          (filtered ? content_tag(:span, filter_description(query, tag), class: "hint") : nil)
-        ].compact, " ")
-      end
+      # No prose restatement. The pills in the bar say which filters are on, in the
+      # same words you would type to reproduce them; the heading's job is the count.
+      # Saying it a second time in prose ("tagged squad: platform and failing with
+      # KeyError") was one of the four places one filter was rendered, and the one
+      # that could not be clicked to change it. filter_description still earns its
+      # place on the bulk confirm, where the sentence IS the thing being approved.
+      content_tag(:h2, "#{label} · #{count} jobs", class: "rh-h2")
     end
-
 
     # A one-line, redacted preview of a job's arguments. Sidekiq Web shows args
     # in its queue listing and we did not, which made a queue of one class
@@ -172,10 +284,8 @@ module RoundhouseUi
     def queue_pill(name, link: false)
       return content_tag(:span, name, class: "rh-pill rh-mono") unless link
 
-      active = @queue_filter == name.to_s
-      link_to name, url_for(only_path: true, page: nil, q: @query.presence,
-                            tag: params[:tag].presence,
-                            queue: (active ? nil : name)),
+      active = (@filter&.queue) == name.to_s
+      link_to name, filter_url(page: nil, queue: (active ? nil : name)),
         class: "rh-pill rh-mono rh-pill-link#{' is-on' if active}",
         title: active ? "Clear queue filter" : "Show only #{name}"
     end

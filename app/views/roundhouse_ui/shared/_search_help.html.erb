@@ -1,0 +1,37 @@
+<%# How to use the box, revealed on hover — and on focus, so it is reachable by
+    keyboard and on touch, where hover does not exist.
+
+    It earns its place because the grammar REFUSES what it does not understand
+    rather than falling back to a substring search. A refusal you cannot act on is
+    a dead end, so the vocabulary has to be one hover away from the box that needs
+    it. Every example below is copy-pasteable as written.
+
+    No JS: CSS :hover / :focus-within only. A popover that needs a script is a
+    popover that stops opening the day a nonce slips. %>
+<% keys = local_assigns.fetch(:keys, RoundhouseUi::FilterQuery::KEYS) %>
+<div class="rh-help">
+  <button type="button" aria-label="How to search" aria-describedby="rh-help-panel">?</button>
+  <div class="rh-help-panel" id="rh-help-panel" role="tooltip">
+    <h4>Filters narrow. Text searches.</h4>
+    <dl>
+      <% if keys.include?("class") %><dt>class=</dt><dd>exact job class — <code>class=Billing::SyncWorker</code></dd><% end %>
+      <% if keys.include?("error") %><dt>error=</dt><dd>exact error class — <code>error=Timeout::Error</code></dd><% end %>
+      <% if keys.include?("queue") %><dt>queue=</dt><dd>exact queue name — <code>queue=default</code></dd><% end %>
+      <% if RoundhouseUi.job_tags && keys.include?("tag") %>
+        <dt>tag=</dt><dd>a declared tag, as <code>key:value</code> — <code>tag=squad:core</code></dd>
+      <% end %>
+      <dt>anything else</dt><dd>substring, across class, jid, error message and redacted arguments</dd>
+    </dl>
+    <dl style="margin-top:9px">
+      <dt>%</dt><dd>wildcard — <code>class=Roundhouse%</code>, <code>class=%Worker</code>, <code>class=%oundhouse%</code></dd>
+    </dl>
+    <p class="rh-help-note">
+      Combine them: <code>error=KeyError queue=ai stripe</code> means that error, on
+      that queue, mentioning “stripe”. Without a <code>%</code> a filter matches
+      <strong>exactly</strong>, so <code>queue=default</code> never also selects
+      <code>default_low</code>. <code>_</code> is a literal, not a wildcard. Quote
+      values with spaces: <code>error="Net::ReadTimeout with body"</code>. For text
+      that looks like a filter, use <code>text="account_id=1234"</code>.
+    </p>
+  </div>
+</div>

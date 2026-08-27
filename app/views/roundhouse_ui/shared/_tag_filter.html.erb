@@ -14,16 +14,14 @@
         <% values = values.sort_by { |_, count| -count } if counts %>
         <% values.each do |value, count| %>
           <% active = @tag == [ key.to_s, value.to_s ] %>
-          <%= link_to url_for(only_path: true, page: nil, q: @query.presence,
-                              tag: (active ? nil : "#{key}:#{value}"),
-                              queue: params[:queue].presence),
+          <%= link_to filter_url(page: nil, tag: (active ? nil : "#{key}:#{value}")),
                 class: "rh-qf#{' is-on' if active}", title: "#{key}: #{value}" do %>
             <%= value %><% if count %><span class="rh-qf-n"><%= number_with_delimiter count %></span><% end %>
           <% end %>
         <% end %>
       <% end %>
       <% if @tag %>
-        <%= link_to "clear", url_for(only_path: true, tag: nil, page: nil, q: @query.presence, queue: params[:queue].presence), class: "rh-sub" %>
+        <%= link_to "clear", filter_url(tag: nil, page: nil), class: "rh-sub" %>
       <% end %>
     </div>
   <% end %>

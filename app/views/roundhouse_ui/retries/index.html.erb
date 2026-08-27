@@ -1,11 +1,9 @@
 <% content_for :title, "Retries" %>
 
-<form method="get" action="<%= retries_path %>" class="rh-search">
-  <input type="search" name="q" value="<%= @query %>" placeholder="search class, jid, error, or arg value…">
-  <% if params[:tag].present? %><input type="hidden" name="tag" value="<%= params[:tag] %>"><% end %>
-  <% if params[:queue].present? %><input type="hidden" name="queue" value="<%= params[:queue] %>"><% end %>
-</form>
+<%= render "roundhouse_ui/shared/search_bar", action: retries_path,
+      noun: "class, jid, error or arguments" %>
 
+<%= render "roundhouse_ui/shared/filter_error" %>
 <%= render "roundhouse_ui/shared/tag_filter" %>
 
 <%= set_heading("Retries", showing: @jobs.size, total: @total, query: @query, tag: @tag) %>
@@ -16,8 +14,8 @@
       <span class="rh-actionlabel" title="<%= filter_description(@query, @tag) %>">
         All <%= number_with_delimiter @total %> <%= filter_description(@query, @tag) %>
       </span>
-      <%= link_to "↻ Run now", preview_bulk_retries_path(op: "retry", q: @query, tag: params[:tag], queue: params[:queue]), class: "rh-btn" %>
-      <%= link_to "✕ Delete", preview_bulk_retries_path(op: "delete", q: @query, tag: params[:tag], queue: params[:queue]), class: "rh-btn rh-btn-danger" %>
+      <%= link_to "↻ Run now", preview_bulk_retries_path(**filter_params(op: "retry")), class: "rh-btn" %>
+      <%= link_to "✕ Delete", preview_bulk_retries_path(**filter_params(op: "delete")), class: "rh-btn rh-btn-danger" %>
     </div>
   </div>
 <% end %>
@@ -27,7 +25,7 @@
   <thead><tr><th>Job</th><% if tag_column? %><th><%= tag_column_label %></th><% end %><th>Queue</th><th>Last error</th><th>Attempt</th><th>Next try</th><th class="r">Actions</th></tr></thead>
   <tbody>
     <% if @jobs.empty? %>
-      <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= any_filter?(@query, @tag) ? "No retries #{filter_description(@query, @tag)}." : "Nothing waiting to retry 🎉" %></td></tr>
+      <tr><td colspan="<%= tag_column? ? 7 : 6 %>" class="rh-empty"><%= empty_state(@query, @tag, noun: "retries", all_clear: "Nothing waiting to retry 🎉") %></td></tr>
     <% else %>
       <% @jobs.each do |job| %>
         <tr>

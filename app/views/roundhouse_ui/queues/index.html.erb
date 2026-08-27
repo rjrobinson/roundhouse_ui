@@ -1,8 +1,9 @@
 <% content_for :title, "Queues" %>
 
-<form method="get" action="<%= queues_path %>" class="rh-search">
-  <input type="search" name="q" value="<%= @query %>" placeholder="filter queues by name…">
-</form>
+<%= render "roundhouse_ui/shared/search_bar", action: queues_path,
+      keys: RoundhouseUi::QueuesController::INDEX_FILTER_KEYS,
+      noun: "queue names" %>
+<%= render "roundhouse_ui/shared/filter_error" %>
 
 <% if RoundhouseUi.allow_job_editing %>
   <div class="rh-toolbar"><%= link_to "+ Enqueue job", new_job_path, class: "rh-btn rh-btn-primary" %></div>
@@ -20,13 +21,13 @@
     is turned off: filtering by a state you cannot set is a dead end. %>
 <% if RoundhouseUi.pause_enabled %>
 <div class="rh-quickfilters">
-  <%= link_to queues_path(q: @query.presence), class: "rh-qf#{' is-on' if @state.blank?}" do %>
+  <%= link_to filter_url(state: nil, page: nil), class: "rh-qf#{' is-on' if @state.blank?}" do %>
     All <span class="rh-qf-n"><%= @state_counts.values.sum %></span>
   <% end %>
-  <%= link_to queues_path(q: @query.presence, state: "active"), class: "rh-qf#{' is-on' if @state == 'active'}" do %>
+  <%= link_to filter_url(state: "active", page: nil), class: "rh-qf#{' is-on' if @state == 'active'}" do %>
     Active <span class="rh-qf-n"><%= @state_counts["active"] %></span>
   <% end %>
-  <%= link_to queues_path(q: @query.presence, state: "paused"), class: "rh-qf#{' is-on' if @state == 'paused'}" do %>
+  <%= link_to filter_url(state: "paused", page: nil), class: "rh-qf#{' is-on' if @state == 'paused'}" do %>
     Paused <span class="rh-qf-n"><%= @state_counts["paused"] %></span>
   <% end %>
 </div>
@@ -45,7 +46,7 @@
   </tr></thead>
   <tbody>
     <% if @queues.empty? %>
-      <tr><td colspan="7" class="rh-empty"><%= @query.present? ? "No queues match “#{@query}”." : "No active queues" %></td></tr>
+      <tr><td colspan="7" class="rh-empty"><%= empty_state(@query, nil, noun: "queues", all_clear: "No active queues") %></td></tr>
     <% else %>
       <% @queues.each do |q| %>
         <% paused = @paused.include?(q.name) %>

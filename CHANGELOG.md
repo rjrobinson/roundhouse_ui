@@ -7,6 +7,89 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **A faceted search grammar** (`RoundhouseUi::FilterQuery`), the parser behind
+  typing `class=Billing::SyncWorker error=Timeout::Error stripe` into the one search
+  box. `key=value` becomes an exact structured filter; whatever follows is one
+  verbatim substring needle.
+
+  The separator is `=`, not Datadog's `:`, because Ruby names are colon-dense —
+  `Billing::SyncWorker` needs no escaping when only the first `=` splits. Facets
+  lead, and the text is a contiguous slice from wherever they stop, so with no
+  facets it is byte-identical to the old `params[:q].strip` and every existing
+  search and bookmark behaves exactly as before.
+
+  Anything not understood is **refused whole**, with the offending token named —
+  never quietly dropped and never fallen back to free text. Discarding a token is
+  the only resolution that can select *more* than what was typed, and this box sits
+  above "delete all matching". Refused: unknown keys, empty values, conflicting
+  duplicates, unterminated quotes, negation and wildcards in a facet. `text="…"` is
+  the escape hatch for genuinely facet-shaped text.
+
+  **Now wired in**, and the whole filter travels as one `?q=` parameter — so a
+  filtered view is a URL you can bookmark, paste into Slack, and reopen. The box
+  shows exactly the string the URL carries, and parsing that string is what gets
+  applied: the page cannot display one scope while acting on another.
+
+  One parameter also retires a bug class rather than a bug. The filter was five
+  params hand-enumerated at six sites; the confirm form carried four of the five,
+  so a dry run listing two jobs POSTed a request that deleted five. There is no
+  longer a "some of the filters" for a form to carry.
+
+- **Search help, one hover away from the box.** The grammar refuses what it does
+  not understand rather than falling back to a substring search, which makes its
+  vocabulary something the box cannot be used without. A `?` beside every grammar
+  search field reveals the five keys, the exact-vs-substring distinction and the
+  `text="…"` escape hatch, with copy-pasteable examples.
+
+  Revealed on `:hover` **and** `:focus-within`, so it is reachable by keyboard and
+  present on touch, where hover does not exist. No JavaScript: a popover that needs
+  a script stops opening the day a nonce slips. Not rendered on the Queues index or
+  Errors pages, whose `q` is a plain substring — a panel promising `class=` there
+  would document behaviour those pages do not have. `search_help_test.rb` parses
+  every example in it, so the panel cannot drift into a page of instructions that
+  do not work.
+
+### Changed
+- **`?class=`, `?error=`, `?queue=` and `?tag=` are now read-only legacy shapes.**
+  Existing bookmarks and links keep working — they are folded into the query by
+  re-entering the parser, so nothing enters that the grammar would refuse. Every
+  link and form Roundhouse generates now emits canonical `?q=` instead. A legacy
+  param that contradicts `q=` (`?q=class=A&class=B`) refuses rather than silently
+  preferring one, because the winner would scope a Delete nobody chose.
+
+- **A search that is refused now says so, and no longer reads as good news.** A
+  refusal selects nothing, and `any_filter?` answers "may this authorise a bulk
+  action" — correctly *no* for a refusal. The heading and the empty-table caption
+  both reused that as "is anything filtered", so `clas=Foo` in the box rendered
+  "Dead set · 24 jobs" over an empty table captioned "Dead set is empty 🎉".
+  Display and authorisation are now separate predicates, and the parser's message
+  is shown above the table.
+
+- **A known key with an unusable value is dropped, not refused — and then no bulk
+  action is offered.** `?tag=garbage` browses forgivingly: the facet is dropped,
+  whatever else was typed still applies, and a banner names what was ignored. A
+  typo should not stop you looking.
+
+  What it must not do is quietly widen a destroy. `tag=garbage queue=default`
+  degrades to `queue=default`, which selects the *whole queue* — so the Delete
+  beneath it would take every dead job in it while the operator believed the tag
+  narrowed it too. That is the confirm-2-destroy-5 shape reached by a typo. So a
+  degraded query authorises no bulk action at all: browse and bulk still read one
+  identical filter (`entry_selected?` remains a pure conjunction — no divergence),
+  bulk simply declines to act on a filter that selects more than was asked for.
+
+- **Display no longer routes through the bulk-authorisation predicate.**
+  `any_filter?` answers "may this scope a destructive action", and correctly says no
+  for a refused *or* degraded query. The heading and the empty-table caption both
+  reused it as "is anything filtered", and lied twice: a typo rendered "Dead set ·
+  24 jobs" over a table captioned "Dead set is empty 🎉", and `tag=garbage queue=ai`
+  reported the whole set over rows narrowed to one queue. The heading now asks the
+  filter what survived parsing.
+
+- **Free text shaped like `user_id=123` is refused, not searched.** Lowercase
+  `key=` at the start of a query is now grammar. The refusal names the unknown key
+  and gives the escape hatch verbatim: `text="user_id=123"`.
+
 - **Demo workers and a capped load generator**, so the console can be seen doing
   something. `require "roundhouse_ui/demo"` in a development initializer, then
   `rake roundhouse_ui:demo:load[15]`. Six classes across six queues with different
@@ -96,6 +179,64 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **Search no longer confirms values the UI redacts.** `redact_args` masked
+  `api_token` everywhere it was displayed, but the search box matched the **raw**
+  argument — so `q=sk_live_S` found the row and `q=sk_live_X` did not, and a secret
+  could be read out one character at a time. A sixteen-character token falls in a
+  couple of hundred queries, to someone who can see the console and not the secrets,
+  which is the whole population `redact_args` exists for. The same needle scoped a
+  dry run, so the oracle worked through the confirm screen too.
+
+  Arguments are now searched exactly as they are displayed — redacted. With nothing
+  configured for redaction, behaviour is unchanged.
+
+- **A query is bounded, and an over-long one is refused rather than truncated.** A
+  megabyte of `q` against twenty thousand entries took five seconds; the substring
+  scan is linear in both, so the needle was a free multiplier on the server's CPU.
+  Queries over 500 characters now select nothing and cannot authorise a bulk action.
+  Refused, not truncated: a shorter needle matches *more*, and this predicate drives
+  Delete.
+
+  Argument matching also moved behind the cheap fields, so an entry only pays to
+  stringify its arguments when nothing else has already matched.
+
+- **A dry run of two jobs could confirm the deletion of five.** The bulk-preview
+  confirm form carried `op`, `q`, `tag` and `queue` — and not `class` or `error`. So
+  previewing `?op=delete&q=stripe&class=BillingWorker` listed 2 jobs, and the POST it
+  produced deleted all 5 matching `q` alone, reporting "Deleted 5 matching job(s)"
+  as though that had been approved. The preview *links*, the pager, the queue pills,
+  the tag chips and every search form had the same hole in different places.
+
+  `bulk_matches`'s own comment promises the dry run and the action "cannot disagree
+  about what matching means". They could, because they were handed different filters.
+
+  Filter state now has exactly one serialization point (`active_filters`), and every
+  URL and form starts from all of it and names only what it changes
+  (`filter_url` / `filter_params`) — so omitting a filter is not expressible. Nine
+  hand-enumerating sites removed.
+
+  The test that was supposed to catch this was named
+  `test_the_confirm_form_carries_every_filter` and asserted **four** filters by hand,
+  so adding a fifth left it green. It is driven by `FILTER_KEYS` now, and a new
+  structural test fails if anything anywhere enumerates filter params by hand.
+
+- **An unfiltered `bulk_all` deleted the whole set.** `POST /dead/bulk_all` with
+  nothing but `op=delete` — no query, tag, class, error or queue — emptied the dead
+  set up to the 1,000 cap and reported "Deleted 50 matching job(s)" as though that
+  were the request. Same for retries. With no filter every entry matches:
+  `entry_selected?` finds nothing to fail, `"".present?` is false, and
+  `return true if tag.nil?` does the rest.
+
+  The action's own comment claimed it was "only offered when a filter is active" —
+  and it was only *offered* that way. The view hid the button; the route had no gate
+  at all. The refusal now lives inside `bulk_matches`, the one place both the dry run
+  and the action pass through, rather than in a `before_action` the next destructive
+  action can forget. `any_filter?` delegates to the same predicate, so the button the
+  view offers and the scope the route enforces cannot drift apart again.
+
+  The checkbox `bulk` action is deliberately unaffected: an explicit list of jids
+  *is* a scope.
+
 - **The Processed and Failed cards plotted a line that could only go up.** Both are
   lifetime counters, so their sparkline was a monotonic ramp whose slope carried the
   whole signal and whose level is what the eye reads — and on Failed, auto-scaled

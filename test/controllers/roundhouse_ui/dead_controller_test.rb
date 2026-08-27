@@ -180,21 +180,51 @@ module RoundhouseUi
 
     # A destructive-scope bug already happened here once: a form that dropped the
     # queue filter would delete more than the page showed.
+    # This test used to enumerate four filters by hand while its name promised
+    # every one. So when class= and error= were added, it kept passing while the
+    # confirm form silently dropped both — and a dry run listing two jobs POSTed a
+    # request that deleted five. The test and the six hand-enumerating call sites
+    # had the same bug: a hardcoded list nobody updates.
+    #
+    # The filter is one parameter now, so "carried four of the five" is not a shape
+    # this form can take. What is asserted instead is the property the old test was
+    # a proxy for, and it is stronger: the q the POST will filter on reconstructs
+    # the IDENTICAL FilterQuery the dry run browsed with. Not a key list — the
+    # actual value, compared as a parsed query.
+    #
+    # Sent in the legacy five-param shape on purpose: that is what a bookmark or an
+    # older link looks like, so this covers the compatibility read at the same time.
     def test_the_confirm_form_carries_every_filter
       # A live tag resolver, so the tag filter actually selects rather than
       # excluding everything and leaving nothing to assert against.
       RoundhouseUi.job_tags = ->(klass:, item:) { { squad: "core" } }
-      stub_method(Sidekiq::DeadSet, :new, @set) do
-        get "/roundhouse/dead/preview", params: { op: "delete", q: "Stripe", queue: "default", tag: "squad:core" }
+      # Values that MATCH the fixture. With values that match nothing the preview
+      # renders "Nothing to do" and no form, and the test would pass on absence.
+      sent = { op: "delete", q: "Stripe", queue: "default", tag: "squad:core",
+               class: "ChargeCustomerJob", error: "Stripe::RateLimitError" }
+      expected = FilterQuery.from_params(sent)
+      refute expected.invalid?, "the fixture filter must itself be representable"
 
-        assert_select "form[action=?]", "/roundhouse/dead/bulk_all" do
-          assert_select "input[name=op][value=delete]"
-          assert_select "input[name=q][value=Stripe]"
-          assert_select "input[name=queue][value=default]"
-          assert_select "input[name=tag][value=?]", "squad:core"
-        end
+      stub_method(Sidekiq::DeadSet, :new, @set) do
+        get "/roundhouse/dead/preview", params: sent
+
+        assert_select "form[action=?]", "/roundhouse/dead/bulk_all"
+
+        carried = css_select("form[action='/roundhouse/dead/bulk_all'] input")
+                  .to_h { |i| [ i["name"], i["value"] ] }
+        assert_equal "delete", carried["op"]
+
+        assert_equal expected, FilterQuery.parse(carried["q"]),
+          "the confirm form posts #{carried['q'].inspect}, but the dry run above it " \
+          "listed jobs matching #{expected.to_s.inspect}. Whatever the POST does not " \
+          "carry it will not filter on, so the set you approved and the set that gets " \
+          "destroyed are different. It carried: #{carried.keys.inspect}"
+        # Every facet must actually be IN that one value — an empty q would compare
+        # equal to an empty expectation and this test would pass on nothing at all.
+        assert_equal %w[class error queue tag], expected.chips.map { |k, _| k.to_s }.sort
       end
     end
+
 
     def test_preview_says_so_when_nothing_matches
       stub_method(Sidekiq::DeadSet, :new, @set) do

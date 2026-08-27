@@ -1,0 +1,23 @@
+<%# Two states, both above the table where the rows they explain are.
+
+    REFUSED: the search was not understood, so it selects nothing. Unexplained,
+    that is indistinguishable from "no jobs have this problem" — the reading that
+    gets someone to close the tab satisfied.
+
+    DEGRADED: a facet was dropped and the rest applied. Browsing proceeds, because
+    a typo should not stop you looking. Bulk actions do not, because the filter
+    that survived selects a superset of what was typed — see bulk_filter_present?.
+
+    Reuses .rh-warn rather than inventing a state: the bulk cap notice already
+    means "read this before you trust the count below". %>
+<% if @filter&.invalid? %>
+  <div class="rh-warn" role="alert">
+    <%= @filter.message %>
+    <%= link_to "Clear the search", filter_url(q: nil), class: "rh-sub" %>
+  </div>
+<% elsif @filter&.degraded? %>
+  <div class="rh-warn" role="status">
+    <%= @filter.notes.join(" ") %>
+    Showing what the rest of the search selects; bulk actions are off until it parses.
+  </div>
+<% end %>

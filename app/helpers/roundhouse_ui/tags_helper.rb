@@ -78,12 +78,19 @@ module RoundhouseUi
     # Every active constraint must appear here. A confirm that names only the
     # text query while a queue or tag also narrows the set understates what is
     # about to be destroyed.
-    def filter_description(query, tag, queue = @queue_filter)
+    # `filter` is the controller's parse, reached through the helper. One source for
+    # the prose, the predicate and the pill — a description built from a second
+    # reading of the filter is a description that can disagree with what was applied.
+    def rh_filter
+      controller.respond_to?(:filter, true) ? controller.send(:filter) : RoundhouseUi::FilterQuery.none
+    end
+
+    def filter_description(query, tag, queue = rh_filter.queue)
       parts = []
       parts << "matching “#{query}”" if query.present?
       parts << "tagged #{tag[0]}: #{tag[1]}" if tag
       parts << "in queue #{queue}" if queue.present?
-      parts << like_description if @class_filter.present?
+      parts << like_description if rh_filter.klass.present? || rh_filter.error.present?
       parts.join(" and ")
     end
 
@@ -91,15 +98,25 @@ module RoundhouseUi
     # what it selected, because the bulk Delete sitting next to it acts on
     # precisely this set and nothing wider.
     def like_description
-      return "like #{@class_filter}" if @error_filter.blank?
+      # Either half stands on its own. "every Timeout::Error, whatever the class"
+      # is a question worth asking, so clearing the class must not take the error
+      # with it — which is what it used to do.
+      return "failing with #{rh_filter.error}" if rh_filter.klass.blank?
+      return "like #{rh_filter.klass}" if rh_filter.error.blank?
 
-      "like #{@class_filter} failing with #{@error_filter}"
+      "like #{rh_filter.klass} failing with #{rh_filter.error}"
     end
 
     # Any filter active? Bulk-on-match is filter-gated, so this decides whether
     # the bulk bar renders at all — and which empty-state copy is honest.
-    def any_filter?(query, tag, queue = @queue_filter)
-      query.present? || !tag.nil? || queue.present? || @class_filter.present?
+    # Delegates to the concern's predicate where it is available, so the button the
+    # view offers and the scope the route enforces cannot drift apart. They did:
+    # this returned true only for the view, while bulk_all had no gate at all.
+    def any_filter?(query, tag, queue = rh_filter.queue)
+      return controller.send(:bulk_filter_present?, query, tag) if controller.respond_to?(:bulk_filter_present?, true)
+
+      query.present? || !tag.nil? || queue.present? ||
+        rh_filter.klass.present? || rh_filter.error.present?
     end
 
     # Value only — the key is near-constant down a column, so repeating it is
