@@ -627,12 +627,11 @@ set to that job's class and, where the set records one, that job's error — the
 same pair the Errors page treats as a single issue. One click turns "this one row
 looks wrong" into "here are all 7,546 of them, and here are the bulk controls".
 
-The filters it sets (`?class=` and `?error=`) are **exact**, not substring
-searches. That matters because the button's whole purpose is to reveal
-`Delete all matching`: a substring filter would also select jobs whose *arguments*
-merely mention the class you clicked, and you would never see the difference.
-Same reason `?tag=` and `?queue=` are structured rather than folded into the
-search box.
+It sets `class=` and `error=` facets in the bar, and they match **exactly** — no
+`%`. That matters because the button's whole purpose is to reveal
+`Delete all matching`: a substring would also select jobs whose *arguments* merely
+mention the class you clicked, and you would never see the difference. Add a `%`
+yourself if you want the family rather than the class — see [Search](#search).
 
 ## Observability deep-links
 

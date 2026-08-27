@@ -156,8 +156,23 @@ class ActiveSupport::TestCase
   # cannot tell you whether Redis does what we assume it does.
   class_attribute :fake_redis, default: true, instance_writer: false
 
+  # Configuration is global, so a test that sets it and forgets to reset leaks into
+  # whatever runs next — and the failure surfaces in an unrelated test, which is the
+  # hardest kind to trace. Nine test files were leaking job_tags this way; adding an
+  # `ensure` to each is nine chances to forget again.
+  #
+  # Captured per test rather than reset to a constant, so a host default set in the
+  # dummy app's initializer survives.
+  RESETTABLE_CONFIG = %i[
+    read_only actor_resolver allow_job_editing redact_args job_tags job_tags_per_job
+    tag_filters show_sidekiq_failures collect_durations poll_interval pause_enabled
+    cancel_enabled theme themes icons job_runbooks allow_theme_selection
+    job_class_namespaces backend snapshot_store observability
+  ].freeze
+
   def before_setup
     super
+    @__rh_config = RESETTABLE_CONFIG.to_h { |name| [ name, RoundhouseUi.public_send(name) ] }
     return unless self.class.fake_redis
 
     @__rh_real_redis = Sidekiq.method(:redis)
@@ -166,6 +181,7 @@ class ActiveSupport::TestCase
   end
 
   def after_teardown
+    @__rh_config&.each { |name, value| RoundhouseUi.public_send("#{name}=", value) }
     Sidekiq.define_singleton_method(:redis, @__rh_real_redis) if @__rh_real_redis
     super
   end
