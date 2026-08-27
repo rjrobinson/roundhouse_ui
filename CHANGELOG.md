@@ -181,6 +181,12 @@ All notable changes to this project are documented here. The format is based on
   not the fix; that test is.
 
 ### Fixed
+- **The dashboard 500'd on solid_queue 1.0.0 as soon as a queue existed.** It read
+  `backend.queues` and called `#latency` on the raw objects; older `SolidQueue::Queue`
+  has no such method. It now uses `queue_summaries`, which is ours, batched and uniform
+  across backends. The existing Solid Queue dashboard test passed only because it seeded
+  no queues, so `select` never invoked the block.
+
 - **`tag=squad:` selected everything and left the bulk controls live.** The parser only
   checked for a colon, so a tag with an empty half parsed clean: the pill rendered,
   `tag_pair` came back nil, and `entry_selected?`'s `return true if tag.nil?` matched

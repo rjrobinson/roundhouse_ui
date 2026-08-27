@@ -4,7 +4,10 @@ module RoundhouseUi
   class DashboardController < ApplicationController
     def show
       @stats  = backend.stats
-      @queues = backend.queues
+      # queue_summaries, not queues: the raw objects differ per backend and older
+      # SolidQueue::Queue has no #latency, so the dashboard 500'd on solid_queue 1.0.0
+      # as soon as one queue existed. Summaries are ours, batched, and uniform.
+      @queues = backend.queue_summaries
       @metrics = Metrics.new(stats: @stats)
       @health  = Health.new(stats: @stats, queues: @queues, metrics: @metrics)
       # Highest-signal slices for the overview, from data we already read.

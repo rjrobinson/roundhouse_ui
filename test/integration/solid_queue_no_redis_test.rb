@@ -13,27 +13,32 @@ module RoundhouseUi
   class SolidQueueNoRedisTest < ActionDispatch::IntegrationTest
     self.fake_redis = false
 
-    UNREACHABLE = "redis://127.0.0.1:1/0".freeze
+    class NoRedis < StandardError; end
 
     def setup
       [ ::SolidQueue::FailedExecution, ::SolidQueue::ScheduledExecution,
         ::SolidQueue::ReadyExecution, ::SolidQueue::Pause, ::SolidQueue::Job ].each(&:delete_all)
       @forgery = ActionController::Base.allow_forgery_protection
       ActionController::Base.allow_forgery_protection = false
-      Sidekiq.configure_client { |c| c.redis = { url: UNREACHABLE, network_timeout: 0.1, reconnect_attempts: 0 } }
+      # Sidekiq.redis raises, rather than reconfiguring the client to an unreachable
+      # URL: configure_client does not rebuild an already-memoized pool on Sidekiq
+      # 7/8, so the pool kept working and this suite passed against CI's Redis while
+      # claiming there was none. Same technique test_helper uses to install its fake.
+      @real_redis = Sidekiq.method(:redis)
+      Sidekiq.define_singleton_method(:redis) { |&_blk| raise NoRedis, "no Redis on this install" }
       RoundhouseUi.read_only = false
       RoundhouseUi.backend = Backends::SolidQueue.new
     end
 
     def teardown
       ActionController::Base.allow_forgery_protection = @forgery
+      Sidekiq.define_singleton_method(:redis, @real_redis) if @real_redis
       RoundhouseUi.backend = nil
-      Sidekiq.configure_client { |c| c.redis = { url: ENV.fetch("REDIS_URL", "redis://localhost:6379/0") } }
     end
 
     # Guards every other test here: if Redis were reachable, they would prove nothing.
     def test_redis_really_is_unreachable
-      assert_raises(StandardError) { Sidekiq.redis { |c| c.call("PING") } }
+      assert_raises(NoRedis) { Sidekiq.redis { |c| c.call("PING") } }
     end
 
     def job_on(queue, klass: "HardJob", failed: false, scheduled_at: nil)
