@@ -98,7 +98,7 @@ jobs:
       # be right about what an operator sees mid-incident. Node is a CI-only
       # dependency — the gem itself still has no build step.
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
